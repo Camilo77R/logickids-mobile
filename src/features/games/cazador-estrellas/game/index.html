@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Cazador de Estrellas — LogicKids</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Motor 3D de Babylon.js -->
+  <canvas id="renderCanvas"></canvas>
+
+  <!-- UI Overlay: flota sobre el canvas sin bloquear taps -->
+  <div id="ui-overlay">
+
+    <!-- 1. Condición de la ronda (parte superior, centrada) -->
+    <div id="condicion-texto">Esperando partida...</div>
+
+    <!-- 2. Puntaje (esquina superior izquierda) -->
+    <div id="puntaje-container">
+      <span id="puntaje-icono">⭐</span>
+      <span id="puntaje-valor">0</span>
+    </div>
+
+    <!-- 3. Timer circular SVG (esquina superior derecha)
+         Circunferencia = 2 * π * 23 ≈ 144.51
+         stroke-dashoffset se anima desde 0 (lleno) hasta 144.51 (vacío) -->
+    <div id="timer-container">
+      <svg viewBox="0 0 58 58" width="58" height="58">
+        <!-- Pista de fondo del ring -->
+        <circle
+          cx="29" cy="29" r="23"
+          fill="none"
+          stroke="rgba(255,255,255,0.15)"
+          stroke-width="4"
+        />
+        <!-- Ring animado -->
+        <circle
+          id="timer-ring"
+          cx="29" cy="29" r="23"
+          fill="none"
+          stroke="#FFD700"
+          stroke-width="4"
+          stroke-linecap="round"
+          stroke-dasharray="144.51"
+          stroke-dashoffset="0"
+          transform="rotate(-90 29 29)"
+        />
+        <!-- Número de segundos restantes -->
+        <text
+          id="timer-texto"
+          x="29" y="34"
+          text-anchor="middle"
+          fill="white"
+          font-size="15"
+          font-weight="bold"
+          font-family="Arial, sans-serif"
+        >15</text>
+      </svg>
+    </div>
+
+    <!-- 4. Flash de error (cubre toda la pantalla brevemente) -->
+    <div id="flash-error"></div>
+
+    <!-- 5. Pantalla de resultado entre rondas -->
+    <div id="resultado-ronda">
+      <div id="resultado-titulo">¡Ronda terminada!</div>
+      <div class="resultado-fila"><span>✅ Aciertos</span><span id="res-aciertos">0</span></div>
+      <div class="resultado-fila"><span>❌ Errores</span><span id="res-errores">0</span></div>
+      <div class="resultado-fila"><span>💨 Omisiones</span><span id="res-omisiones">0</span></div>
+      <div class="resultado-fila"><span>⭐ Puntos</span><span id="res-puntaje">0</span></div>
+    </div>
+
+  </div><!-- /ui-overlay -->
+
+  <!-- Babylon.js desde CDN — cargado antes que game.js -->
+  <script src="https://cdn.babylonjs.com/babylon.js"></script>
+  <!-- Lógica del juego: defer garantiza que el DOM ya existe al ejecutar -->
+  <script src="game.js" defer></script>
+
+</body>
+</html>

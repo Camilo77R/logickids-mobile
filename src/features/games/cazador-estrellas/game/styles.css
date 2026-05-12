@@ -1,0 +1,203 @@
+/* ═══════════════════════════════════════
+   VARIABLES DEL TEMA
+═══════════════════════════════════════ */
+:root {
+  --color-dorado: #FFD700;
+  --color-rojo-alerta: #FF3B3B;
+  --color-fondo-ui: rgba(0, 0, 0, 0.50);
+  --color-texto: #FFFFFF;
+  --radio-borde: 14px;
+  --fuente-ui: 'Arial Rounded MT Bold', Arial, sans-serif;
+}
+
+/* ═══════════════════════════════════════
+   RESET Y BASE
+═══════════════════════════════════════ */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body, html {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  /* Nebulosa: gradiente radial que simula nubes de gas */
+  background: radial-gradient(ellipse at 20% 50%, #1a0533 0%, transparent 60%),
+              radial-gradient(ellipse at 80% 20%, #001a3a 0%, transparent 55%),
+              radial-gradient(ellipse at 60% 80%, #1a1a00 0%, transparent 50%),
+              #000010;
+  font-family: var(--fuente-ui);
+}
+
+#renderCanvas {
+  width: 100%;
+  height: 100%;
+  /* Crítico: evita que el navegador intercepte los toques del juego */
+  touch-action: none;
+  display: block;
+  /* Transparente para ver la nebulosa CSS detrás */
+  background: transparent;
+}
+
+/* ═══════════════════════════════════════
+   OVERLAY PRINCIPAL
+═══════════════════════════════════════ */
+#ui-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  /* Los toques atraviesan el overlay hacia el canvas */
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════
+   CONDICIÓN (parte superior centrada)
+═══════════════════════════════════════ */
+#condicion-texto {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  color: var(--color-texto);
+  font-size: 16px;
+  font-weight: bold;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+  background: var(--color-fondo-ui);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: var(--radio-borde);
+  padding: 8px 20px;
+  backdrop-filter: blur(6px);
+}
+
+/* ═══════════════════════════════════════
+   PUNTAJE (esquina superior izquierda)
+═══════════════════════════════════════ */
+#puntaje-container {
+  position: absolute;
+  top: 60px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-fondo-ui);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--radio-borde);
+  padding: 6px 14px;
+  backdrop-filter: blur(6px);
+}
+
+#puntaje-icono {
+  font-size: 18px;
+}
+
+#puntaje-valor {
+  color: var(--color-dorado);
+  font-size: 22px;
+  font-weight: bold;
+  text-shadow: 0 0 10px rgba(255,215,0,0.6);
+  transition: transform 0.15s ease;
+}
+
+#puntaje-valor.animar-suma {
+  color: var(--color-dorado);
+  transform: scale(1.35);
+}
+
+#puntaje-valor.animar-resta {
+  color: var(--color-rojo-alerta);
+  transform: scale(1.35);
+}
+
+/* ═══════════════════════════════════════
+   TIMER CIRCULAR (esquina superior derecha)
+═══════════════════════════════════════ */
+#timer-container {
+  position: absolute;
+  top: 52px;
+  right: 16px;
+  width: 58px;
+  height: 58px;
+}
+
+#timer-ring {
+  stroke: var(--color-dorado);
+  transition: stroke 0.5s ease;
+}
+
+#timer-ring.urgente {
+  stroke: var(--color-rojo-alerta);
+  filter: drop-shadow(0 0 4px var(--color-rojo-alerta));
+}
+
+#timer-texto {
+  fill: var(--color-texto);
+  font-family: var(--fuente-ui);
+  font-size: 15px;
+  font-weight: bold;
+}
+
+/* ═══════════════════════════════════════
+   FLASH DE ERROR (toda la pantalla)
+═══════════════════════════════════════ */
+#flash-error {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 30, 30, 0.38);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.05s ease;
+}
+
+#flash-error.visible {
+  opacity: 1;
+}
+
+/* ═══════════════════════════════════════
+   PANTALLA DE RESULTADO ENTRE RONDAS
+═══════════════════════════════════════ */
+#resultado-ronda {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.85);
+  background: rgba(5, 5, 20, 0.92);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 22px;
+  padding: 28px 36px;
+  text-align: center;
+  color: var(--color-texto);
+  min-width: 240px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  backdrop-filter: blur(12px);
+}
+
+#resultado-ronda.visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+#resultado-titulo {
+  font-size: 24px;
+  color: var(--color-dorado);
+  margin-bottom: 16px;
+  text-shadow: 0 0 12px rgba(255,215,0,0.5);
+}
+
+.resultado-fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  font-size: 15px;
+  margin: 5px 0;
+  color: #ccc;
+}
+
+.resultado-fila span:last-child {
+  font-weight: bold;
+  color: var(--color-texto);
+}

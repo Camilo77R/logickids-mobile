@@ -5,6 +5,7 @@ node_modules/
 
 # Expo
 .expo/
+.expo-check-android/
 dist/
 web-build/
 
