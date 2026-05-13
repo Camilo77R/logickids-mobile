@@ -10,8 +10,8 @@ import {
 import { createCodigoEstelarApi } from './services/codigoEstelarApi';
 import { createCodigoEstelarSocketClient } from './services/codigoEstelarSocket';
 
-const buildInitialForm = () => ({
-  apiBaseUrl: DEFAULT_API_BASE_URL,
+const buildInitialForm = (studentSession) => ({
+  apiBaseUrl: studentSession?.apiBaseUrl ?? DEFAULT_API_BASE_URL,
   qrToken: '',
   dificultad: String(DEFAULT_DIFFICULTY),
 });
@@ -48,15 +48,24 @@ const pickNextMeteor = (gameConfig) =>
 /**
  * Orquesta todo el flujo del cliente sin mezclar UI, HTTP y sockets.
  */
-export const useCodigoEstelarController = () => {
+export const useCodigoEstelarController = ({ studentSession } = {}) => {
   const [status, setStatus] = useState(GAME_STATUS.setup);
   const [errorMessage, setErrorMessage] = useState('');
   const [connectionStep, setConnectionStep] = useState('Esperando inicio.');
-  const [form, setForm] = useState(buildInitialForm);
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [form, setForm] = useState(() => buildInitialForm(studentSession));
   const [runtime, setRuntime] = useState(buildInitialRuntime);
   const socketRef = useRef(null);
 
   const api = useMemo(() => createCodigoEstelarApi(form.apiBaseUrl), [form.apiBaseUrl]);
+
+  useEffect(() => {
+    if (!studentSession?.apiBaseUrl) {
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, apiBaseUrl: studentSession.apiBaseUrl }));
+  }, [studentSession]);
 
   const teardownSocket = () => {
     if (socketRef.current) {
@@ -77,6 +86,31 @@ export const useCodigoEstelarController = () => {
       `Error realtime: ${payload?.code ?? 'SIN_CODIGO'} - ${payload?.message ?? 'sin detalle'}`
     );
     setStatus(GAME_STATUS.error);
+  };
+
+  const finalizeOfficialSession = async ({ studentToken, sesionId }) => {
+    if (!studentToken || !sesionId) {
+      return;
+    }
+
+    setIsFinalizing(true);
+    setConnectionStep('Guardando resultados oficiales...');
+
+    try {
+      const finalization = await api.finalizeSession(studentToken, sesionId);
+      setRuntime((prev) => ({ ...prev, finalization }));
+      setErrorMessage('');
+      setConnectionStep(
+        finalization.finalizacion_idempotente
+          ? 'Los resultados ya estaban guardados.'
+          : 'Resultados y logros guardados correctamente.'
+      );
+    } catch (error) {
+      setErrorMessage(error.message);
+      setConnectionStep(`No pudimos guardar la partida: ${error.message}`);
+    } finally {
+      setIsFinalizing(false);
+    }
   };
 
   const connectSocketFlow = ({ studentToken, sessionStartData }) => {
@@ -102,7 +136,7 @@ export const useCodigoEstelarController = () => {
     });
 
     socketClient.on('connect', () => {
-      setConnectionStep(`Socket conectado. Uniendo sesion ${sessionStartData.sesion.id}...`);
+      setConnectionStep(`Socket conectado. Uniendo sesión ${sessionStartData.sesion.id}...`);
       socketClient.joinSession(sessionStartData.sesion.id);
     });
 
@@ -147,14 +181,10 @@ export const useCodigoEstelarController = () => {
       }));
       setStatus(GAME_STATUS.finished);
 
-      try {
-        const finalization = await api.finalizeSession(studentToken, sessionStartData.sesion.id);
-        setConnectionStep('Cierre oficial confirmado por el servidor.');
-        setRuntime((prev) => ({ ...prev, finalization }));
-      } catch (error) {
-        setErrorMessage(error.message);
-        setConnectionStep(`Fallo al finalizar: ${error.message}`);
-      }
+      await finalizeOfficialSession({
+        studentToken,
+        sesionId: sessionStartData.sesion.id,
+      });
     });
 
     socketClient.connect();
@@ -164,18 +194,33 @@ export const useCodigoEstelarController = () => {
     try {
       setStatus(GAME_STATUS.connecting);
       setErrorMessage('');
-      setConnectionStep('Validando QR del estudiante...');
+      setIsFinalizing(false);
+      let loginData = null;
 
-      const loginData = await api.loginStudent(form.qrToken);
-      setConnectionStep(`QR validado para ${loginData.estudiante.nombre}. Cargando catalogo...`);
+      if (studentSession?.token && studentSession?.studentProfile) {
+        loginData = {
+          token: studentSession.token,
+          estudiante: studentSession.studentProfile,
+        };
+        setConnectionStep(
+          `Piloto ${loginData.estudiante.nombre} listo. Cargando catálogo...`
+        );
+      } else {
+        setConnectionStep('Validando QR del estudiante...');
+        loginData = await api.loginStudent(form.qrToken);
+        setConnectionStep(
+          `QR validado para ${loginData.estudiante.nombre}. Cargando catálogo...`
+        );
+      }
+
       const minigame = await api.resolveMinigameBySlug(CODIGO_ESTELAR_SLUG);
-      setConnectionStep(`Minijuego ${minigame.titulo} resuelto. Creando sesion HTTP...`);
+      setConnectionStep(`Minijuego ${minigame.titulo} resuelto. Creando sesión HTTP...`);
       const sessionStartData = await api.startSession(loginData.token, {
         minijuegoId: minigame.id,
         dificultad: toDifficultyNumber(form.dificultad),
       });
       setConnectionStep(
-        `Sesion HTTP #${sessionStartData.sesion.id} creada. Preparando entrada realtime...`
+        `Sesión HTTP #${sessionStartData.sesion.id} creada. Preparando entrada realtime...`
       );
 
       setRuntime({
@@ -218,12 +263,25 @@ export const useCodigoEstelarController = () => {
     });
   };
 
+  const retryFinalization = async () => {
+    if (!runtime.studentToken || !runtime.session?.id) {
+      return;
+    }
+
+    await finalizeOfficialSession({
+      studentToken: runtime.studentToken,
+      sesionId: runtime.session.id,
+    });
+  };
+
   const resetFlow = () => {
     teardownSocket();
     setRuntime(buildInitialRuntime());
     setErrorMessage('');
     setConnectionStep('Esperando inicio.');
     setStatus(GAME_STATUS.setup);
+    setIsFinalizing(false);
+    setForm(buildInitialForm(studentSession));
   };
 
   return {
@@ -235,7 +293,9 @@ export const useCodigoEstelarController = () => {
     updateFormField,
     startGame,
     submitClassification,
+    retryFinalization,
     resetFlow,
     isBusy: status === GAME_STATUS.connecting,
+    isFinalizing,
   };
 };

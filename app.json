@@ -15,7 +15,10 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "LogicKids necesita la camara para escanear el QR del estudiante y permitir su ingreso."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -28,6 +31,14 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "LogicKids necesita la camara para escanear el QR del estudiante y permitir su ingreso."
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "2b38a483-2833-421a-8bb1-b56bbfbfb76a"

@@ -5,7 +5,7 @@ node_modules/
 
 # Expo
 .expo/
-.expo-check-android/
+.expo-check*/
 dist/
 web-build/
 
@@ -24,6 +24,7 @@ web-build/
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
 
 # macOS
 .DS_Store
