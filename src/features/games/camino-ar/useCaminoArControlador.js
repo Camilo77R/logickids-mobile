@@ -23,7 +23,17 @@ const construirEstadoInicial = (configuracion) => ({
   ayudasUsadas: 0,
 });
 
-export const useCaminoArControlador = (configuracionInicial) => {
+const ejecutarObservadorSeguro = (observador, carga) => {
+  if (typeof observador !== 'function') {
+    return;
+  }
+
+  Promise.resolve()
+    .then(() => observador(carga))
+    .catch(() => null);
+};
+
+export const useCaminoArControlador = (configuracionInicial, observadores = {}) => {
   const configuracion = useMemo(
     () => normalizarConfiguracionCaminoAr(configuracionInicial),
     [configuracionInicial],
@@ -59,18 +69,21 @@ export const useCaminoArControlador = (configuracionInicial) => {
         },
       ],
     }));
+
+    ejecutarObservadorSeguro(observadores.alRegistrarEvento, evento);
   };
 
   const finalizarPartida = (exito, motivo) => {
     limpiarTemporizadores();
     detenerCuentaRegresiva();
+    let resultadoCalculado = null;
 
     setEstado((previo) => {
       const tiempoTranscurridoMs = partidaIniciadaEnRef.current
         ? Date.now() - partidaIniciadaEnRef.current
         : 0;
 
-      const resultado = construirResumenPartida({
+      resultadoCalculado = construirResumenPartida({
         exito,
         configuracion,
         aciertos: previo.aciertos,
@@ -84,12 +97,14 @@ export const useCaminoArControlador = (configuracionInicial) => {
         ...previo,
         fase: exito ? ESTADOS_CAMINO_AR.completado : ESTADOS_CAMINO_AR.fallido,
         baldosaActiva: null,
-        resultado,
+        resultado: resultadoCalculado,
         mensaje: exito
           ? 'Actividad completada. Tus resultados fueron guardados.'
           : motivo,
       };
     });
+
+    ejecutarObservadorSeguro(observadores.alFinalizarPartida, resultadoCalculado);
   };
 
   const iniciarCuentaRegresiva = (tiempoInicialMs) => {
@@ -172,6 +187,11 @@ export const useCaminoArControlador = (configuracionInicial) => {
       ...construirEstadoInicial(configuracion),
       patron,
       mensaje: 'Observa con cuidado el orden de las baldosas iluminadas.',
+    });
+
+    ejecutarObservadorSeguro(observadores.alIniciarPartida, {
+      configuracionPartida: configuracion,
+      patronLongitud: patron.length,
     });
 
     programarReproduccionPatron(patron, configuracion.configuracion.tiempoLimiteMs);

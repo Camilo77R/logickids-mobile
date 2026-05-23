@@ -45,6 +45,7 @@ export default function CaminoArVista2d({
   seleccionarBaldosa,
   usarPista,
   puedePedirPista,
+  persistenciaSesion,
 }) {
   const descripcionEstado = {
     [ESTADOS_CAMINO_AR.listo]: 'Prepara al estudiante para memorizar el recorrido base.',
@@ -81,7 +82,12 @@ export default function CaminoArVista2d({
             <TarjetaMetrica etiqueta="Patron" valor={configuracion.configuracion.longitudPatron} />
             <TarjetaMetrica etiqueta="Baldosas" valor={configuracion.configuracion.cantidadBaldosas} />
             <TarjetaMetrica etiqueta="Fuente" valor={configuracion.fuenteAdaptacion} />
+            <TarjetaMetrica etiqueta="Persistencia" valor={persistenciaSesion?.modo ?? 'local'} />
+            <TarjetaMetrica etiqueta="Sync" valor={persistenciaSesion?.estado ?? 'inactiva'} />
           </View>
+          {persistenciaSesion?.error ? (
+            <Text style={styles.textoErrorPersistencia}>{persistenciaSesion.error}</Text>
+          ) : null}
         </View>
 
         <View style={styles.panel}>
@@ -224,6 +230,10 @@ const styles = StyleSheet.create({
   },
   textoAyuda: {
     color: colores.textoDebil,
+    lineHeight: 19,
+  },
+  textoErrorPersistencia: {
+    color: '#FF8E8E',
     lineHeight: 19,
   },
   filaMetricas: {

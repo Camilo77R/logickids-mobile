@@ -9,7 +9,11 @@ import {
 } from 'react-native';
 import { colores, espaciado, radios, tipografia } from '../../../../theme/tokens';
 
-export default function CaminoArVistaArPreview({ onSalir, configuracion }) {
+export default function CaminoArVistaArPreview({
+  onSalir,
+  configuracion,
+  persistenciaSesion,
+}) {
   return (
     <SafeAreaView style={styles.contenedor}>
       <StatusBar barStyle="light-content" backgroundColor={colores.fondoPrincipal} />
@@ -34,6 +38,8 @@ export default function CaminoArVistaArPreview({ onSalir, configuracion }) {
           <Text style={styles.texto}>Patron: {configuracion.configuracion.longitudPatron}</Text>
           <Text style={styles.texto}>Baldosas: {configuracion.configuracion.cantidadBaldosas}</Text>
           <Text style={styles.texto}>Modo: {configuracion.modoPresentacion}</Text>
+          <Text style={styles.texto}>Persistencia: {persistenciaSesion?.modo ?? 'local'}</Text>
+          <Text style={styles.texto}>Estado sync: {persistenciaSesion?.estado ?? 'inactiva'}</Text>
         </View>
       </View>
     </SafeAreaView>

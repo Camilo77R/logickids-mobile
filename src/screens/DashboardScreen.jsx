@@ -41,12 +41,21 @@ export default function DashboardScreen() {
       }),
     [configuracionBase.slug, perfilEstudiante],
   );
+  const contextoSesionCaminoAr = useMemo(
+    () => ({
+      tokenEstudiante: null,
+      baseUrlApi: null,
+      minijuegoId: perfilEstudiante.sesion_minijuego_id,
+    }),
+    [perfilEstudiante.sesion_minijuego_id],
+  );
 
   if (juegoActivo === 'camino-ar') {
     return (
       <CaminoARScreen
         onSalir={() => setJuegoActivo(null)}
         configuracionInicial={configuracionBase}
+        contextoSesion={contextoSesionCaminoAr}
       />
     );
   }
