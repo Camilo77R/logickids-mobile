@@ -18,6 +18,9 @@ const {
 const {
   construirEscenaCaminoAr,
 } = require('../../src/features/games/camino-ar/caminoArEscena.js');
+const {
+  construirEscenaEspacialCaminoAr,
+} = require('../../src/features/games/camino-ar/caminoArEscenaEspacial.js');
 
 test('normalizarConfiguracionCaminoAr usa defaults seguros y valida modo de presentacion', () => {
   const configuracion = normalizarConfiguracionCaminoAr({
@@ -147,4 +150,52 @@ test('construirEscenaCaminoAr traduce el estado a una escena reusable para cualq
   escena.acciones.reiniciar.accion();
 
   assert.deepEqual(accionesInvocadas, ['iniciar', 'baldosa:3', 'reiniciar']);
+});
+
+test('construirEscenaEspacialCaminoAr deja listo un modelo AR agnostico al renderer', () => {
+  const configuracion = normalizarConfiguracionCaminoAr({
+    dificultad: 2,
+    modoPresentacion: MODOS_PRESENTACION_CAMINO_AR.realidadAumentada,
+    configuracion: {
+      cantidadBaldosas: 4,
+      longitudPatron: 3,
+    },
+  });
+
+  const escena = construirEscenaCaminoAr({
+    configuracion,
+    estado: {
+      fase: 'esperandoRespuesta',
+      mensaje: 'Repite el recorrido tocando cada baldosa en orden.',
+      tiempoRestanteMs: 8000,
+      ayudasRestantes: 1,
+      aciertos: 1,
+      errores: 0,
+      baldosaActiva: 2,
+      resultado: null,
+    },
+    columnasTablero: 2,
+    persistenciaSesion: {
+      modo: 'local',
+      estado: 'inactiva',
+      error: null,
+    },
+    iniciarPartida: () => {},
+    reiniciarPartida: () => {},
+    seleccionarBaldosa: () => {},
+    usarPista: () => {},
+    puedePedirPista: true,
+  });
+
+  const escenaEspacial = construirEscenaEspacialCaminoAr({
+    escena,
+    configuracion,
+  });
+
+  assert.equal(escenaEspacial.plano.tipo, 'horizontal');
+  assert.equal(escenaEspacial.baldosas.length, 4);
+  assert.deepEqual(escenaEspacial.baldosas[0].posicion, [-0.14, 0, -0.14]);
+  assert.deepEqual(escenaEspacial.baldosas[2].posicion, [-0.14, 0, 0.14]);
+  assert.equal(escenaEspacial.baldosas[2].estadoVisual, 'activa');
+  assert.equal(escenaEspacial.adaptacion.modoPresentacion, 'realidad-aumentada');
 });

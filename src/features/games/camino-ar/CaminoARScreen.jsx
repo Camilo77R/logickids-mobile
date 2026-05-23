@@ -2,6 +2,7 @@ import React from 'react';
 import { useCaminoArControlador } from './useCaminoArControlador';
 import { MODOS_PRESENTACION_CAMINO_AR } from './caminoAr.constants';
 import { construirEscenaCaminoAr } from './caminoArEscena';
+import { construirEscenaEspacialCaminoAr } from './caminoArEscenaEspacial';
 import { useSesionCaminoAr } from './aplicacion/useSesionCaminoAr';
 import CaminoArVista2d from './presentacion/CaminoArVista2d';
 import CaminoArVistaArPreview from './presentacion/CaminoArVistaArPreview';
@@ -28,6 +29,10 @@ export default function CaminoARScreen({
     ...controlador,
     persistenciaSesion: sesionCaminoAr.persistencia,
   });
+  const escenaEspacial = construirEscenaEspacialCaminoAr({
+    escena,
+    configuracion: controlador.configuracion,
+  });
   const RenderizadorCaminoAr =
     renderizadoresCaminoAr[controlador.configuracion.modoPresentacion] ??
     CaminoArVista2d;
@@ -36,6 +41,7 @@ export default function CaminoARScreen({
     <RenderizadorCaminoAr
       onSalir={onSalir}
       escena={escena}
+      escenaEspacial={escenaEspacial}
       persistenciaSesion={sesionCaminoAr.persistencia}
       respuestaInicioSesion={sesionCaminoAr.respuestaInicio}
       {...controlador}
