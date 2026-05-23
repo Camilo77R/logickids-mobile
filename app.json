@@ -24,6 +24,22 @@
       },
       "package": "com.camilosr.logickidsmobile"
     },
+    "plugins": [
+      [
+        "@reactvision/react-viro",
+        {
+          "android": {
+            "xRMode": "AR"
+          },
+          "ios": {
+            "cameraUsagePermission": "$(PRODUCT_NAME) usa la camara para experiencias de realidad aumentada.",
+            "microphoneUsagePermission": "$(PRODUCT_NAME) usa el microfono para experiencias de realidad aumentada.",
+            "photosPermission": "$(PRODUCT_NAME) necesita acceder a fotos para funciones de realidad aumentada.",
+            "savephotosPermission": "$(PRODUCT_NAME) necesita guardar imagenes generadas durante experiencias de realidad aumentada."
+          }
+        }
+      ]
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
     },

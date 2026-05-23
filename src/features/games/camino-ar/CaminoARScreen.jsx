@@ -5,11 +5,11 @@ import { construirEscenaCaminoAr } from './caminoArEscena';
 import { construirEscenaEspacialCaminoAr } from './caminoArEscenaEspacial';
 import { useSesionCaminoAr } from './aplicacion/useSesionCaminoAr';
 import CaminoArVista2d from './presentacion/CaminoArVista2d';
-import CaminoArVistaArPreview from './presentacion/CaminoArVistaArPreview';
+import CaminoArVistaArViro from './presentacion/CaminoArVistaArViro';
 
 const renderizadoresCaminoAr = Object.freeze({
   [MODOS_PRESENTACION_CAMINO_AR.tablero2d]: CaminoArVista2d,
-  [MODOS_PRESENTACION_CAMINO_AR.realidadAumentada]: CaminoArVistaArPreview,
+  [MODOS_PRESENTACION_CAMINO_AR.realidadAumentada]: CaminoArVistaArViro,
 });
 
 export default function CaminoARScreen({
