@@ -21,6 +21,11 @@ const {
 const {
   construirEscenaEspacialCaminoAr,
 } = require('../../src/features/games/camino-ar/caminoArEscenaEspacial.js');
+const {
+  crearEstadoInicialDeteccionSuperficieAr,
+  reducirDeteccionSuperficieAr,
+  resolverMensajeDeteccionSuperficieAr,
+} = require('../../src/features/games/camino-ar/presentacion/ar/deteccionSuperficieAr.js');
 
 test('normalizarConfiguracionCaminoAr usa defaults seguros y valida modo de presentacion', () => {
   const configuracion = normalizarConfiguracionCaminoAr({
@@ -198,4 +203,31 @@ test('construirEscenaEspacialCaminoAr deja listo un modelo AR agnostico al rende
   assert.deepEqual(escenaEspacial.baldosas[2].posicion, [-0.14, 0, 0.14]);
   assert.equal(escenaEspacial.baldosas[2].estadoVisual, 'activa');
   assert.equal(escenaEspacial.adaptacion.modoPresentacion, 'realidad-aumentada');
+});
+
+test('reducirDeteccionSuperficieAr modela la busqueda y fijacion del piso sin acoplarse al juego', () => {
+  const estadoInicial = crearEstadoInicialDeteccionSuperficieAr();
+
+  const estadoConSuperficie = reducirDeteccionSuperficieAr(estadoInicial, {
+    tipo: 'ancla-registrada',
+    cantidadSuperficies: 2,
+  });
+
+  assert.equal(estadoConSuperficie.estado, 'superficies-disponibles');
+  assert.equal(estadoConSuperficie.cantidadSuperficies, 2);
+  assert.match(resolverMensajeDeteccionSuperficieAr(estadoConSuperficie), /Toque una zona del piso/i);
+
+  const estadoSeleccionado = reducirDeteccionSuperficieAr(estadoConSuperficie, {
+    tipo: 'superficie-seleccionada',
+  });
+
+  assert.equal(estadoSeleccionado.estado, 'superficie-seleccionada');
+  assert.equal(estadoSeleccionado.superficieSeleccionada, true);
+
+  const estadoReiniciado = reducirDeteccionSuperficieAr(estadoSeleccionado, {
+    tipo: 'reiniciar-seleccion',
+  });
+
+  assert.equal(estadoReiniciado.estado, 'buscando');
+  assert.equal(estadoReiniciado.cantidadSuperficies, 0);
 });

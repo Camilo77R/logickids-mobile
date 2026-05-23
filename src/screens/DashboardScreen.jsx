@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import CaminoARScreen from '../features/games/camino-ar/CaminoARScreen';
 import { obtenerConfiguracionBaseCaminoAr } from '../features/games/camino-ar/caminoArConfiguracion';
+import { MODOS_PRESENTACION_CAMINO_AR } from '../features/games/camino-ar/caminoAr.constants';
 import {
   ESTADOS_ACCESO_JUEGO,
   resolverAccesoJuegoDesdePerfil,
@@ -19,10 +20,16 @@ import { colores, espaciado, radios, tipografia } from '../theme/tokens';
 export default function DashboardScreen() {
   const [sesionDemoActiva, setSesionDemoActiva] = useState(false);
   const [juegoActivo, setJuegoActivo] = useState(null);
+  const [modoPresentacionDemo, setModoPresentacionDemo] = useState(
+    MODOS_PRESENTACION_CAMINO_AR.tablero2d,
+  );
 
   const configuracionBase = useMemo(
-    () => obtenerConfiguracionBaseCaminoAr(),
-    [],
+    () =>
+      obtenerConfiguracionBaseCaminoAr({
+        modoPresentacion: modoPresentacionDemo,
+      }),
+    [modoPresentacionDemo],
   );
   const perfilEstudiante = useMemo(
     () =>
@@ -75,6 +82,59 @@ export default function DashboardScreen() {
           <Text style={styles.textoPanel}>
             Para la primera partida todos arrancan con nivel base 1. Luego otra capa podra adaptar dificultad y ritmo con estadisticas e IA.
           </Text>
+          <View style={styles.selectorModo}>
+            <TouchableOpacity
+              style={[
+                styles.botonModo,
+                modoPresentacionDemo === MODOS_PRESENTACION_CAMINO_AR.tablero2d &&
+                  styles.botonModoActivo,
+              ]}
+              onPress={() =>
+                setModoPresentacionDemo(MODOS_PRESENTACION_CAMINO_AR.tablero2d)
+              }
+            >
+              <Text
+                style={[
+                  styles.botonModoTexto,
+                  modoPresentacionDemo === MODOS_PRESENTACION_CAMINO_AR.tablero2d &&
+                    styles.botonModoTextoActivo,
+                ]}
+              >
+                Probar en 2D
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.botonModo,
+                modoPresentacionDemo ===
+                  MODOS_PRESENTACION_CAMINO_AR.realidadAumentada &&
+                  styles.botonModoActivo,
+              ]}
+              onPress={() =>
+                setModoPresentacionDemo(
+                  MODOS_PRESENTACION_CAMINO_AR.realidadAumentada,
+                )
+              }
+            >
+              <Text
+                style={[
+                  styles.botonModoTexto,
+                  modoPresentacionDemo ===
+                    MODOS_PRESENTACION_CAMINO_AR.realidadAumentada &&
+                    styles.botonModoTextoActivo,
+                ]}
+              >
+                Probar en AR
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.textoPanel}>
+            Modo actual:{' '}
+            {modoPresentacionDemo === MODOS_PRESENTACION_CAMINO_AR.tablero2d
+              ? 'tablero 2D'
+              : 'realidad aumentada'}
+          </Text>
           <TouchableOpacity
             style={[styles.botonEstado, sesionDemoActiva ? styles.botonCerrar : styles.botonAbrir]}
             onPress={() => setSesionDemoActiva((previo) => !previo)}
@@ -105,6 +165,13 @@ export default function DashboardScreen() {
             </View>
             <View style={styles.badge}>
               <Text style={styles.badgeTexto}>Nivel base 1</Text>
+            </View>
+            <View style={styles.badge}>
+              <Text style={styles.badgeTexto}>
+                {modoPresentacionDemo === MODOS_PRESENTACION_CAMINO_AR.tablero2d
+                  ? 'Modo 2D'
+                  : 'Modo AR'}
+              </Text>
             </View>
           </View>
           <Text style={styles.estadoJuego}>
@@ -161,6 +228,30 @@ const styles = StyleSheet.create({
   textoPanel: {
     color: colores.textoSecundario,
     lineHeight: 20,
+  },
+  selectorModo: {
+    flexDirection: 'row',
+    gap: espaciado.sm,
+  },
+  botonModo: {
+    flex: 1,
+    borderRadius: radios.md,
+    borderWidth: 1,
+    borderColor: colores.bordeSuave,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: colores.superficie,
+  },
+  botonModoActivo: {
+    borderColor: colores.alerta,
+    backgroundColor: 'rgba(255,216,107,0.16)',
+  },
+  botonModoTexto: {
+    color: colores.textoSecundario,
+    fontWeight: '800',
+  },
+  botonModoTextoActivo: {
+    color: colores.alerta,
   },
   botonEstado: {
     borderRadius: radios.md,
