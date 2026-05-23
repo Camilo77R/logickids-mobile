@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { ESTADOS_CAMINO_AR } from '../caminoAr.constants';
 import { colores, espaciado, radios, tipografia } from '../../../../theme/tokens';
 
 const TarjetaMetrica = ({ etiqueta, valor }) => (
@@ -37,26 +36,8 @@ const Baldosa = ({ indice, activa, deshabilitada, onPress }) => (
 
 export default function CaminoArVista2d({
   onSalir,
-  configuracion,
-  estado,
-  columnasTablero,
-  iniciarPartida,
-  reiniciarPartida,
-  seleccionarBaldosa,
-  usarPista,
-  puedePedirPista,
-  persistenciaSesion,
+  escena,
 }) {
-  const descripcionEstado = {
-    [ESTADOS_CAMINO_AR.listo]: 'Prepara al estudiante para memorizar el recorrido base.',
-    [ESTADOS_CAMINO_AR.mostrandoPatron]: 'El sistema esta mostrando el patron que luego se debe repetir.',
-    [ESTADOS_CAMINO_AR.esperandoRespuesta]: 'Es turno del estudiante: debe tocar las baldosas en el mismo orden.',
-    [ESTADOS_CAMINO_AR.completado]: 'La ronda cerro bien y quedo lista para persistir sus resultados.',
-    [ESTADOS_CAMINO_AR.fallido]: 'La ronda cerro con error o tiempo agotado. Puede reiniciarse sin ruido.',
-  }[estado.fase];
-
-  const estiloColumna = columnasTablero === 2 ? styles.columnaDos : styles.columnaTres;
-
   return (
     <SafeAreaView style={styles.contenedor}>
       <StatusBar barStyle="light-content" backgroundColor={colores.fondoPrincipal} />
@@ -65,56 +46,60 @@ export default function CaminoArVista2d({
           <TouchableOpacity onPress={onSalir} style={styles.botonVolver}>
             <Text style={styles.botonVolverTexto}>Volver</Text>
           </TouchableOpacity>
-          <Text style={styles.ceja}>Primer juego real del proyecto</Text>
-          <Text style={styles.titulo}>Camino AR</Text>
-          <Text style={styles.subtitulo}>
-            El nucleo de memoria secuencial ya queda listo en React Native puro. La escena AR se conecta despues.
-          </Text>
+          <Text style={styles.ceja}>{escena.encabezado.ceja}</Text>
+          <Text style={styles.titulo}>{escena.encabezado.titulo}</Text>
+          <Text style={styles.subtitulo}>{escena.encabezado.subtitulo}</Text>
         </View>
 
         <View style={styles.panel}>
-          <Text style={styles.tituloPanel}>Sesion base del juego</Text>
-          <Text style={styles.textoPanel}>
-            Todos empiezan en nivel 1. Mas adelante otra capa podra adaptar esta configuracion con IA sin reescribir el juego.
-          </Text>
+          <Text style={styles.tituloPanel}>{escena.sesion.titulo}</Text>
+          <Text style={styles.textoPanel}>{escena.sesion.descripcion}</Text>
           <View style={styles.filaMetricas}>
-            <TarjetaMetrica etiqueta="Dificultad" valor={configuracion.dificultad} />
-            <TarjetaMetrica etiqueta="Patron" valor={configuracion.configuracion.longitudPatron} />
-            <TarjetaMetrica etiqueta="Baldosas" valor={configuracion.configuracion.cantidadBaldosas} />
-            <TarjetaMetrica etiqueta="Fuente" valor={configuracion.fuenteAdaptacion} />
-            <TarjetaMetrica etiqueta="Persistencia" valor={persistenciaSesion?.modo ?? 'local'} />
-            <TarjetaMetrica etiqueta="Sync" valor={persistenciaSesion?.estado ?? 'inactiva'} />
+            {escena.sesion.metricas.map((metrica) => (
+              <TarjetaMetrica
+                key={`sesion-${metrica.etiqueta}`}
+                etiqueta={metrica.etiqueta}
+                valor={metrica.valor}
+              />
+            ))}
           </View>
-          {persistenciaSesion?.error ? (
-            <Text style={styles.textoErrorPersistencia}>{persistenciaSesion.error}</Text>
+          {escena.sesion.errorPersistencia ? (
+            <Text style={styles.textoErrorPersistencia}>{escena.sesion.errorPersistencia}</Text>
           ) : null}
         </View>
 
         <View style={styles.panel}>
-          <Text style={styles.tituloPanel}>Estado actual</Text>
-          <Text style={styles.textoPanel}>{estado.mensaje}</Text>
-          <Text style={styles.textoAyuda}>{descripcionEstado}</Text>
+          <Text style={styles.tituloPanel}>{escena.estadoActual.titulo}</Text>
+          <Text style={styles.textoPanel}>{escena.estadoActual.mensaje}</Text>
+          <Text style={styles.textoAyuda}>{escena.estadoActual.descripcion}</Text>
           <View style={styles.filaMetricas}>
-            <TarjetaMetrica etiqueta="Tiempo" valor={`${Math.ceil(estado.tiempoRestanteMs / 1000)} s`} />
-            <TarjetaMetrica etiqueta="Aciertos" valor={estado.aciertos} />
-            <TarjetaMetrica etiqueta="Errores" valor={estado.errores} />
-            <TarjetaMetrica etiqueta="Pistas" valor={estado.ayudasRestantes} />
+            {escena.estadoActual.metricas.map((metrica) => (
+              <TarjetaMetrica
+                key={`estado-${metrica.etiqueta}`}
+                etiqueta={metrica.etiqueta}
+                valor={metrica.valor}
+              />
+            ))}
           </View>
         </View>
 
         <View style={styles.panel}>
-          <Text style={styles.tituloPanel}>Tablero base</Text>
-          <Text style={styles.textoPanel}>
-            Este tablero ya representa el corazon del juego: mostrar una secuencia y pedirle al nino que la repita en orden.
-          </Text>
+          <Text style={styles.tituloPanel}>{escena.tablero.titulo}</Text>
+          <Text style={styles.textoPanel}>{escena.tablero.descripcion}</Text>
           <View style={styles.tablero}>
-            {Array.from({ length: configuracion.configuracion.cantidadBaldosas }).map((_, indice) => (
-              <View key={`baldosa-${indice}`} style={[styles.celdaBaldosa, estiloColumna]}>
+            {escena.tablero.baldosas.map((baldosa) => (
+              <View
+                key={baldosa.id}
+                style={[
+                  styles.celdaBaldosa,
+                  baldosa.varianteColumna === 'dos' ? styles.columnaDos : styles.columnaTres,
+                ]}
+              >
                 <Baldosa
-                  indice={indice}
-                  activa={estado.baldosaActiva === indice}
-                  deshabilitada={estado.fase !== ESTADOS_CAMINO_AR.esperandoRespuesta}
-                  onPress={seleccionarBaldosa}
+                  indice={baldosa.indice}
+                  activa={baldosa.activa}
+                  deshabilitada={baldosa.deshabilitada}
+                  onPress={escena.tablero.alSeleccionarBaldosa}
                 />
               </View>
             ))}
@@ -122,36 +107,36 @@ export default function CaminoArVista2d({
         </View>
 
         <View style={styles.filaAcciones}>
-          <TouchableOpacity style={styles.botonPrimario} onPress={iniciarPartida}>
-            <Text style={styles.botonPrimarioTexto}>Iniciar ronda</Text>
+          <TouchableOpacity style={styles.botonPrimario} onPress={escena.acciones.iniciar.accion}>
+            <Text style={styles.botonPrimarioTexto}>{escena.acciones.iniciar.etiqueta}</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.botonSecundario, !puedePedirPista && styles.botonInactivo]}
-            disabled={!puedePedirPista}
-            onPress={usarPista}
+            style={[
+              styles.botonSecundario,
+              escena.acciones.pista.deshabilitada && styles.botonInactivo,
+            ]}
+            disabled={escena.acciones.pista.deshabilitada}
+            onPress={escena.acciones.pista.accion}
           >
-            <Text style={styles.botonSecundarioTexto}>Usar pista</Text>
+            <Text style={styles.botonSecundarioTexto}>{escena.acciones.pista.etiqueta}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.botonSecundario} onPress={reiniciarPartida}>
-            <Text style={styles.botonSecundarioTexto}>Reiniciar</Text>
+          <TouchableOpacity style={styles.botonSecundario} onPress={escena.acciones.reiniciar.accion}>
+            <Text style={styles.botonSecundarioTexto}>{escena.acciones.reiniciar.etiqueta}</Text>
           </TouchableOpacity>
         </View>
 
-        {estado.resultado && (
+        {escena.resultado.visible && (
           <View style={styles.panelResultado}>
-            <Text style={styles.tituloResultado}>
-              {estado.resultado.detalles.patronResuelto
-                ? 'Actividad completada'
-                : 'Actividad terminada'}
-            </Text>
-            <Text style={styles.textoPanel}>
-              Contrato comun listo: puntaje {estado.resultado.estadisticas.puntaje}, {estado.resultado.estadisticas.aciertos} aciertos, {estado.resultado.estadisticas.errores} errores y {estado.resultado.estadisticas.pistasUsadas} pistas usadas.
-            </Text>
+            <Text style={styles.tituloResultado}>{escena.resultado.titulo}</Text>
+            <Text style={styles.textoPanel}>{escena.resultado.descripcion}</Text>
             <View style={styles.filaMetricas}>
-              <TarjetaMetrica etiqueta="Nivel" valor={estado.resultado.estadisticas.nivelAlcanzado} />
-              <TarjetaMetrica etiqueta="Tiempo" valor={`${Math.ceil(estado.resultado.estadisticas.tiempoTotalMs / 1000)} s`} />
-              <TarjetaMetrica etiqueta="Precision" valor={`${estado.resultado.estadisticas.precisionPct}%`} />
-              <TarjetaMetrica etiqueta="Patron" valor={estado.resultado.detalles.patronLongitud} />
+              {escena.resultado.metricas.map((metrica) => (
+                <TarjetaMetrica
+                  key={`resultado-${metrica.etiqueta}`}
+                  etiqueta={metrica.etiqueta}
+                  valor={metrica.valor}
+                />
+              ))}
             </View>
           </View>
         )}
