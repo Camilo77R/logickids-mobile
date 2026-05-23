@@ -136,18 +136,18 @@ export default function CaminoARScreen({ onSalir, configuracionInicial }) {
         {estado.resultado && (
           <View style={styles.panelResultado}>
             <Text style={styles.tituloResultado}>
-              {estado.resultado.resultadoFinal === 'completado'
+              {estado.resultado.detalles.patronResuelto
                 ? 'Actividad completada'
-                : 'Actividad interrumpida'}
+                : 'Actividad terminada'}
             </Text>
             <Text style={styles.textoPanel}>
-              Puntaje pedagogico listo para persistir despues: {estado.resultado.aciertos} aciertos, {estado.resultado.errores} errores y {estado.resultado.pistasUsadas} pistas usadas.
+              Contrato comun listo: puntaje {estado.resultado.estadisticas.puntaje}, {estado.resultado.estadisticas.aciertos} aciertos, {estado.resultado.estadisticas.errores} errores y {estado.resultado.estadisticas.pistasUsadas} pistas usadas.
             </Text>
             <View style={styles.filaMetricas}>
-              <TarjetaMetrica etiqueta="Nivel" valor={estado.resultado.nivelAlcanzado} />
-              <TarjetaMetrica etiqueta="Tiempo" valor={`${Math.ceil(estado.resultado.tiempoTotalMs / 1000)} s`} />
-              <TarjetaMetrica etiqueta="Patron" valor={estado.resultado.patronLongitud} />
-              <TarjetaMetrica etiqueta="Estado" valor={estado.resultado.resultadoFinal} />
+              <TarjetaMetrica etiqueta="Nivel" valor={estado.resultado.estadisticas.nivelAlcanzado} />
+              <TarjetaMetrica etiqueta="Tiempo" valor={`${Math.ceil(estado.resultado.estadisticas.tiempoTotalMs / 1000)} s`} />
+              <TarjetaMetrica etiqueta="Precision" valor={`${estado.resultado.estadisticas.precisionPct}%`} />
+              <TarjetaMetrica etiqueta="Patron" valor={estado.resultado.detalles.patronLongitud} />
             </View>
           </View>
         )}

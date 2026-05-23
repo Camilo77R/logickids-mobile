@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ESTADOS_CAMINO_AR } from './caminoAr.constants';
 import { normalizarConfiguracionCaminoAr } from './caminoArConfiguracion';
 import {
+  construirEventoCaminoAr,
   construirResumenPartida,
   crearPatronAleatorio,
   resolverColumnasTablero,
@@ -16,7 +17,7 @@ const construirEstadoInicial = (configuracion) => ({
   tiempoRestanteMs: configuracion.configuracion.tiempoLimiteMs,
   ayudasRestantes: configuracion.configuracion.ayudasDisponibles,
   resultado: null,
-  eventos: [],
+  eventosSesion: [],
   aciertos: 0,
   errores: 0,
   ayudasUsadas: 0,
@@ -31,6 +32,7 @@ export const useCaminoArControlador = (configuracionInicial) => {
   const temporizadoresRef = useRef([]);
   const intervaloConteoRef = useRef(null);
   const marcaInicioRespuestaRef = useRef(null);
+  const marcaUltimoIntentoRef = useRef(null);
   const duracionRespuestaRef = useRef(configuracion.configuracion.tiempoLimiteMs);
   const partidaIniciadaEnRef = useRef(null);
 
@@ -46,15 +48,14 @@ export const useCaminoArControlador = (configuracionInicial) => {
     }
   };
 
-  const registrarEvento = (tipo, detalle = {}) => {
+  const registrarEvento = (evento) => {
     setEstado((previo) => ({
       ...previo,
-      eventos: [
-        ...previo.eventos,
+      eventosSesion: [
+        ...previo.eventosSesion,
         {
-          tipo,
+          ...evento,
           timestamp: new Date().toISOString(),
-          ...detalle,
         },
       ],
     }));
@@ -94,6 +95,7 @@ export const useCaminoArControlador = (configuracionInicial) => {
   const iniciarCuentaRegresiva = (tiempoInicialMs) => {
     detenerCuentaRegresiva();
     marcaInicioRespuestaRef.current = Date.now();
+    marcaUltimoIntentoRef.current = Date.now();
     duracionRespuestaRef.current = tiempoInicialMs;
 
     intervaloConteoRef.current = setInterval(() => {
@@ -173,13 +175,14 @@ export const useCaminoArControlador = (configuracionInicial) => {
     });
 
     programarReproduccionPatron(patron, configuracion.configuracion.tiempoLimiteMs);
-    registrarEvento('partida_iniciada', { patronLongitud: patron.length });
   };
 
   const reiniciarPartida = () => {
     limpiarTemporizadores();
     detenerCuentaRegresiva();
     partidaIniciadaEnRef.current = null;
+    marcaInicioRespuestaRef.current = null;
+    marcaUltimoIntentoRef.current = null;
     setEstado(construirEstadoInicial(configuracion));
   };
 
@@ -202,7 +205,6 @@ export const useCaminoArControlador = (configuracionInicial) => {
       mensaje: 'Pista usada. Mira de nuevo el recorrido antes de tocar.',
     }));
 
-    registrarEvento('pista_usada');
     programarReproduccionPatron(estado.patron, tiempoRestante);
   };
 
@@ -213,14 +215,19 @@ export const useCaminoArControlador = (configuracionInicial) => {
 
     const indiceEsperado = estado.patron[estado.indiceRespuesta];
     const esCorrecta = indiceBaldosa === indiceEsperado;
-
-    registrarEvento('baldosa_tocada', {
-      indiceBaldosa,
-      indiceEsperado,
-      esCorrecta,
-    });
+    const tiempoReaccionMs = marcaUltimoIntentoRef.current
+      ? Date.now() - marcaUltimoIntentoRef.current
+      : undefined;
 
     if (!esCorrecta) {
+      registrarEvento(
+        construirEventoCaminoAr({
+          tipoEvento: 'error',
+          tiempoReaccionMs,
+          puntos: 0,
+          comboEnEvento: 0,
+        }),
+      );
       setEstado((previo) => ({
         ...previo,
         errores: previo.errores + 1,
@@ -235,6 +242,18 @@ export const useCaminoArControlador = (configuracionInicial) => {
     }
 
     const siguienteIndice = estado.indiceRespuesta + 1;
+    const comboEnEvento = siguienteIndice;
+
+    registrarEvento(
+      construirEventoCaminoAr({
+        tipoEvento: 'acierto',
+        tiempoReaccionMs,
+        puntos: 10,
+        comboEnEvento,
+      }),
+    );
+
+    marcaUltimoIntentoRef.current = Date.now();
 
     setEstado((previo) => ({
       ...previo,

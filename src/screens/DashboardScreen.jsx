@@ -9,6 +9,11 @@ import {
 } from 'react-native';
 import CaminoARScreen from '../features/games/camino-ar/CaminoARScreen';
 import { obtenerConfiguracionBaseCaminoAr } from '../features/games/camino-ar/caminoArConfiguracion';
+import {
+  ESTADOS_ACCESO_JUEGO,
+  resolverAccesoJuegoDesdePerfil,
+} from '../features/games/core/resolverAccesoJuego';
+import { crearPerfilEstudianteDemo } from '../features/student/demo/perfilEstudianteDemo';
 import { colores, espaciado, radios, tipografia } from '../theme/tokens';
 
 export default function DashboardScreen() {
@@ -18,6 +23,23 @@ export default function DashboardScreen() {
   const configuracionBase = useMemo(
     () => obtenerConfiguracionBaseCaminoAr(),
     [],
+  );
+  const perfilEstudiante = useMemo(
+    () =>
+      crearPerfilEstudianteDemo({
+        sesionActiva: sesionDemoActiva,
+        slugJuego: configuracionBase.slug,
+        tituloJuego: configuracionBase.titulo,
+      }),
+    [configuracionBase.slug, configuracionBase.titulo, sesionDemoActiva],
+  );
+  const accesoCaminoAr = useMemo(
+    () =>
+      resolverAccesoJuegoDesdePerfil({
+        perfilEstudiante,
+        slugJuego: configuracionBase.slug,
+      }),
+    [configuracionBase.slug, perfilEstudiante],
   );
 
   if (juegoActivo === 'camino-ar') {
@@ -56,8 +78,11 @@ export default function DashboardScreen() {
 
         <TouchableOpacity
           activeOpacity={0.9}
-          disabled={!sesionDemoActiva}
-          style={[styles.tarjetaJuego, !sesionDemoActiva && styles.tarjetaBloqueada]}
+          disabled={accesoCaminoAr.estado !== ESTADOS_ACCESO_JUEGO.disponible}
+          style={[
+            styles.tarjetaJuego,
+            accesoCaminoAr.estado !== ESTADOS_ACCESO_JUEGO.disponible && styles.tarjetaBloqueada,
+          ]}
           onPress={() => setJuegoActivo('camino-ar')}
         >
           <Text style={styles.emojiJuego}>Camino base</Text>
@@ -74,9 +99,9 @@ export default function DashboardScreen() {
             </View>
           </View>
           <Text style={styles.estadoJuego}>
-            {sesionDemoActiva
-              ? 'Disponible: la sesion esta abierta para jugar.'
-              : 'Bloqueado: el tutor aun no ha abierto la sesion.'}
+            {accesoCaminoAr.estado === ESTADOS_ACCESO_JUEGO.disponible
+              ? 'Disponible: el backend ya permitiria iniciar la sesion del juego.'
+              : accesoCaminoAr.motivo}
           </Text>
         </TouchableOpacity>
       </View>
