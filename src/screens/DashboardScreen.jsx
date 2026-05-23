@@ -1,32 +1,116 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView } from 'react-native';
-import BabylonBasicScene from '../features/games/BabylonBasicScene';
+import React, { useMemo, useState } from 'react';
+import {
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import CaminoARScreen from '../features/games/camino-ar/CaminoARScreen';
+import { obtenerConfiguracionBaseCaminoAr } from '../features/games/camino-ar/caminoArConfiguracion';
+import {
+  ESTADOS_ACCESO_JUEGO,
+  resolverAccesoJuegoDesdePerfil,
+} from '../features/games/core/resolverAccesoJuego';
+import { crearPerfilEstudianteDemo } from '../features/student/demo/perfilEstudianteDemo';
+import { colores, espaciado, radios, tipografia } from '../theme/tokens';
 
 export default function DashboardScreen() {
-  const [juegoActivado, setJuegoActivado] = useState(false);
+  const [sesionDemoActiva, setSesionDemoActiva] = useState(false);
+  const [juegoActivo, setJuegoActivo] = useState(null);
+
+  const configuracionBase = useMemo(
+    () => obtenerConfiguracionBaseCaminoAr(),
+    [],
+  );
+  const perfilEstudiante = useMemo(
+    () =>
+      crearPerfilEstudianteDemo({
+        sesionActiva: sesionDemoActiva,
+        slugJuego: configuracionBase.slug,
+        tituloJuego: configuracionBase.titulo,
+      }),
+    [configuracionBase.slug, configuracionBase.titulo, sesionDemoActiva],
+  );
+  const accesoCaminoAr = useMemo(
+    () =>
+      resolverAccesoJuegoDesdePerfil({
+        perfilEstudiante,
+        slugJuego: configuracionBase.slug,
+      }),
+    [configuracionBase.slug, perfilEstudiante],
+  );
+  const contextoSesionCaminoAr = useMemo(
+    () => ({
+      tokenEstudiante: null,
+      baseUrlApi: null,
+      minijuegoId: perfilEstudiante.sesion_minijuego_id,
+    }),
+    [perfilEstudiante.sesion_minijuego_id],
+  );
+
+  if (juegoActivo === 'camino-ar') {
+    return (
+      <CaminoARScreen
+        onSalir={() => setJuegoActivo(null)}
+        configuracionInicial={configuracionBase}
+        contextoSesion={contextoSesionCaminoAr}
+      />
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={styles.contenedor}>
+      <StatusBar barStyle="light-content" backgroundColor={colores.fondoPrincipal} />
+
+      <View style={styles.encabezado}>
         <Text style={styles.logo}>LogicKids Mobile</Text>
-        <Text style={styles.subtitle}>Integracion Babylon.js</Text>
+        <Text style={styles.subtitulo}>Base limpia para juegos nativos sin Babylon ni WebView</Text>
       </View>
-      <View style={styles.gameArea}>
-        {!juegoActivado ? (
-          <View style={styles.lockedState}>
-            <Text style={styles.lockedText}> Presiona el boton para mostrar el motor 3D</Text>
-          </View>
-        ) : (
-          <BabylonBasicScene />
-        )}
-      </View>
-      <View style={styles.controls}>
-        <TouchableOpacity 
-          style={[styles.button, juegoActivado ? styles.buttonStop : styles.buttonStart]} 
-          onPress={() => setJuegoActivado(!juegoActivado)}
+
+      <View style={styles.cuerpo}>
+        <View style={styles.panel}>
+          <Text style={styles.tituloPanel}>Sesion de clase</Text>
+          <Text style={styles.textoPanel}>
+            Para la primera partida todos arrancan con nivel base 1. Luego otra capa podra adaptar dificultad y ritmo con estadisticas e IA.
+          </Text>
+          <TouchableOpacity
+            style={[styles.botonEstado, sesionDemoActiva ? styles.botonCerrar : styles.botonAbrir]}
+            onPress={() => setSesionDemoActiva((previo) => !previo)}
+          >
+            <Text style={styles.botonEstadoTexto}>
+              {sesionDemoActiva ? 'Cerrar sesion demo' : 'Abrir sesion demo'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          activeOpacity={0.9}
+          disabled={accesoCaminoAr.estado !== ESTADOS_ACCESO_JUEGO.disponible}
+          style={[
+            styles.tarjetaJuego,
+            accesoCaminoAr.estado !== ESTADOS_ACCESO_JUEGO.disponible && styles.tarjetaBloqueada,
+          ]}
+          onPress={() => setJuegoActivo('camino-ar')}
         >
-          <Text style={styles.buttonText}>
-            {juegoActivado ? 'Ocultar Motor 3D' : 'Mostrar Babylon.js'}
+          <Text style={styles.emojiJuego}>Camino base</Text>
+          <Text style={styles.tituloJuego}>Camino AR</Text>
+          <Text style={styles.descripcionJuego}>
+            El nino memoriza un recorrido iluminado y luego toca las baldosas en el mismo orden.
+          </Text>
+          <View style={styles.filaBadges}>
+            <View style={styles.badge}>
+              <Text style={styles.badgeTexto}>RN puro</Text>
+            </View>
+            <View style={styles.badge}>
+              <Text style={styles.badgeTexto}>Nivel base 1</Text>
+            </View>
+          </View>
+          <Text style={styles.estadoJuego}>
+            {accesoCaminoAr.estado === ESTADOS_ACCESO_JUEGO.disponible
+              ? 'Disponible: el backend ya permitiria iniciar la sesion del juego.'
+              : accesoCaminoAr.motivo}
           </Text>
         </TouchableOpacity>
       </View>
@@ -35,16 +119,112 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F7FA' },
-  header: { padding: 20, alignItems: 'center', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
-  logo: { fontSize: 24, fontWeight: '900', color: '#2C3E50' },
-  subtitle: { fontSize: 14, color: '#7F8C8D', marginTop: 5 },
-  gameArea: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  lockedState: { padding: 20, backgroundColor: '#E8F4F8', borderRadius: 10, borderWidth: 1, borderColor: '#B3E5FC' },
-  lockedText: { color: '#0277BD', fontSize: 16, fontWeight: '600', textAlign: 'center' },
-  controls: { padding: 20, paddingBottom: 40 },
-  button: { padding: 15, borderRadius: 10, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-  buttonStart: { backgroundColor: '#27AE60' },
-  buttonStop: { backgroundColor: '#E74C3C' },
-  buttonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' }
+  contenedor: {
+    flex: 1,
+    backgroundColor: colores.fondoPrincipal,
+  },
+  encabezado: {
+    paddingTop: espaciado.xl,
+    paddingHorizontal: espaciado.lg,
+    paddingBottom: espaciado.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colores.bordeSuave,
+    gap: espaciado.xs,
+  },
+  logo: {
+    color: colores.alerta,
+    fontSize: 30,
+    fontWeight: '900',
+  },
+  subtitulo: {
+    color: colores.textoSecundario,
+    lineHeight: 20,
+  },
+  cuerpo: {
+    flex: 1,
+    padding: espaciado.lg,
+    gap: espaciado.lg,
+  },
+  panel: {
+    backgroundColor: colores.fondoSecundario,
+    borderRadius: radios.lg,
+    padding: espaciado.md,
+    borderWidth: 1,
+    borderColor: colores.bordeAcento,
+    gap: espaciado.sm,
+  },
+  tituloPanel: {
+    color: colores.textoPrincipal,
+    fontSize: tipografia.subtitulo,
+    fontWeight: '800',
+  },
+  textoPanel: {
+    color: colores.textoSecundario,
+    lineHeight: 20,
+  },
+  botonEstado: {
+    borderRadius: radios.md,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  botonAbrir: {
+    backgroundColor: colores.exito,
+  },
+  botonCerrar: {
+    backgroundColor: '#FF6B6B',
+  },
+  botonEstadoTexto: {
+    color: '#06131F',
+    fontWeight: '900',
+  },
+  tarjetaJuego: {
+    backgroundColor: colores.fondoSecundario,
+    borderRadius: radios.lg,
+    padding: espaciado.lg,
+    borderWidth: 1,
+    borderColor: colores.bordeAcento,
+    gap: espaciado.sm,
+  },
+  tarjetaBloqueada: {
+    opacity: 0.52,
+    borderColor: colores.bordeSuave,
+  },
+  emojiJuego: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colores.acento,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  tituloJuego: {
+    color: colores.textoPrincipal,
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  descripcionJuego: {
+    color: colores.textoSecundario,
+    lineHeight: 21,
+  },
+  filaBadges: {
+    flexDirection: 'row',
+    gap: espaciado.sm,
+  },
+  badge: {
+    backgroundColor: 'rgba(255,216,107,0.14)',
+    borderRadius: radios.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,216,107,0.24)',
+  },
+  badgeTexto: {
+    color: colores.alerta,
+    fontSize: tipografia.etiqueta,
+    fontWeight: '800',
+  },
+  estadoJuego: {
+    color: colores.acento,
+    lineHeight: 20,
+    marginTop: espaciado.xs,
+  },
 });

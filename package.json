@@ -6,15 +6,15 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test:juegos": "node --require ./scripts/registrarBabelTests.cjs --test tests/juegos/caminoAr.nucleo.test.cjs"
   },
   "dependencies": {
     "expo": "~50.0.17",
     "expo-dev-client": "~3.3.12",
     "expo-status-bar": "~1.11.1",
     "react": "18.2.0",
-    "react-native": "0.73.6",
-    "react-native-webview": "13.6.4"
+    "react-native": "0.73.6"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"
