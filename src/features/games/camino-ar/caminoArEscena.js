@@ -2,15 +2,15 @@ import { ESTADOS_CAMINO_AR } from './caminoAr.constants';
 
 const resolverDescripcionEstado = (fase) =>
   ({
-    [ESTADOS_CAMINO_AR.listo]: 'Prepárate para mirar el camino y recordarlo.',
+    [ESTADOS_CAMINO_AR.listo]: 'Tu camino magico ya esta listo.',
     [ESTADOS_CAMINO_AR.mostrandoPatron]:
-      'Las baldosas se iluminan una por una. Mira con mucha atención.',
+      'Las luces te muestran la ruta secreta.',
     [ESTADOS_CAMINO_AR.esperandoRespuesta]:
-      'Ahora te toca tocar las baldosas en el mismo orden.',
+      'Ahora sigue la misma ruta con tus dedos.',
     [ESTADOS_CAMINO_AR.completado]:
-      'Completaste esta ronda y tus resultados quedaron guardados.',
+      'Terminaste esta ronda y tu avance ya quedo guardado.',
     [ESTADOS_CAMINO_AR.fallido]:
-      'La ronda terminó. Puedes volver a intentarlo con calma.',
+      'La ronda termino y tu intento tambien quedo guardado.',
   })[fase] ?? 'Seguimos preparando la actividad.';
 
 const construirResumenSesionBackend = ({ respuestaInicioSesion }) => {
@@ -72,7 +72,7 @@ const construirMetricasResultado = ({
   );
 
   return [
-    { etiqueta: 'Puntos', valor: puntajeOficial },
+    { etiqueta: 'Estrellas', valor: puntajeOficial },
     { etiqueta: 'Aciertos', valor: aciertosOficiales },
     { etiqueta: 'Errores', valor: erroresOficiales },
     { etiqueta: 'Precision', valor: `${resultado.estadisticas.precisionPct}%` },
@@ -146,10 +146,10 @@ const construirCopyResultado = ({ resultado, cierreSesion }) => {
   const patronResuelto = Boolean(resultado.detalles.patronResuelto);
 
   return {
-    titulo: patronResuelto ? '¡Muy bien!' : 'Ronda completada',
+    titulo: patronResuelto ? 'Misión cumplida' : 'Buen intento',
     descripcion: patronResuelto
-      ? `Recordaste ${resultado.detalles.patronLongitud} luces y ganaste ${resultado.estadisticas.puntaje} puntos.`
-      : `Terminaste la ronda con ${resultado.estadisticas.aciertos} aciertos y ${resultado.estadisticas.errores} errores.`,
+      ? `Seguiste ${resultado.detalles.patronLongitud} luces y reuniste ${resultado.estadisticas.puntaje} estrellas.`
+      : `Llegaste a ${resultado.estadisticas.aciertos} aciertos. Tu avance quedo guardado para seguir practicando.`,
     mensajeProgreso: resolverMensajeProgreso({ cierreSesion }),
   };
 };
@@ -172,7 +172,7 @@ const construirAccionResultado = ({
   if (cierreSesion.haySiguientePaso && cierreSesion.siguienteEsMismoJuego) {
     return {
       accionContinuar: continuarActividad,
-      etiquetaContinuar: 'Siguiente nivel',
+      etiquetaContinuar: 'Siguiente reto',
       accionSalir: salirActividad,
       etiquetaSalir: 'Volver al tablero',
       sincronizandoCierre: false,
@@ -221,13 +221,13 @@ const construirAccionesEscena = ({
 }) => ({
   mostrarControlesPrincipales: !resultadoVisible,
   iniciar: {
-    etiqueta: preparandoRonda ? 'Preparando...' : 'Comenzar',
+    etiqueta: preparandoRonda ? 'Preparando...' : 'Vamos',
     accion: iniciarPartida,
     deshabilitada:
       resultadoVisible || preparandoRonda || fase !== ESTADOS_CAMINO_AR.listo,
   },
   pista: {
-    etiqueta: 'Ver de nuevo',
+    etiqueta: 'Ver camino',
     accion: usarPista,
     deshabilitada: resultadoVisible || preparandoRonda || !puedePedirPista,
   },
@@ -266,15 +266,14 @@ export const construirEscenaCaminoAr = ({
         : 'Espera a terminar',
   },
   encabezado: {
-    ceja: 'Memoria en movimiento',
+    ceja: 'Reto de memoria',
     titulo: 'Camino AR',
-    subtitulo:
-      'Mira el recorrido de luces y repítelo tocando las baldosas en el mismo orden.',
+    subtitulo: 'Mira la ruta de luces y repitela tocando las baldosas en el mismo orden.',
   },
   sesion: {
     titulo: 'Sesion actual',
     descripcion:
-      'El backend decide el nivel, registra los eventos y controla si la actividad continua o termina.',
+      'Cada ronda guarda tu avance y prepara el siguiente reto cuando corresponde.',
     metricas: [
       ...construirMetricasSesion({ configuracion, persistenciaSesion }),
       ...construirResumenSesionBackend({ respuestaInicioSesion }),
@@ -282,6 +281,7 @@ export const construirEscenaCaminoAr = ({
     errorPersistencia: persistenciaSesion?.error ?? null,
   },
   estadoActual: {
+    fase: estado.fase,
     titulo: 'Estado actual',
     mensaje: estado.mensaje,
     descripcion: resolverDescripcionEstado(estado.fase),

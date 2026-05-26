@@ -13,7 +13,7 @@ const construirEstadoInicial = (configuracion) => ({
   patron: [],
   indiceRespuesta: 0,
   baldosaActiva: null,
-  mensaje: 'Memoriza el recorrido y luego tocalo en el mismo orden.',
+  mensaje: 'Mira el camino de luces y luego siguelo en el mismo orden.',
   tiempoRestanteMs: configuracion.configuracion.tiempoLimiteMs,
   ayudasRestantes: configuracion.configuracion.ayudasDisponibles,
   resultado: null,
@@ -98,7 +98,7 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
       baldosaActiva: null,
       resultado: resultadoCalculado,
       mensaje: exito
-        ? 'Actividad completada. Tus resultados fueron guardados.'
+        ? 'Ronda completada. Tus resultados fueron guardados.'
         : motivo,
     }));
 
@@ -134,7 +134,7 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
       ...previo,
       fase: ESTADOS_CAMINO_AR.mostrandoPatron,
       baldosaActiva: null,
-      mensaje: 'Observa con cuidado el orden de las baldosas iluminadas.',
+      mensaje: 'Mira las luces con calma y recuerda el recorrido.',
     }));
 
     let demoraAcumulada = 0;
@@ -165,7 +165,7 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
       setEstado((previo) => ({
         ...previo,
         fase: ESTADOS_CAMINO_AR.esperandoRespuesta,
-        mensaje: 'Ahora repite el recorrido tocando cada baldosa en orden.',
+        mensaje: 'Tu turno: toca las baldosas en el mismo orden.',
       }));
       iniciarCuentaRegresiva(tiempoReanudacionMs);
     }, demoraAcumulada);
@@ -190,7 +190,7 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
     setEstado({
       ...construirEstadoInicial(configuracion),
       patron,
-      mensaje: 'Observa con cuidado el orden de las baldosas iluminadas.',
+      mensaje: 'Mira las luces con calma y recuerda el recorrido.',
     });
 
     ejecutarObservadorSeguro(observadores.alIniciarPartida, {
@@ -227,7 +227,7 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
       ...previo,
       ayudasRestantes: previo.ayudasRestantes - 1,
       ayudasUsadas: previo.ayudasUsadas + 1,
-      mensaje: 'Pista usada. Mira de nuevo el recorrido antes de tocar.',
+      mensaje: 'Mira otra vez el recorrido antes de tocar.',
     }));
 
     programarReproduccionPatron(estado.patron, tiempoRestante);
@@ -268,7 +268,7 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
       }));
 
       const temporizadorError = setTimeout(() => {
-        finalizarPartida(false, 'Orden incorrecto. Reinicia para intentar otra vez.');
+        finalizarPartida(false, 'Casi lo logras. Esta ronda ya termino y puedes revisar tu resultado.');
       }, 220);
       temporizadoresRef.current.push(temporizadorError);
       return;
@@ -313,7 +313,7 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
 
     if (siguienteIndice >= estado.patron.length) {
       const temporizadorExito = setTimeout(() => {
-        finalizarPartida(true, 'Actividad completada. Tus resultados fueron guardados.');
+        finalizarPartida(true, 'Ronda completada. Tus resultados fueron guardados.');
       }, 200);
       temporizadoresRef.current.push(temporizadorExito);
     }

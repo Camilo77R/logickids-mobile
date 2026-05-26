@@ -42,7 +42,7 @@ test('normalizarConfiguracionCaminoAr usa defaults seguros y valida modo de pres
     },
   });
 
-  assert.equal(configuracion.dificultad, 1);
+  assert.equal(configuracion.dificultad, 2);
   assert.equal(
     configuracion.modoPresentacion,
     MODO_PRESENTACION_CAMINO_AR,
@@ -262,7 +262,7 @@ test('construirEscenaCaminoAr usa resumen oficial, logros y progreso para el cie
   });
 
   assert.equal(escena.resultado.visible, true);
-  assert.equal(escena.resultado.titulo, 'Ronda completada');
+  assert.equal(escena.resultado.titulo, 'Buen intento');
   assert.match(escena.resultado.mensajeProgreso, /Actividad completada/i);
   assert.equal(escena.resultado.metricas[0].valor, 25);
   assert.equal(escena.resultado.metricas[1].valor, 2);

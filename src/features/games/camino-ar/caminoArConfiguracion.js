@@ -3,16 +3,16 @@ import { MODO_PRESENTACION_CAMINO_AR } from './caminoAr.constants';
 const CONFIGURACION_BASE = Object.freeze({
   slug: 'camino-ar',
   titulo: 'Camino AR',
-  dificultad: 1,
+  dificultad: 2,
   fuenteAdaptacion: 'base',
   versionAdaptacion: 'v1-base',
   modoPresentacion: MODO_PRESENTACION_CAMINO_AR,
   configuracion: Object.freeze({
     cantidadBaldosas: 6,
-    longitudPatron: 3,
-    duracionDestelloMs: 650,
-    pausaEntreDestellosMs: 220,
-    tiempoLimiteMs: 15000,
+    longitudPatron: 4,
+    duracionDestelloMs: 560,
+    pausaEntreDestellosMs: 180,
+    tiempoLimiteMs: 13000,
     ayudasDisponibles: 1,
   }),
 });
