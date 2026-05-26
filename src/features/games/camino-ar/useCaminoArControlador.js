@@ -39,6 +39,8 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
     [configuracionInicial],
   );
   const [estado, setEstado] = useState(() => construirEstadoInicial(configuracion));
+  const estadoRef = useRef(construirEstadoInicial(configuracion));
+  const bloqueoInicioRef = useRef(false);
   const temporizadoresRef = useRef([]);
   const intervaloConteoRef = useRef(null);
   const marcaInicioRespuestaRef = useRef(null);
@@ -76,33 +78,29 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
   const finalizarPartida = (exito, motivo) => {
     limpiarTemporizadores();
     detenerCuentaRegresiva();
-    let resultadoCalculado = null;
-
-    setEstado((previo) => {
-      const tiempoTranscurridoMs = partidaIniciadaEnRef.current
-        ? Date.now() - partidaIniciadaEnRef.current
-        : 0;
-
-      resultadoCalculado = construirResumenPartida({
-        exito,
-        configuracion,
-        aciertos: previo.aciertos,
-        errores: previo.errores,
-        ayudasUsadas: previo.ayudasUsadas,
-        tiempoTranscurridoMs,
-        patron: previo.patron,
-      });
-
-      return {
-        ...previo,
-        fase: exito ? ESTADOS_CAMINO_AR.completado : ESTADOS_CAMINO_AR.fallido,
-        baldosaActiva: null,
-        resultado: resultadoCalculado,
-        mensaje: exito
-          ? 'Actividad completada. Tus resultados fueron guardados.'
-          : motivo,
-      };
+    const estadoActual = estadoRef.current;
+    const tiempoTranscurridoMs = partidaIniciadaEnRef.current
+      ? Date.now() - partidaIniciadaEnRef.current
+      : 0;
+    const resultadoCalculado = construirResumenPartida({
+      exito,
+      configuracion,
+      aciertos: estadoActual.aciertos,
+      errores: estadoActual.errores,
+      ayudasUsadas: estadoActual.ayudasUsadas,
+      tiempoTranscurridoMs,
+      patron: estadoActual.patron,
     });
+
+    setEstado((previo) => ({
+      ...previo,
+      fase: exito ? ESTADOS_CAMINO_AR.completado : ESTADOS_CAMINO_AR.fallido,
+      baldosaActiva: null,
+      resultado: resultadoCalculado,
+      mensaje: exito
+        ? 'Actividad completada. Tus resultados fueron guardados.'
+        : motivo,
+    }));
 
     ejecutarObservadorSeguro(observadores.alFinalizarPartida, resultadoCalculado);
   };
@@ -176,6 +174,12 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
   };
 
   const iniciarPartida = () => {
+    if (bloqueoInicioRef.current || estado.fase !== ESTADOS_CAMINO_AR.listo) {
+      return;
+    }
+
+    bloqueoInicioRef.current = true;
+
     const patron = crearPatronAleatorio({
       cantidadBaldosas: configuracion.configuracion.cantidadBaldosas,
       longitudPatron: configuracion.configuracion.longitudPatron,
@@ -200,6 +204,7 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
   const reiniciarPartida = () => {
     limpiarTemporizadores();
     detenerCuentaRegresiva();
+    bloqueoInicioRef.current = false;
     partidaIniciadaEnRef.current = null;
     marcaInicioRespuestaRef.current = null;
     marcaUltimoIntentoRef.current = null;
@@ -246,6 +251,14 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
           tiempoReaccionMs,
           puntos: 0,
           comboEnEvento: 0,
+          metadata: {
+            pattern_length: estado.patron.length,
+            step_flash_ms: configuracion.configuracion.duracionDestelloMs,
+            step_gap_ms: configuracion.configuracion.pausaEntreDestellosMs,
+            tile_index: indiceBaldosa,
+            expected_index: indiceEsperado,
+            remaining_time_ms: Math.max(0, Math.round(estado.tiempoRestanteMs)),
+          },
         }),
       );
       setEstado((previo) => ({
@@ -270,6 +283,14 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
         tiempoReaccionMs,
         puntos: 10,
         comboEnEvento,
+        metadata: {
+          pattern_length: estado.patron.length,
+          step_flash_ms: configuracion.configuracion.duracionDestelloMs,
+          step_gap_ms: configuracion.configuracion.pausaEntreDestellosMs,
+          tile_index: indiceBaldosa,
+          expected_index: indiceEsperado,
+          remaining_time_ms: Math.max(0, Math.round(estado.tiempoRestanteMs)),
+        },
       }),
     );
 
@@ -306,6 +327,10 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
   useEffect(() => {
     reiniciarPartida();
   }, [configuracion]);
+
+  useEffect(() => {
+    estadoRef.current = estado;
+  }, [estado]);
 
   return {
     configuracion,

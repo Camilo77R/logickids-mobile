@@ -56,6 +56,7 @@ export const useDeteccionSuperficieAr = () => {
   return useMemo(
     () => ({
       estado,
+      revisionReinicio: estado.revisionReinicio,
       etiquetaEstado: resolverEtiquetaEstadoDeteccionAr(estado),
       mensaje: resolverMensajeDeteccionSuperficieAr(estado),
       registrarAncla,
@@ -73,4 +74,3 @@ export const useDeteccionSuperficieAr = () => {
     ],
   );
 };
-

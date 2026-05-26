@@ -1,4 +1,4 @@
-import { MODOS_PRESENTACION_CAMINO_AR } from './caminoAr.constants';
+import { MODO_PRESENTACION_CAMINO_AR } from './caminoAr.constants';
 
 const CONFIGURACION_BASE = Object.freeze({
   slug: 'camino-ar',
@@ -6,7 +6,7 @@ const CONFIGURACION_BASE = Object.freeze({
   dificultad: 1,
   fuenteAdaptacion: 'base',
   versionAdaptacion: 'v1-base',
-  modoPresentacion: MODOS_PRESENTACION_CAMINO_AR.tablero2d,
+  modoPresentacion: MODO_PRESENTACION_CAMINO_AR,
   configuracion: Object.freeze({
     cantidadBaldosas: 6,
     longitudPatron: 3,
@@ -26,9 +26,7 @@ const asegurarEnteroPositivo = (valor, respaldo) => {
 };
 
 const normalizarModoPresentacion = (valor, respaldo) => {
-  const modosValidos = new Set(Object.values(MODOS_PRESENTACION_CAMINO_AR));
-
-  if (typeof valor !== 'string' || !modosValidos.has(valor)) {
+  if (valor !== MODO_PRESENTACION_CAMINO_AR) {
     return respaldo;
   }
 
@@ -80,3 +78,28 @@ export const normalizarConfiguracionCaminoAr = (entrada = {}) => {
 
 export const obtenerConfiguracionBaseCaminoAr = (sobrescrituras = {}) =>
   normalizarConfiguracionCaminoAr(sobrescrituras);
+
+export const resolverConfiguracionCaminoArDesdeBackend = ({
+  configuracionLocal = {},
+  respuestaInicioSesion = null,
+}) => {
+  const gameConfig = respuestaInicioSesion?.game_config;
+
+  if (!gameConfig || typeof gameConfig !== 'object' || Array.isArray(gameConfig)) {
+    return normalizarConfiguracionCaminoAr(configuracionLocal);
+  }
+
+  return normalizarConfiguracionCaminoAr({
+    ...configuracionLocal,
+    dificultad: gameConfig.dificultad ?? respuestaInicioSesion?.sesion?.dificultad,
+    configuracion: {
+      ...configuracionLocal.configuracion,
+      cantidadBaldosas: gameConfig.cantidad_baldosas,
+      longitudPatron: gameConfig.longitud_patron,
+      duracionDestelloMs: gameConfig.duracion_destello_ms,
+      pausaEntreDestellosMs: gameConfig.pausa_entre_destellos_ms,
+      tiempoLimiteMs: gameConfig.tiempo_limite_ms,
+      ayudasDisponibles: gameConfig.ayudas_disponibles,
+    },
+  });
+};

@@ -24,6 +24,14 @@ export const ESTADOS_FINALIZACION_SESION = Object.freeze({
 
 const ESTADOS_FINALIZACION_SOPORTADOS = new Set(Object.values(ESTADOS_FINALIZACION_SESION));
 
+const normalizarMetadata = (metadata) => {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return undefined;
+  }
+
+  return metadata;
+};
+
 /**
  * Construye un evento compatible con POST /api/sesiones/:id/eventos.
  *
@@ -41,6 +49,7 @@ export const crearEventoSesion = ({
   tiempoReaccionMs,
   puntos = 0,
   comboEnEvento = 0,
+  metadata,
 }) => {
   if (!TIPOS_EVENTO_SESION_SOPORTADOS.has(tipoEvento)) {
     throw new Error(
@@ -56,6 +65,7 @@ export const crearEventoSesion = ({
       : {}),
     puntos: normalizarEnteroNoNegativo(puntos),
     combo_en_evento: normalizarEnteroNoNegativo(comboEnEvento),
+    ...(normalizarMetadata(metadata) ? { metadata: normalizarMetadata(metadata) } : {}),
   };
 };
 
