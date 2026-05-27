@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   SafeAreaView,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -9,7 +10,16 @@ import {
 } from 'react-native';
 import CaminoARScreen from '../features/games/camino-ar/CaminoARScreen';
 import { obtenerConfiguracionBaseCaminoAr } from '../features/games/camino-ar/caminoArConfiguracion';
-import { MODOS_PRESENTACION_CAMINO_AR } from '../features/games/camino-ar/caminoAr.constants';
+import {
+  MODOS_PRESENTACION_CAMINO_AR,
+  SLUG_CAMINO_AR,
+} from '../features/games/camino-ar/caminoAr.constants';
+import TrenFigurasScreen from '../features/games/tren-figuras/TrenFigurasScreen';
+import { obtenerConfiguracionBaseTrenFiguras } from '../features/games/tren-figuras/trenFigurasConfiguracion';
+import {
+  SLUG_TREN_FIGURAS,
+  TITULO_TREN_FIGURAS,
+} from '../features/games/tren-figuras/trenFiguras.constants';
 import {
   ESTADOS_ACCESO_JUEGO,
   resolverAccesoJuegoDesdePerfil,
@@ -20,6 +30,7 @@ import { colores, espaciado, radios, tipografia } from '../theme/tokens';
 export default function DashboardScreen() {
   const [sesionDemoActiva, setSesionDemoActiva] = useState(false);
   const [juegoActivo, setJuegoActivo] = useState(null);
+  const [juegoSesionDemo, setJuegoSesionDemo] = useState(SLUG_CAMINO_AR);
   const [modoPresentacionDemo, setModoPresentacionDemo] = useState(
     MODOS_PRESENTACION_CAMINO_AR.tablero2d,
   );
@@ -31,14 +42,20 @@ export default function DashboardScreen() {
       }),
     [modoPresentacionDemo],
   );
+  const configuracionBaseTren = useMemo(
+    () => obtenerConfiguracionBaseTrenFiguras(),
+    [],
+  );
+  const juegoDemoTitulo =
+    juegoSesionDemo === SLUG_TREN_FIGURAS ? TITULO_TREN_FIGURAS : configuracionBase.titulo;
   const perfilEstudiante = useMemo(
     () =>
       crearPerfilEstudianteDemo({
         sesionActiva: sesionDemoActiva,
-        slugJuego: configuracionBase.slug,
-        tituloJuego: configuracionBase.titulo,
+        slugJuego: juegoSesionDemo,
+        tituloJuego: juegoDemoTitulo,
       }),
-    [configuracionBase.slug, configuracionBase.titulo, sesionDemoActiva],
+    [juegoDemoTitulo, juegoSesionDemo, sesionDemoActiva],
   );
   const accesoCaminoAr = useMemo(
     () =>
@@ -48,7 +65,23 @@ export default function DashboardScreen() {
       }),
     [configuracionBase.slug, perfilEstudiante],
   );
+  const accesoTrenFiguras = useMemo(
+    () =>
+      resolverAccesoJuegoDesdePerfil({
+        perfilEstudiante,
+        slugJuego: configuracionBaseTren.slug,
+      }),
+    [configuracionBaseTren.slug, perfilEstudiante],
+  );
   const contextoSesionCaminoAr = useMemo(
+    () => ({
+      tokenEstudiante: null,
+      baseUrlApi: null,
+      minijuegoId: perfilEstudiante.sesion_minijuego_id,
+    }),
+    [perfilEstudiante.sesion_minijuego_id],
+  );
+  const contextoSesionTrenFiguras = useMemo(
     () => ({
       tokenEstudiante: null,
       baseUrlApi: null,
@@ -67,16 +100,26 @@ export default function DashboardScreen() {
     );
   }
 
+  if (juegoActivo === SLUG_TREN_FIGURAS) {
+    return (
+      <TrenFigurasScreen
+        onSalir={() => setJuegoActivo(null)}
+        configuracionInicial={configuracionBaseTren}
+        contextoSesion={contextoSesionTrenFiguras}
+      />
+    );
+  }
+
   return (
     <SafeAreaView style={styles.contenedor}>
       <StatusBar barStyle="light-content" backgroundColor={colores.fondoPrincipal} />
 
       <View style={styles.encabezado}>
         <Text style={styles.logo}>LogicKids Mobile</Text>
-        <Text style={styles.subtitulo}>Base limpia para juegos nativos sin Babylon ni WebView</Text>
+        <Text style={styles.subtitulo}>Juegos educativos con sesiones, progreso y experiencias interactivas.</Text>
       </View>
 
-      <View style={styles.cuerpo}>
+      <ScrollView contentContainerStyle={styles.cuerpo}>
         <View style={styles.panel}>
           <Text style={styles.tituloPanel}>Sesion de clase</Text>
           <Text style={styles.textoPanel}>
@@ -126,6 +169,41 @@ export default function DashboardScreen() {
                 ]}
               >
                 Probar en AR
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.selectorModo}>
+            <TouchableOpacity
+              style={[
+                styles.botonModo,
+                juegoSesionDemo === SLUG_CAMINO_AR && styles.botonModoActivo,
+              ]}
+              onPress={() => setJuegoSesionDemo(SLUG_CAMINO_AR)}
+            >
+              <Text
+                style={[
+                  styles.botonModoTexto,
+                  juegoSesionDemo === SLUG_CAMINO_AR && styles.botonModoTextoActivo,
+                ]}
+              >
+                Sesion Camino
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.botonModo,
+                juegoSesionDemo === SLUG_TREN_FIGURAS && styles.botonModoActivo,
+              ]}
+              onPress={() => setJuegoSesionDemo(SLUG_TREN_FIGURAS)}
+            >
+              <Text
+                style={[
+                  styles.botonModoTexto,
+                  juegoSesionDemo === SLUG_TREN_FIGURAS && styles.botonModoTextoActivo,
+                ]}
+              >
+                Sesion Tren
               </Text>
             </TouchableOpacity>
           </View>
@@ -180,7 +258,39 @@ export default function DashboardScreen() {
               : accesoCaminoAr.motivo}
           </Text>
         </TouchableOpacity>
-      </View>
+
+        <TouchableOpacity
+          activeOpacity={0.9}
+          disabled={accesoTrenFiguras.estado !== ESTADOS_ACCESO_JUEGO.disponible}
+          style={[
+            styles.tarjetaJuego,
+            accesoTrenFiguras.estado !== ESTADOS_ACCESO_JUEGO.disponible && styles.tarjetaBloqueada,
+          ]}
+          onPress={() => setJuegoActivo(SLUG_TREN_FIGURAS)}
+        >
+          <Text style={styles.emojiJuego}>Logica 3D</Text>
+          <Text style={styles.tituloJuego}>Tren de Figuras</Text>
+          <Text style={styles.descripcionJuego}>
+            Completa el patron de figuras y colores en los vagones del tren virtual.
+          </Text>
+          <View style={styles.filaBadges}>
+            <View style={styles.badge}>
+              <Text style={styles.badgeTexto}>WebView</Text>
+            </View>
+            <View style={styles.badge}>
+              <Text style={styles.badgeTexto}>Babylon.js</Text>
+            </View>
+            <View style={styles.badge}>
+              <Text style={styles.badgeTexto}>Nivel base 1</Text>
+            </View>
+          </View>
+          <Text style={styles.estadoJuego}>
+            {accesoTrenFiguras.estado === ESTADOS_ACCESO_JUEGO.disponible
+              ? 'Disponible: completa los vagones tocando figura y vagon.'
+              : accesoTrenFiguras.motivo}
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -208,7 +318,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   cuerpo: {
-    flex: 1,
     padding: espaciado.lg,
     gap: espaciado.lg,
   },
