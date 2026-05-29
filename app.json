@@ -15,7 +15,10 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "LogicKids necesita la camara para escanear codigos QR de inicio de sesion."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +30,20 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "LogicKids necesita la camara para escanear codigos QR de inicio de sesion.",
+          "recordAudioAndroid": false
+        }
+      ],
+      "expo-font",
+      "expo-video"
+    ],
     "extra": {
+      "qrLoginPath": "/estudiantes/login",
+      "studentProfilePath": "/estudiantes/mi-perfil",
       "eas": {
         "projectId": "2b38a483-2833-421a-8bb1-b56bbfbfb76a"
       }

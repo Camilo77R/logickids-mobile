@@ -1,42 +1,48 @@
-# LogicKids Mobile 
+# LogicKids Mobile
 
-Este repositorio contiene el código fuente de la aplicación móvil de **LogicKids**, desarrollada utilizando **React Native** y el framework **Expo**. 
+Aplicacion movil de LogicKids desarrollada con React Native y Expo.
 
-La aplicación integra de forma nativa un motor de renderizado 3D (**Babylon.js**) utilizando una arquitectura basada en `WebView`, lo que permite un rendimiento óptimo y multiplataforma sin depender de compilaciones pesadas de C++.
+## Ejecutar como APK
 
-##  Cómo ejecutar el proyecto (Para Revisión)
+Esta app no esta pensada para probarse en Expo Go cuando se necesita validar el flujo real de instalacion. Para Android se debe generar una APK con EAS Build e instalarla en el dispositivo.
 
-Para probar la aplicación en tu propio dispositivo móvil (Android o iOS), sigue estos 3 sencillos pasos:
+### 1. Requisitos
 
-### 1. Requisitos Previos
-* Asegúrate de tener instalado **Node.js** en tu computadora.
-* Descarga la aplicación **"Expo Go"** en tu celular desde la Google Play Store (Android) o la App Store (iOS).
+- Node.js instalado.
+- Dependencias instaladas con `npm install`.
+- Sesion iniciada en Expo/EAS con `npx eas-cli login`.
+- Un backend accesible desde el celular, por ejemplo una URL HTTPS publicada o la IP de tu computador en la misma red.
 
-### 2. Instalación
-Abre una terminal en la carpeta raíz del proyecto y ejecuta el siguiente comando para instalar todas las dependencias de React Native:
-```bash
-npm install
+### 2. Configurar backend para la APK
+
+La APK no puede usar `localhost` para llamar al backend, porque en el celular `localhost` es el propio telefono.
+
+Antes de compilar, define la variable:
+
+```powershell
+$env:EXPO_PUBLIC_API_URL="https://tu-dominio.com/api"
 ```
 
-### 3. Ejecutar el Servidor Local
-Una vez instaladas las dependencias, inicia el servidor de desarrollo de Expo ejecutando:
-```bash
-npx expo start -c
+Para pruebas en red local, usa la IP del computador:
+
+```powershell
+$env:EXPO_PUBLIC_API_URL="http://192.168.1.50:3000/api"
 ```
-*(Nota: El flag `-c` limpia la caché para asegurar que no haya errores residuales).*
 
-### 4. Ver la App en tu Celular
-1. La terminal mostrará un **Código QR**.
-2. Abre la aplicación **Expo Go** en tu celular.
-3. Presiona **"Scan QR Code"** (o usa la cámara de tu iPhone) y escanea el código de la terminal.
-4. La aplicación cargará el código fuente por Wi-Fi de forma inalámbrica.
+### 3. Generar APK
 
----
+```powershell
+npm run build:apk
+```
 
-## 🏗️ Arquitectura y Estructura
+EAS entregara un enlace para descargar la APK. Descargala en el celular e instalala.
 
-El código está estructurado bajo los principios de **Clean Code** y separación de responsabilidades:
+## Desarrollo local opcional
 
-* `App.js`: Punto de entrada de la aplicación.
-* `src/screens/DashboardScreen.jsx`: Contiene toda la interfaz visual y botones.
-* `src/features/games/BabylonBasicScene.jsx`: Contiene la lógica del motor tridimensional Babylon.js, inyectado de forma asíncrona.
+Para trabajar durante desarrollo todavia puedes usar Metro:
+
+```powershell
+npm run dev:8082
+```
+
+Ese modo sirve para desarrollo, pero no reemplaza la prueba final con APK.
