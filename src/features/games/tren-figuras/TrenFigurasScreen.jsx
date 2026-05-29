@@ -110,6 +110,37 @@ export default function TrenFigurasScreen({
     resultado: null,
   });
 
+  const opcionesUnicas = useMemo(() => {
+    const mapa = {};
+    estado.patronActual.forEach((paso) => {
+      mapa[paso.clave] = paso;
+    });
+    return Object.values(mapa);
+  }, [estado.patronActual]);
+
+  const seleccionarFiguraNativa = (paso) => {
+    const script = `
+      window.establecerSeleccion && window.establecerSeleccion('${paso.clave}');
+      true;
+    `;
+    webViewRef.current?.injectJavaScript(script);
+  };
+
+  const obtenerSimboloFigura = (figuraId) => {
+    switch (figuraId) {
+      case 'circulo':
+        return '⬤';
+      case 'cuadrado':
+        return '■';
+      case 'triangulo':
+        return '▲';
+      case 'estrella':
+        return '★';
+      default:
+        return '?';
+    }
+  };
+
   const finalizarPartida = ({ estadoFinal = 'completado' } = {}) => {
     if (finalizadoRef.current) {
       return;
@@ -227,7 +258,7 @@ export default function TrenFigurasScreen({
       mensaje: `${adaptacion.descripcionNivel}. Precision: ${adaptacion.precisionPct}%.`,
     }));
 
-    setTimeout(() => inyectarNuevoNivel({ webViewRef, parametros }), 700);
+    setTimeout(() => inyectarNuevoNivel({ webViewRef, parametros }), 2200);
   };
 
   const manejarMensaje = (eventoWebView) => {
@@ -310,6 +341,26 @@ export default function TrenFigurasScreen({
             />
           ))}
         </ScrollView>
+      </View>
+
+      {/* Selector nativo horizontal opcional para accesibilidad */}
+      <View style={styles.barraBotones}>
+        {opcionesUnicas.map((opcion) => (
+          <TouchableOpacity
+            key={opcion.clave}
+            activeOpacity={0.8}
+            disabled={estado.fase !== ESTADOS_TREN_FIGURAS.jugando}
+            style={[
+              styles.botonNativo,
+              { backgroundColor: opcion.colorHex },
+              estado.fase !== ESTADOS_TREN_FIGURAS.jugando && { opacity: 0.5 }
+            ]}
+            onPress={() => seleccionarFiguraNativa(opcion)}
+          >
+            <Text style={styles.botonNativoSimbolo}>{obtenerSimboloFigura(opcion.figuraId)}</Text>
+            <Text style={styles.botonNativoTexto}>{opcion.figuraLabel}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       <View style={styles.panelMetricas}>
@@ -500,5 +551,46 @@ const styles = StyleSheet.create({
   resultadoTexto: {
     color: colores.textoSecundario,
     marginTop: 6,
+  },
+  barraBotones: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    bottom: 92,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 16,
+    padding: 10,
+    backgroundColor: 'rgba(7,28,43,0.85)',
+    borderColor: 'rgba(130,215,255,0.3)',
+    borderWidth: 1,
+    borderRadius: radios.md,
+  },
+  botonNativo: {
+    flex: 1,
+    maxWidth: 90,
+    height: 60,
+    borderRadius: radios.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+  },
+  botonNativoSimbolo: {
+    color: '#06131f',
+    fontSize: 18,
+    fontWeight: '900',
+    lineHeight: 20,
+  },
+  botonNativoTexto: {
+    color: '#06131f',
+    fontSize: 10,
+    fontWeight: '900',
+    marginTop: 2,
   },
 });
