@@ -4,6 +4,14 @@
 
 Integrar la PR visual aprobada por los profesores sobre la base estable de Camino AR, sin romper el flujo real de backend, sesiones, logros, estadisticas ni reglas de acceso.
 
+## Documentos obligatorios relacionados
+
+Antes de tocar esta integracion, leer:
+
+- `AGENTS.md`: reglas duras para IA y equipo.
+- `docs/REGLAS_NEGOCIO_MOBILE_ESTUDIANTE.md`: reglas de negocio por modulo.
+- `docs/PLAYTEST_CAMINO_AR.md`: alcance de pruebas de Camino AR.
+
 ## Reglas oficiales de integracion
 
 1. Camino AR es intocable salvo bug real comprobado.
