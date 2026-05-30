@@ -14,6 +14,7 @@ import OnboardingScreen from './src/screens/OnboardingScreen';
 import QrScannerScreen from './src/screens/QrScannerScreen';
 import { colors } from './src/constants/theme';
 import {
+  isLoopbackApiBaseUrl,
   loadApiBaseUrlSetting,
   saveApiBaseUrlSetting,
 } from './src/services/apiSettings.service';
@@ -37,6 +38,7 @@ export default function App() {
     () => (apiBaseUrl ? createStudentAccessService(apiBaseUrl) : null),
     [apiBaseUrl],
   );
+  const needsApiConfiguration = isLoopbackApiBaseUrl(apiBaseUrl);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,6 +77,19 @@ export default function App() {
       setApiSettingsError(error.message || 'No pudimos guardar la URL de la API.');
       return false;
     }
+  };
+
+  const handleScanRequest = () => {
+    if (needsApiConfiguration) {
+      const message =
+        'Configura la conexion del colegio antes de escanear. Usa una direccion como http://IP_DEL_PC:3000/api.';
+
+      setApiSettingsError(message);
+      Alert.alert('Configura la conexion', message);
+      return;
+    }
+
+    setRoute('scanner');
   };
 
   const grantAccess = async (rawQrValue) => {
@@ -136,9 +151,10 @@ export default function App() {
         <LoginQrScreen
           apiBaseUrl={apiBaseUrl}
           apiSettingsError={apiSettingsError}
+          needsApiConfiguration={needsApiConfiguration}
           onBack={() => setRoute('onboarding')}
           onSaveApiBaseUrl={handleSaveApiBaseUrl}
-          onScan={() => setRoute('scanner')}
+          onScan={handleScanRequest}
         />
       </SafeAreaProvider>
     );

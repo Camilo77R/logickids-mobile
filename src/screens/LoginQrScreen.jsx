@@ -25,6 +25,7 @@ const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 export default function LoginQrScreen({
   apiBaseUrl,
   apiSettingsError,
+  needsApiConfiguration = false,
   onBack,
   onSaveApiBaseUrl,
   onScan,
@@ -44,7 +45,7 @@ export default function LoginQrScreen({
     const subtitleSize = clamp(width * 0.038, 13, 15);
     const cardPadding = height < 700 ? 8 : 9;
     const contentHeight = height - insets.top - insets.bottom - headerHeight - buttonSpace - 12;
-    const estimatedContent = logoHeight + 70 + 40 + qrCard;
+    const estimatedContent = logoHeight + 70 + 44 + qrCard;
     const freeSpace = Math.max(0, contentHeight - estimatedContent);
     const topGap = clamp(freeSpace * 0.18, 6, 18);
     const titleGap = clamp(height * 0.014, 8, 14);
@@ -127,6 +128,34 @@ export default function LoginQrScreen({
           >
             Usa tu codigo QR para acceder de forma segura y rapida.
           </Text>
+
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Revisar conexion del colegio"
+            activeOpacity={0.85}
+            onPress={() => {
+              setDraftApiBaseUrl(apiBaseUrl ?? '');
+              setSettingsVisible(true);
+            }}
+            style={[
+              styles.connectionPill,
+              needsApiConfiguration && styles.connectionPillWarning,
+            ]}
+          >
+            <Ionicons
+              name={needsApiConfiguration ? 'alert-circle' : 'wifi'}
+              size={18}
+              color={needsApiConfiguration ? colors.purpleDark : colors.white}
+            />
+            <Text
+              style={[
+                styles.connectionPillText,
+                needsApiConfiguration && styles.connectionPillWarningText,
+              ]}
+            >
+              {needsApiConfiguration ? 'Configura la conexion' : 'Conexion lista'}
+            </Text>
+          </TouchableOpacity>
 
           <View
             style={[
@@ -300,6 +329,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 18,
     fontFamily: fonts.regular,
+  },
+  connectionPill: {
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 999,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    backgroundColor: colors.purple,
+  },
+  connectionPillWarning: {
+    backgroundColor: colors.yellow,
+  },
+  connectionPillText: {
+    color: colors.white,
+    fontFamily: fonts.black,
+    fontSize: 12,
+  },
+  connectionPillWarningText: {
+    color: colors.purpleDark,
   },
   qrCard: {
     backgroundColor: colors.white,

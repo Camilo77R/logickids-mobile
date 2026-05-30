@@ -29,6 +29,21 @@ export const isValidApiBaseUrl = (value) => {
   }
 };
 
+export const isLoopbackApiBaseUrl = (value) => {
+  const normalizedValue = normalizeApiBaseUrl(value);
+
+  if (!normalizedValue) {
+    return false;
+  }
+
+  try {
+    const { hostname } = new URL(normalizedValue);
+    return ['localhost', '127.0.0.1', '::1'].includes(hostname);
+  } catch (_error) {
+    return false;
+  }
+};
+
 export const loadApiBaseUrlSetting = async () => {
   const configuredValue = resolveConfiguredApiBaseUrl();
 
