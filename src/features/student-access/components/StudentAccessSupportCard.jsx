@@ -24,7 +24,7 @@ export default function StudentAccessSupportCard({
             autoCorrect={false}
             value={apiBaseUrl}
             onChangeText={onChangeApiBaseUrl}
-            placeholder="http://192.168.1.50:3000/api"
+            placeholder="http://IP_DEL_PC:3000/api"
             placeholderTextColor="rgba(22,50,79,0.36)"
           />
           <Text style={styles.helpText}>

@@ -23,14 +23,14 @@ export default function StudentAccessManualStage({
       </View>
 
       <View style={styles.inputBlock}>
-        <Text style={styles.label}>API base URL</Text>
+        <Text style={styles.label}>Direccion del servidor</Text>
         <TextInput
           style={styles.input}
           autoCapitalize="none"
           autoCorrect={false}
           value={apiBaseUrl}
           onChangeText={onChangeApiBaseUrl}
-          placeholder="http://10.0.2.2:3000/api"
+          placeholder="http://IP_DEL_PC:3000/api"
           placeholderTextColor="rgba(22,50,79,0.36)"
         />
         <Text style={styles.hint}>

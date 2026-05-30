@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  NativeModules,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -11,6 +10,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { resolveDefaultApiBaseUrl } from '../config/api';
 import StudentAccessCameraStage from '../features/student-access/components/StudentAccessCameraStage';
 import StudentAccessHero from '../features/student-access/components/StudentAccessHero';
 import StudentAccessManualStage from '../features/student-access/components/StudentAccessManualStage';
@@ -19,34 +19,6 @@ import StudentAccessModeToggle, {
 } from '../features/student-access/components/StudentAccessModeToggle';
 import { ACCESS_COLORS } from '../features/student-access/studentAccess.theme';
 import { createStudentAccessService } from '../services/studentAccess.service';
-
-const resolveBundleHost = () => {
-  const scriptUrl = NativeModules?.SourceCode?.scriptURL;
-
-  if (typeof scriptUrl !== 'string' || !scriptUrl.startsWith('http')) {
-    return null;
-  }
-
-  try {
-    return new URL(scriptUrl).hostname;
-  } catch (_error) {
-    return null;
-  }
-};
-
-const resolveDefaultApiBaseUrl = () => {
-  const bundleHost = resolveBundleHost();
-
-  if (bundleHost) {
-    return `http://${bundleHost}:3000/api`;
-  }
-
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:3000/api';
-  }
-
-  return 'http://localhost:3000/api';
-};
 
 const buildAccessState = () => ({
   apiBaseUrl: resolveDefaultApiBaseUrl(),

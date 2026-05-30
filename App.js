@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import {
   Poppins_400Regular,
@@ -12,8 +12,11 @@ import DashboardScreen from './src/screens/DashboardScreen';
 import LoginQrScreen from './src/screens/LoginQrScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import QrScannerScreen from './src/screens/QrScannerScreen';
-import { resolveDefaultApiBaseUrl } from './src/config/api';
 import { colors } from './src/constants/theme';
+import {
+  loadApiBaseUrlSetting,
+  saveApiBaseUrlSetting,
+} from './src/services/apiSettings.service';
 import { createStudentAccessService } from './src/services/studentAccess.service';
 import { extractQrToken } from './src/utils/qrToken';
 
@@ -27,17 +30,57 @@ export default function App() {
   const [route, setRoute] = useState('onboarding');
   const [studentSession, setStudentSession] = useState(null);
   const [scannerError, setScannerError] = useState('');
+  const [apiSettingsError, setApiSettingsError] = useState('');
   const [processingQr, setProcessingQr] = useState(false);
-  const apiBaseUrl = useMemo(() => resolveDefaultApiBaseUrl(), []);
+  const [apiBaseUrl, setApiBaseUrl] = useState('');
   const accessService = useMemo(
-    () => createStudentAccessService(apiBaseUrl),
+    () => (apiBaseUrl ? createStudentAccessService(apiBaseUrl) : null),
     [apiBaseUrl],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadApiSettings = async () => {
+      try {
+        const storedApiBaseUrl = await loadApiBaseUrlSetting();
+
+        if (!cancelled) {
+          setApiBaseUrl(storedApiBaseUrl);
+          setApiSettingsError('');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setApiSettingsError(error.message || 'No pudimos cargar la URL de la API.');
+        }
+      }
+    };
+
+    loadApiSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleSaveApiBaseUrl = async (nextApiBaseUrl) => {
+    try {
+      const savedApiBaseUrl = await saveApiBaseUrlSetting(nextApiBaseUrl);
+      setApiBaseUrl(savedApiBaseUrl);
+      setStudentSession(null);
+      setScannerError('');
+      setApiSettingsError('');
+      return true;
+    } catch (error) {
+      setApiSettingsError(error.message || 'No pudimos guardar la URL de la API.');
+      return false;
+    }
+  };
 
   const grantAccess = async (rawQrValue) => {
     const qrToken = extractQrToken(rawQrValue);
 
-    if (!qrToken || processingQr) {
+    if (!qrToken || processingQr || !accessService) {
       return;
     }
 
@@ -69,7 +112,7 @@ export default function App() {
     setRoute('login');
   };
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || !apiBaseUrl) {
     return (
       <SafeAreaProvider>
         <View style={styles.loadingScreen}>
@@ -91,7 +134,10 @@ export default function App() {
     return (
       <SafeAreaProvider>
         <LoginQrScreen
+          apiBaseUrl={apiBaseUrl}
+          apiSettingsError={apiSettingsError}
           onBack={() => setRoute('onboarding')}
+          onSaveApiBaseUrl={handleSaveApiBaseUrl}
           onScan={() => setRoute('scanner')}
         />
       </SafeAreaProvider>

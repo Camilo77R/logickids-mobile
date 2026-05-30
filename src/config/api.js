@@ -1,4 +1,4 @@
-import { NativeModules, Platform } from 'react-native';
+import { NativeModules } from 'react-native';
 export { QR_LOGIN_PATH, STUDENT_PROFILE_PATH } from './apiContract';
 
 const API_PORT = '3000';
@@ -26,8 +26,11 @@ const resolveBundleHost = () => {
   }
 };
 
+export const resolveConfiguredApiBaseUrl = () =>
+  normalizeBaseUrl(process.env.EXPO_PUBLIC_API_URL);
+
 export const resolveDefaultApiBaseUrl = () => {
-  const configuredApiBaseUrl = normalizeBaseUrl(process.env.EXPO_PUBLIC_API_URL);
+  const configuredApiBaseUrl = resolveConfiguredApiBaseUrl();
 
   if (configuredApiBaseUrl) {
     return configuredApiBaseUrl;
@@ -37,10 +40,6 @@ export const resolveDefaultApiBaseUrl = () => {
 
   if (bundleHost) {
     return `http://${bundleHost}:${API_PORT}/api`;
-  }
-
-  if (Platform.OS === 'android') {
-    return `http://10.0.2.2:${API_PORT}/api`;
   }
 
   return `http://localhost:${API_PORT}/api`;

@@ -21,7 +21,7 @@ Integrar la PR visual aprobada por los profesores sobre la base estable de Camin
 
 ## Decision sobre dependencias nativas
 
-`expo-camera` y `expo-video` son dependencias nativas. Segun la documentacion oficial de Expo, `npx expo start` actualiza el bundle JavaScript, pero no agrega codigo nativo nuevo a una app ya instalada.
+`expo-camera`, `expo-video` y `@react-native-async-storage/async-storage` son dependencias nativas. Segun la documentacion oficial de Expo, `npx expo start` actualiza el bundle JavaScript, pero no agrega codigo nativo nuevo a una app ya instalada.
 
 Por eso:
 
@@ -41,6 +41,18 @@ Por eso:
 8. Validar con `npm run test:juegos`.
 9. Validar bundle con `npx expo export --platform android`.
 10. Documentar si una nueva build nativa es obligatoria.
+
+## Configuracion de API por entorno
+
+La app movil es para estudiantes. No debe tener IPs hardcodeadas en codigo.
+
+Prioridad oficial:
+
+1. `EXPO_PUBLIC_API_URL` para produccion, preview o demo formal.
+2. URL guardada en el dispositivo para pruebas locales/colegio cuando cambia la red Wi-Fi.
+3. URL local detectada por Metro como fallback de desarrollo.
+
+La pantalla de login muestra un acceso de conexion para soporte. El niño no debe tener que entender servidores; un tutor, tester o desarrollador configura la URL cuando cambia la red.
 
 ## Antipatrones prohibidos
 
