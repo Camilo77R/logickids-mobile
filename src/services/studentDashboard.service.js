@@ -1,4 +1,9 @@
 import {
+  STUDENT_ACHIEVEMENTS_PATH,
+  STUDENT_PROFILE_PATH,
+  STUDENT_STATS_PATH,
+} from '../config/apiContract';
+import {
   buildJsonHeaders,
   normalizeBaseUrl,
   parseJsonResponse,
@@ -17,7 +22,7 @@ export const createStudentDashboardService = (baseUrl, token) => {
   const headers = buildJsonHeaders(token);
 
   const fetchProfile = async () => {
-    const response = await fetch(`${apiBaseUrl}/estudiantes/mi-perfil`, {
+    const response = await fetch(`${apiBaseUrl}${STUDENT_PROFILE_PATH}`, {
       method: 'GET',
       headers,
     });
@@ -26,7 +31,7 @@ export const createStudentDashboardService = (baseUrl, token) => {
   };
 
   const fetchAchievements = async () => {
-    const response = await fetch(`${apiBaseUrl}/logros/mis-logros`, {
+    const response = await fetch(`${apiBaseUrl}${STUDENT_ACHIEVEMENTS_PATH}`, {
       method: 'GET',
       headers,
     });
@@ -35,7 +40,7 @@ export const createStudentDashboardService = (baseUrl, token) => {
   };
 
   const fetchStats = async () => {
-    const response = await fetch(`${apiBaseUrl}/estadisticas/mis-estadisticas`, {
+    const response = await fetch(`${apiBaseUrl}${STUDENT_STATS_PATH}`, {
       method: 'GET',
       headers,
     });

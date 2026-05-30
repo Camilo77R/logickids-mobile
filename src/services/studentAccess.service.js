@@ -1,3 +1,4 @@
+import { QR_LOGIN_PATH } from '../config/apiContract';
 import {
   buildJsonHeaders,
   normalizeBaseUrl,
@@ -17,7 +18,7 @@ export const createStudentAccessService = (baseUrl) => {
 
   return {
     async loginByQr(qrToken) {
-      const endpoint = `${apiBaseUrl}/estudiantes/login`;
+      const endpoint = `${apiBaseUrl}${QR_LOGIN_PATH}`;
       let response;
 
       try {
@@ -28,7 +29,7 @@ export const createStudentAccessService = (baseUrl) => {
         });
       } catch (error) {
         throw new Error(
-          `No se pudo conectar con ${endpoint}. Verifica la IP, el puerto 3000 y que el backend esté encendido en la misma red.`
+          `No se pudo conectar con ${endpoint}. Verifica la URL de la API y que el backend esté encendido en la misma red.`
         );
       }
 
