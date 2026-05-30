@@ -78,6 +78,40 @@ const buildSessionStatusLabel = (profile) => {
   return 'Esperando actividad del tutor';
 };
 
+const resolveStudentDashboardAccess = (profile) => {
+  if (!profile) {
+    return {
+      allowed: false,
+      pending: true,
+      icon: 'hourglass',
+      title: 'Validando acceso escolar',
+      message: 'Estamos revisando si tu cuenta ya tiene un grupo activo para entrar al tablero.',
+    };
+  }
+
+  if (!profile.grupo_id) {
+    return {
+      allowed: false,
+      icon: 'school',
+      title: 'Necesitas un grupo activo',
+      message:
+        'Tu QR fue reconocido, pero todavia no estas vinculado a un grupo activo. Pide ayuda a tu tutor para entrar al tablero.',
+    };
+  }
+
+  if (profile.grupo_activo === false) {
+    return {
+      allowed: false,
+      icon: 'lock-closed',
+      title: 'Grupo no disponible',
+      message:
+        'Tu grupo esta archivado o cerrado. Pide ayuda a tu tutor para activar tu acceso escolar.',
+    };
+  }
+
+  return { allowed: true };
+};
+
 const buildActivityCopy = ({ profile, access, playState }) => {
   if (!profile) {
     return {
@@ -198,6 +232,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     progressSummary.averagePrecision == null ? 'Sin datos' : `${progressSummary.averagePrecision}%`;
   const attemptsLabel = progressSummary.totalAttempts || 0;
   const sessionStatusLabel = buildSessionStatusLabel(studentProfile);
+  const dashboardAccess = resolveStudentDashboardAccess(studentProfile);
 
   const startOrRefresh = () => {
     if (canPlayCaminoAr) {
@@ -215,6 +250,19 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       setActiveGame(null);
     }
   };
+
+  if (!dashboardAccess.allowed) {
+    return (
+      <StudentAccessGateScreen
+        access={dashboardAccess}
+        firstName={firstName}
+        groupLabel={buildGroupLabel(studentProfile)}
+        isRefreshing={isLoading || isRefreshing}
+        onLogout={onLogout}
+        onRefresh={reloadDashboard}
+      />
+    );
+  }
 
   if (activeGame === 'camino-ar') {
     return (
@@ -456,6 +504,69 @@ function GameCard({ title, status, locked, onPress }) {
   );
 }
 
+function StudentAccessGateScreen({
+  access,
+  firstName,
+  groupLabel,
+  isRefreshing,
+  onLogout,
+  onRefresh,
+}) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View style={styles.root}>
+      <StatusBar style="dark" />
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.accessGateContent,
+            { paddingBottom: spacing.xl + Math.max(insets.bottom, 14) },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.accessGateTop}>
+            <View style={styles.avatar}>
+              <Ionicons name="happy" size={30} color={colors.purple} />
+            </View>
+            <View style={styles.greeting}>
+              <Text style={styles.title}>Hola, {firstName}!</Text>
+              <Text style={styles.subtitle}>{groupLabel}</Text>
+            </View>
+          </View>
+
+          <View style={styles.accessGateCard}>
+            <View style={styles.accessGateIcon}>
+              <Ionicons name={access.icon} size={44} color={colors.purple} />
+            </View>
+            <Text style={styles.accessGateTitle}>{access.title}</Text>
+            <Text style={styles.accessGateText}>{access.message}</Text>
+
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={onRefresh}
+              style={styles.accessGatePrimaryButton}
+            >
+              {isRefreshing ? <ActivityIndicator color={colors.white} /> : null}
+              <Text style={styles.accessGatePrimaryButtonText}>
+                {isRefreshing ? 'Revisando...' : 'Actualizar estado'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.88}
+              onPress={onLogout}
+              style={styles.accessGateSecondaryButton}
+            >
+              <Text style={styles.accessGateSecondaryButtonText}>Escanear otro QR</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
+  );
+}
+
 function ProfilePanel({
   achievementsCount,
   attemptsLabel,
@@ -569,6 +680,84 @@ const styles = StyleSheet.create({
   },
   errorTitle: { color: colors.danger, fontFamily: fonts.black, fontSize: 14 },
   errorText: { color: colors.purpleDark, fontFamily: fonts.semiBold, marginTop: 4, lineHeight: 18 },
+  accessGateContent: {
+    flexGrow: 1,
+    paddingHorizontal: 18,
+    paddingTop: spacing.md,
+    gap: spacing.xl,
+  },
+  accessGateTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  accessGateCard: {
+    flex: 1,
+    minHeight: 420,
+    borderRadius: 32,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+    ...shadows.soft,
+  },
+  accessGateIcon: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: colors.purpleSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+  },
+  accessGateTitle: {
+    color: colors.purpleDark,
+    fontFamily: fonts.black,
+    fontSize: 25,
+    lineHeight: 31,
+    textAlign: 'center',
+  },
+  accessGateText: {
+    color: colors.textGray,
+    fontFamily: fonts.semiBold,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+  },
+  accessGatePrimaryButton: {
+    width: '100%',
+    minHeight: 54,
+    borderRadius: 27,
+    backgroundColor: colors.purple,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.xl,
+    ...shadows.soft,
+  },
+  accessGatePrimaryButtonText: {
+    color: colors.white,
+    fontFamily: fonts.black,
+    fontSize: 14,
+  },
+  accessGateSecondaryButton: {
+    width: '100%',
+    minHeight: 52,
+    borderRadius: 26,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.sm,
+    backgroundColor: colors.white,
+  },
+  accessGateSecondaryButtonText: {
+    color: colors.purple,
+    fontFamily: fonts.black,
+    fontSize: 14,
+  },
   hero: {
     minHeight: 128,
     borderRadius: 24,
