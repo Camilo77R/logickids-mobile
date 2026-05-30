@@ -10,6 +10,7 @@ Antes de tocar esta integracion, leer:
 
 - `AGENTS.md`: reglas duras para IA y equipo.
 - `docs/REGLAS_NEGOCIO_MOBILE_ESTUDIANTE.md`: reglas de negocio por modulo.
+- `docs/GUIA_INTEGRACION_COMPANERO_TREN_3D.md`: como integrar el juego de Patrones/Tren 3D sin romper esta base.
 - `docs/PLAYTEST_CAMINO_AR.md`: alcance de pruebas de Camino AR.
 
 ## Reglas oficiales de integracion
