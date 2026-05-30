@@ -30,6 +30,14 @@ const OFFICIAL_SKILLS = Object.freeze([
   { name: 'Atencion', icon: 'search' },
 ]);
 
+const DASHBOARD_TABS = Object.freeze({
+  mapa: 'mapa',
+  actividades: 'actividades',
+  logros: 'logros',
+  progreso: 'progreso',
+  perfil: 'perfil',
+});
+
 const normalizeSkillKey = (value = '') =>
   value
     .normalize('NFD')
@@ -46,6 +54,28 @@ const buildGroupLabel = (profile) => {
   }
 
   return profile.grupo_nombre ?? `Grupo #${profile.grupo_id}`;
+};
+
+const buildSessionStatusLabel = (profile) => {
+  if (!profile) {
+    return 'Cargando perfil';
+  }
+
+  if (profile.sesion_activa) {
+    return profile.sesion_minijuego_titulo
+      ? `Actividad activa: ${profile.sesion_minijuego_titulo}`
+      : 'Actividad activa';
+  }
+
+  if (profile.sesion_participante_estado === 'completado') {
+    return 'Actividad completada';
+  }
+
+  if (TERMINAL_PARTICIPANT_STATES.has(profile.sesion_participante_estado)) {
+    return 'Actividad cerrada';
+  }
+
+  return 'Esperando actividad del tutor';
 };
 
 const buildActivityCopy = ({ profile, access, playState }) => {
@@ -112,6 +142,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const { height } = useWindowDimensions();
   const compact = height < 760;
   const [activeGame, setActiveGame] = useState(null);
+  const [activeTab, setActiveTab] = useState(DASHBOARD_TABS.mapa);
   const {
     profile,
     achievements,
@@ -166,6 +197,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const precisionLabel =
     progressSummary.averagePrecision == null ? 'Sin datos' : `${progressSummary.averagePrecision}%`;
   const attemptsLabel = progressSummary.totalAttempts || 0;
+  const sessionStatusLabel = buildSessionStatusLabel(studentProfile);
 
   const startOrRefresh = () => {
     if (canPlayCaminoAr) {
@@ -228,86 +260,125 @@ export default function DashboardScreen({ studentSession, onLogout }) {
             </View>
           ) : null}
 
-          <View style={styles.hero}>
-            <View style={styles.heroTextBlock}>
-              <Text style={styles.heroTitle}>{activityCopy.title}</Text>
-              <Text style={styles.heroText}>{activityCopy.text}</Text>
-              <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={startOrRefresh}
-                style={[styles.heroButton, !canPlayCaminoAr && styles.heroButtonMuted]}
-              >
-                {isLoading || isRefreshing ? <ActivityIndicator color={colors.white} /> : null}
-                <Text style={styles.heroButtonText}>
-                  {isLoading || isRefreshing ? 'Cargando' : activityCopy.buttonLabel}
-                </Text>
-                <Ionicons name={canPlayCaminoAr ? 'play' : 'sync'} size={18} color={colors.white} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.character}>
-              <View style={styles.characterEyes}>
-                <View style={styles.eye} />
-                <View style={styles.eye} />
+          {activeTab === DASHBOARD_TABS.perfil ? (
+            <ProfilePanel
+              achievementsCount={achievementsCount}
+              attemptsLabel={attemptsLabel}
+              groupLabel={buildGroupLabel(studentProfile)}
+              onLogout={onLogout}
+              precisionLabel={precisionLabel}
+              sessionStatusLabel={sessionStatusLabel}
+              studentName={getStudentName(studentProfile, studentSession?.studentProfile)}
+            />
+          ) : (
+            <>
+              <View style={styles.hero}>
+                <View style={styles.heroTextBlock}>
+                  <Text style={styles.heroTitle}>{activityCopy.title}</Text>
+                  <Text style={styles.heroText}>{activityCopy.text}</Text>
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={startOrRefresh}
+                    style={[styles.heroButton, !canPlayCaminoAr && styles.heroButtonMuted]}
+                  >
+                    {isLoading || isRefreshing ? <ActivityIndicator color={colors.white} /> : null}
+                    <Text style={styles.heroButtonText}>
+                      {isLoading || isRefreshing ? 'Cargando' : activityCopy.buttonLabel}
+                    </Text>
+                    <Ionicons name={canPlayCaminoAr ? 'play' : 'sync'} size={18} color={colors.white} />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.character}>
+                  <View style={styles.characterEyes}>
+                    <View style={styles.eye} />
+                    <View style={styles.eye} />
+                  </View>
+                  <View style={styles.smile} />
+                </View>
               </View>
-              <View style={styles.smile} />
-            </View>
-          </View>
 
-          <View style={styles.sectionBlock}>
-            <SectionTitle title="Ruta de hoy" />
-            <View style={styles.route}>
-              {skillCards.map((skill) => (
-                <RouteCard
-                  key={skill.id}
-                  active={skill.active}
-                  icon={skill.icon}
-                  label={skill.name}
-                  number={skill.actionLabel}
-                  onPress={skill.gameSlug === 'camino-ar' ? startOrRefresh : undefined}
-                />
-              ))}
-            </View>
-          </View>
+              <View style={styles.sectionBlock}>
+                <SectionTitle title="Ruta de hoy" />
+                <View style={styles.route}>
+                  {skillCards.map((skill) => (
+                    <RouteCard
+                      key={skill.id}
+                      active={skill.active}
+                      icon={skill.icon}
+                      label={skill.name}
+                      number={skill.actionLabel}
+                      onPress={skill.gameSlug === 'camino-ar' ? startOrRefresh : undefined}
+                    />
+                  ))}
+                </View>
+              </View>
 
-          <View style={styles.sectionBlock}>
-            <SectionTitle title="Mi progreso" />
-            <View style={styles.progress}>
-              <ProgressItem icon="trophy" value={achievementsCount} label="Logros desbloqueados" />
-              <ProgressItem icon="analytics" value={precisionLabel} label="Precision promedio" />
-              <ProgressItem icon="footsteps" value={attemptsLabel} label="Intentos registrados" />
-            </View>
-          </View>
+              <View style={styles.sectionBlock}>
+                <SectionTitle title="Mi progreso" />
+                <View style={styles.progress}>
+                  <ProgressItem icon="trophy" value={achievementsCount} label="Logros desbloqueados" />
+                  <ProgressItem icon="analytics" value={precisionLabel} label="Precision promedio" />
+                  <ProgressItem icon="footsteps" value={attemptsLabel} label="Intentos registrados" />
+                </View>
+              </View>
 
-          <View style={styles.sectionBlock}>
-            <SectionTitle title="Continua jugando" />
-            <View style={styles.games}>
-              <GameCard
-                title={caminoArAccess.juegoHabilitadoTitulo ?? studentProfile?.sesion_minijuego_titulo ?? 'Camino AR'}
-                status={canPlayCaminoAr ? 'Actividad' : 'Bloqueado'}
-                locked={!canPlayCaminoAr}
-                onPress={startOrRefresh}
-              />
-              <GameCard title="Secuencia logica" status="Proximamente" locked />
-              <GameCard title="Equilibra ideas" status="Proximamente" locked />
-            </View>
-          </View>
+              <View style={styles.sectionBlock}>
+                <SectionTitle title="Continua jugando" />
+                <View style={styles.games}>
+                  <GameCard
+                    title={caminoArAccess.juegoHabilitadoTitulo ?? studentProfile?.sesion_minijuego_titulo ?? 'Camino AR'}
+                    status={canPlayCaminoAr ? 'Actividad' : 'Bloqueado'}
+                    locked={!canPlayCaminoAr}
+                    onPress={startOrRefresh}
+                  />
+                  <GameCard title="Secuencia logica" status="Proximamente" locked />
+                  <GameCard title="Equilibra ideas" status="Proximamente" locked />
+                </View>
+              </View>
 
-          <View style={styles.sectionBlock}>
-            <SectionTitle title="Habilidades" />
-            <View style={styles.skillGrid}>
-              {skillCards.map((skill) => (
-                <SkillCard key={skill.id} skill={skill} />
-              ))}
-            </View>
-          </View>
+              <View style={styles.sectionBlock}>
+                <SectionTitle title="Habilidades" />
+                <View style={styles.skillGrid}>
+                  {skillCards.map((skill) => (
+                    <SkillCard key={skill.id} skill={skill} />
+                  ))}
+                </View>
+              </View>
+            </>
+          )}
         </ScrollView>
 
         <View style={[styles.nav, { bottom: Math.max(insets.bottom, 10) }]}>
-          <NavItem icon="home" label="Mapa" active />
-          <NavItem icon="clipboard-outline" label="Actividades" />
-          <NavItem icon="star-outline" label="Logros" />
-          <NavItem icon="bar-chart-outline" label="Progreso" />
-          <NavItem icon="person-outline" label="Perfil" onPress={onLogout} />
+          <NavItem
+            icon="home"
+            label="Mapa"
+            active={activeTab === DASHBOARD_TABS.mapa}
+            onPress={() => setActiveTab(DASHBOARD_TABS.mapa)}
+          />
+          <NavItem
+            icon="clipboard-outline"
+            label="Actividades"
+            active={activeTab === DASHBOARD_TABS.actividades}
+            onPress={() => setActiveTab(DASHBOARD_TABS.actividades)}
+          />
+          <NavItem
+            icon="star-outline"
+            label="Logros"
+            active={activeTab === DASHBOARD_TABS.logros}
+            onPress={() => setActiveTab(DASHBOARD_TABS.logros)}
+          />
+          <NavItem
+            icon="bar-chart-outline"
+            label="Progreso"
+            active={activeTab === DASHBOARD_TABS.progreso}
+            onPress={() => setActiveTab(DASHBOARD_TABS.progreso)}
+          />
+          <NavItem
+            icon="person-outline"
+            label="Perfil"
+            active={activeTab === DASHBOARD_TABS.perfil}
+            onPress={() => setActiveTab(DASHBOARD_TABS.perfil)}
+          />
         </View>
       </SafeAreaView>
     </View>
@@ -382,6 +453,60 @@ function GameCard({ title, status, locked, onPress }) {
         <View style={[styles.gameFill, { width: locked ? '18%' : '72%' }]} />
       </View>
     </TouchableOpacity>
+  );
+}
+
+function ProfilePanel({
+  achievementsCount,
+  attemptsLabel,
+  groupLabel,
+  onLogout,
+  precisionLabel,
+  sessionStatusLabel,
+  studentName,
+}) {
+  return (
+    <View style={styles.profilePanel}>
+      <View style={styles.profileHero}>
+        <View style={styles.profileAvatar}>
+          <Ionicons name="person" size={36} color={colors.white} />
+        </View>
+        <View style={styles.profileInfo}>
+          <Text style={styles.profileEyebrow}>Mi perfil</Text>
+          <Text style={styles.profileName}>{studentName}</Text>
+          <Text style={styles.profileMeta}>{groupLabel}</Text>
+        </View>
+      </View>
+
+      <View style={styles.profileStatusCard}>
+        <Ionicons name="school" size={22} color={colors.purple} />
+        <View style={styles.profileStatusTextBlock}>
+          <Text style={styles.profileStatusTitle}>Estado de clase</Text>
+          <Text style={styles.profileStatusText}>{sessionStatusLabel}</Text>
+        </View>
+      </View>
+
+      <View style={styles.profileMetrics}>
+        <ProfileMetric icon="trophy" label="Logros" value={achievementsCount} />
+        <ProfileMetric icon="analytics" label="Precision" value={precisionLabel} />
+        <ProfileMetric icon="footsteps" label="Intentos" value={attemptsLabel} />
+      </View>
+
+      <TouchableOpacity activeOpacity={0.88} onPress={onLogout} style={styles.logoutButton}>
+        <Ionicons name="log-out-outline" size={20} color={colors.white} />
+        <Text style={styles.logoutButtonText}>Salir de mi cuenta</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function ProfileMetric({ icon, label, value }) {
+  return (
+    <View style={styles.profileMetric}>
+      <Ionicons name={icon} size={20} color={colors.purple} />
+      <Text style={styles.profileMetricValue}>{value}</Text>
+      <Text style={styles.profileMetricLabel}>{label}</Text>
+    </View>
   );
 }
 
@@ -556,6 +681,116 @@ const styles = StyleSheet.create({
   gameTitle: { color: colors.purpleDark, fontFamily: fonts.black, fontSize: 10, lineHeight: 13, marginTop: 2 },
   gameTrack: { height: 6, borderRadius: 3, backgroundColor: colors.lavender, marginTop: 'auto', overflow: 'hidden' },
   gameFill: { height: '100%', borderRadius: 4, backgroundColor: colors.purple },
+  profilePanel: {
+    gap: spacing.md,
+  },
+  profileHero: {
+    minHeight: 132,
+    borderRadius: 28,
+    backgroundColor: colors.purple,
+    padding: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    ...shadows.soft,
+  },
+  profileAvatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.yellow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileEyebrow: {
+    color: '#F3DDFE',
+    fontFamily: fonts.black,
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  profileName: {
+    color: colors.white,
+    fontFamily: fonts.black,
+    fontSize: 24,
+    lineHeight: 30,
+    marginTop: 3,
+  },
+  profileMeta: {
+    color: '#F3DDFE',
+    fontFamily: fonts.semiBold,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  profileStatusCard: {
+    borderRadius: 22,
+    backgroundColor: colors.white,
+    padding: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    ...shadows.soft,
+  },
+  profileStatusTextBlock: {
+    flex: 1,
+  },
+  profileStatusTitle: {
+    color: colors.purpleDark,
+    fontFamily: fonts.black,
+    fontSize: 14,
+  },
+  profileStatusText: {
+    color: colors.textGray,
+    fontFamily: fonts.semiBold,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  profileMetrics: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  profileMetric: {
+    flex: 1,
+    minHeight: 94,
+    borderRadius: 20,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.sm,
+    ...shadows.soft,
+  },
+  profileMetricValue: {
+    color: colors.purpleDark,
+    fontFamily: fonts.black,
+    fontSize: 18,
+    marginTop: 5,
+  },
+  profileMetricLabel: {
+    color: colors.textGray,
+    fontFamily: fonts.semiBold,
+    fontSize: 10,
+    textAlign: 'center',
+  },
+  logoutButton: {
+    minHeight: 52,
+    borderRadius: 26,
+    backgroundColor: colors.danger,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    ...shadows.soft,
+  },
+  logoutButtonText: {
+    color: colors.white,
+    fontFamily: fonts.black,
+    fontSize: 14,
+  },
   skillGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   skillCard: {
     width: '47.5%',
