@@ -30,16 +30,13 @@ Antes de tocar esta integracion, leer:
 
 ## Decision sobre dependencias nativas
 
-`expo-camera` y `@react-native-async-storage/async-storage` son dependencias nativas. Segun la documentacion oficial de Expo, `npx expo start` actualiza el bundle JavaScript, pero no agrega codigo nativo nuevo a una app ya instalada.
+`expo-camera`, `expo-video` y `@react-native-async-storage/async-storage` son dependencias nativas. Segun la documentacion oficial de Expo, `npx expo start` actualiza el bundle JavaScript, pero no agrega codigo nativo nuevo a una app ya instalada.
 
 Por eso:
 
 - Cambios de UI, estilos, servicios y logica JS: basta con `npx expo start`.
 - Nuevas librerias nativas o plugins: se debe reconstruir la app/dev-client una vez.
 - Despues de instalar esa app/dev-client, el equipo vuelve a trabajar con `npx expo start`.
-
-El onboarding actual usa imagen estatica de marca. Si se vuelve a introducir video
-nativo, se debe agregar `expo-video` y generar una nueva build compatible.
 
 ## Estrategia tecnica
 

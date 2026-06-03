@@ -49,6 +49,7 @@ una app ya instalada.
 Requiere nueva development build, APK o EAS build cuando se cambia:
 
 - `expo-camera`
+- `expo-video`
 - `@react-native-async-storage/async-storage`
 - `@reactvision/react-viro`
 - plugins de `app.json`
@@ -57,9 +58,6 @@ Requiere nueva development build, APK o EAS build cuando se cambia:
 
 No se debe eliminar una dependencia nativa aprobada solo porque la app instalada
 no la trae. La solucion correcta es generar una build compatible.
-
-Nota vigente: el onboarding usa imagen estatica de marca, no `expo-video`, para
-mantener compatibilidad con la build instalada actual.
 
 ## Contratos de backend
 
