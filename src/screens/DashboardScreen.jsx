@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SvgUri } from 'react-native-svg';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import CaminoARScreen from '../features/games/camino-ar/CaminoARScreen';
@@ -19,8 +20,10 @@ import {
 } from '../features/games/core/resolverAccesoJuego';
 import { useStudentDashboard } from '../hooks/useStudentDashboard';
 import { colors, fonts, shadows, spacing } from '../constants/theme';
+import GamePathScreen from './GamePathScreen';
 
 const TERMINAL_PARTICIPANT_STATES = new Set(['completado', 'abandonado', 'cerrado']);
+const DASHBOARD_BACKGROUND = '#FAF3FF';
 
 const OFFICIAL_SKILLS = Object.freeze([
   { name: 'Memoria', icon: 'bulb', gameSlug: 'camino-ar' },
@@ -47,6 +50,30 @@ const normalizeSkillKey = (value = '') =>
 
 const getStudentName = (profile, fallbackProfile) =>
   profile?.nombre || profile?.name || fallbackProfile?.nombre || fallbackProfile?.name || 'Estudiante';
+
+const getStudentAvatarSeed = (profile, fallbackProfile) => {
+  const rawSeed =
+    profile?.nombre ||
+    profile?.name ||
+    fallbackProfile?.nombre ||
+    fallbackProfile?.name ||
+    profile?.id ||
+    profile?.estudiante_id ||
+    profile?.studentId ||
+    fallbackProfile?.id ||
+    fallbackProfile?.estudiante_id ||
+    fallbackProfile?.studentId;
+
+  return String(rawSeed || 'Estudiante');
+};
+
+const getFrontendAvatarUri = (profile, fallbackProfile) => {
+  const seed = encodeURIComponent(getStudentAvatarSeed(profile, fallbackProfile));
+  return `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}&backgroundColor=${DASHBOARD_BACKGROUND.replace('#', '')}`;
+};
+
+const getStudentAvatarColor = (profile, fallbackProfile) =>
+  profile?.color_avatar || profile?.avatarColor || fallbackProfile?.color_avatar || fallbackProfile?.avatarColor || colors.white;
 
 const buildGroupLabel = (profile) => {
   if (!profile?.grupo_id) {
@@ -176,6 +203,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const { height } = useWindowDimensions();
   const compact = height < 760;
   const [activeGame, setActiveGame] = useState(null);
+  const [showGamePath, setShowGamePath] = useState(false);
   const [activeTab, setActiveTab] = useState(DASHBOARD_TABS.mapa);
   const {
     profile,
@@ -226,6 +254,8 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   );
 
   const firstName = getStudentName(studentProfile, studentSession?.studentProfile).split(' ')[0];
+  const avatarUri = getFrontendAvatarUri(studentProfile, studentSession?.studentProfile);
+  const avatarColor = getStudentAvatarColor(studentProfile, studentSession?.studentProfile);
   const canPlayCaminoAr = caminoArAccess.estado === ESTADOS_ACCESO_JUEGO.disponible;
   const achievementsCount = achievements.length;
   const precisionLabel =
@@ -237,10 +267,17 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const startOrRefresh = () => {
     if (canPlayCaminoAr) {
       setActiveGame('camino-ar');
+      setShowGamePath(false);
       return;
     }
 
     reloadDashboard();
+  };
+
+  const handlePathSkillPress = (skill) => {
+    if (skill.gameSlug === 'camino-ar') {
+      startOrRefresh();
+    }
   };
 
   const exitCaminoAr = async () => {
@@ -274,6 +311,11 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     );
   }
 
+  const selectDashboardTab = (nextTab) => {
+    setActiveTab(nextTab);
+    setShowGamePath(false);
+  };
+
   return (
     <View style={styles.root}>
       <StatusBar style="dark" />
@@ -282,24 +324,21 @@ export default function DashboardScreen({ studentSession, onLogout }) {
           contentContainerStyle={[
             styles.content,
             compact && styles.contentCompact,
-            { paddingBottom: 96 + Math.max(insets.bottom, 10) },
+            showGamePath && styles.pathContent,
+            { paddingBottom: (showGamePath ? 82 : 96) + Math.max(insets.bottom, 10) },
           ]}
+          scrollEnabled={!showGamePath}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.header}>
-            <View style={styles.avatar}>
-              <Ionicons name="happy" size={30} color={colors.purple} />
-            </View>
-            <View style={styles.greeting}>
-              <Text style={styles.title}>Hola, {firstName}!</Text>
-              <Text style={styles.subtitle}>
-                {buildGroupLabel(studentProfile)} · {isRefreshing ? 'Actualizando...' : 'Sesion sincronizada'}
-              </Text>
-            </View>
-            <TouchableOpacity activeOpacity={0.86} onPress={onLogout} style={styles.exitButton}>
-              <Ionicons name="log-out-outline" size={22} color={colors.purple} />
-            </TouchableOpacity>
-          </View>
+          {activeTab === DASHBOARD_TABS.mapa && !showGamePath ? (
+            <StudentHeader
+              avatarColor={avatarColor}
+              avatarUri={avatarUri}
+              firstName={firstName}
+              groupLabel={buildGroupLabel(studentProfile)}
+              isRefreshing={isRefreshing}
+            />
+          ) : null}
 
           {errorMessage ? (
             <View style={styles.errorCard}>
@@ -312,13 +351,21 @@ export default function DashboardScreen({ studentSession, onLogout }) {
             <ProfilePanel
               achievementsCount={achievementsCount}
               attemptsLabel={attemptsLabel}
+              avatarColor={avatarColor}
+              avatarUri={avatarUri}
               groupLabel={buildGroupLabel(studentProfile)}
               onLogout={onLogout}
               precisionLabel={precisionLabel}
               sessionStatusLabel={sessionStatusLabel}
               studentName={getStudentName(studentProfile, studentSession?.studentProfile)}
             />
-          ) : (
+          ) : activeTab === DASHBOARD_TABS.mapa && showGamePath ? (
+            <GamePathScreen
+              skills={skillCards}
+              onBack={() => setShowGamePath(false)}
+              onStartSkill={handlePathSkillPress}
+            />
+          ) : activeTab === DASHBOARD_TABS.mapa ? (
             <>
               <View style={styles.hero}>
                 <View style={styles.heroTextBlock}>
@@ -346,7 +393,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
               </View>
 
               <View style={styles.sectionBlock}>
-                <SectionTitle title="Ruta de hoy" />
+                <SectionTitle title="Ruta de hoy" action="Ver mas" onAction={() => setShowGamePath(true)} />
                 <View style={styles.route}>
                   {skillCards.map((skill) => (
                     <RouteCard
@@ -393,6 +440,8 @@ export default function DashboardScreen({ studentSession, onLogout }) {
                 </View>
               </View>
             </>
+          ) : (
+            <View style={styles.emptyTabContent} />
           )}
         </ScrollView>
 
@@ -401,31 +450,31 @@ export default function DashboardScreen({ studentSession, onLogout }) {
             icon="home"
             label="Mapa"
             active={activeTab === DASHBOARD_TABS.mapa}
-            onPress={() => setActiveTab(DASHBOARD_TABS.mapa)}
+            onPress={() => selectDashboardTab(DASHBOARD_TABS.mapa)}
           />
           <NavItem
             icon="clipboard-outline"
             label="Actividades"
             active={activeTab === DASHBOARD_TABS.actividades}
-            onPress={() => setActiveTab(DASHBOARD_TABS.actividades)}
+            onPress={() => selectDashboardTab(DASHBOARD_TABS.actividades)}
           />
           <NavItem
             icon="star-outline"
             label="Logros"
             active={activeTab === DASHBOARD_TABS.logros}
-            onPress={() => setActiveTab(DASHBOARD_TABS.logros)}
+            onPress={() => selectDashboardTab(DASHBOARD_TABS.logros)}
           />
           <NavItem
             icon="bar-chart-outline"
             label="Progreso"
             active={activeTab === DASHBOARD_TABS.progreso}
-            onPress={() => setActiveTab(DASHBOARD_TABS.progreso)}
+            onPress={() => selectDashboardTab(DASHBOARD_TABS.progreso)}
           />
           <NavItem
             icon="person-outline"
             label="Perfil"
             active={activeTab === DASHBOARD_TABS.perfil}
-            onPress={() => setActiveTab(DASHBOARD_TABS.perfil)}
+            onPress={() => selectDashboardTab(DASHBOARD_TABS.perfil)}
           />
         </View>
       </SafeAreaView>
@@ -433,11 +482,15 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   );
 }
 
-function SectionTitle({ title, action }) {
+function SectionTitle({ title, action, onAction }) {
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      {action ? <Text style={styles.sectionAction}>{action} &gt;</Text> : null}
+      {action ? (
+        <TouchableOpacity activeOpacity={0.82} onPress={onAction} style={styles.sectionActionButton}>
+          <Text style={styles.sectionAction}>{action} &gt;</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -465,6 +518,39 @@ function RouteCard({ active, icon, label, number, onPress }) {
     >
       {content}
     </TouchableOpacity>
+  );
+}
+
+function StudentHeader({ avatarColor, avatarUri, firstName, groupLabel, isRefreshing }) {
+  return (
+    <View style={styles.header}>
+      <AvatarImage avatarColor={avatarColor} avatarUri={avatarUri} size={58} iconSize={30} />
+      <View style={styles.greeting}>
+        <Text style={styles.title}>Hola, {firstName}!</Text>
+        <Text style={styles.subtitle}>
+          {groupLabel} · {isRefreshing ? 'Actualizando...' : 'Sesion sincronizada'}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function AvatarImage({ avatarColor, avatarUri, size, iconSize }) {
+  const avatarStyle = {
+    width: size,
+    height: size,
+    borderRadius: size / 2,
+    backgroundColor: avatarUri ? DASHBOARD_BACKGROUND : avatarColor,
+  };
+
+  return (
+    <View style={[styles.avatar, avatarStyle]}>
+      {avatarUri ? (
+        <SvgUri uri={avatarUri} width={size} height={size} />
+      ) : (
+        <Ionicons name="happy" size={iconSize} color={colors.purple} />
+      )}
+    </View>
   );
 }
 
@@ -570,6 +656,8 @@ function StudentAccessGateScreen({
 function ProfilePanel({
   achievementsCount,
   attemptsLabel,
+  avatarColor,
+  avatarUri,
   groupLabel,
   onLogout,
   precisionLabel,
@@ -579,9 +667,7 @@ function ProfilePanel({
   return (
     <View style={styles.profilePanel}>
       <View style={styles.profileHero}>
-        <View style={styles.profileAvatar}>
-          <Ionicons name="person" size={36} color={colors.white} />
-        </View>
+        <AvatarImage avatarColor={avatarColor || colors.yellow} avatarUri={avatarUri} size={72} iconSize={36} />
         <View style={styles.profileInfo}>
           <Text style={styles.profileEyebrow}>Mi perfil</Text>
           <Text style={styles.profileName}>{studentName}</Text>
@@ -641,7 +727,7 @@ function NavItem({ icon, label, active, onPress }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FAF3FF' },
+  root: { flex: 1, backgroundColor: DASHBOARD_BACKGROUND },
   safeArea: { flex: 1 },
   content: {
     paddingHorizontal: 16,
@@ -649,6 +735,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   contentCompact: { paddingHorizontal: 14, paddingTop: spacing.xs, gap: spacing.sm },
+  pathContent: { flexGrow: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   avatar: {
     width: 58,
@@ -657,8 +744,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     ...shadows.soft,
   },
+  avatarImage: { width: '100%', height: '100%' },
   greeting: { flex: 1 },
   title: { color: colors.purpleDark, fontFamily: fonts.black, fontSize: 19 },
   subtitle: { color: colors.textGray, fontFamily: fonts.semiBold, fontSize: 11, lineHeight: 15 },
@@ -798,6 +887,7 @@ const styles = StyleSheet.create({
   smile: { width: 26, height: 13, borderBottomWidth: 4, borderBottomColor: colors.purpleDark, borderRadius: 14 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { color: colors.purpleDark, fontFamily: fonts.black, fontSize: 16 },
+  sectionActionButton: { minHeight: 32, justifyContent: 'center', paddingLeft: spacing.sm },
   sectionAction: { color: colors.purple, fontFamily: fonts.bold, fontSize: 13 },
   sectionBlock: { gap: spacing.xs },
   route: { flexDirection: 'row', gap: 6 },
@@ -995,6 +1085,7 @@ const styles = StyleSheet.create({
   skillValueActive: { color: colors.white },
   skillDetail: { color: colors.textGray, fontFamily: fonts.semiBold, fontSize: 10, marginTop: 2 },
   skillDetailActive: { color: colors.white },
+  emptyTabContent: { flexGrow: 1 },
   nav: {
     position: 'absolute',
     left: 16,
