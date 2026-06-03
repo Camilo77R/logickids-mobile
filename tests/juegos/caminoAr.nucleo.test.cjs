@@ -5,7 +5,7 @@ const {
   normalizarConfiguracionCaminoAr,
 } = require('../../src/features/games/camino-ar/caminoArConfiguracion.js');
 const {
-  MODOS_PRESENTACION_CAMINO_AR,
+  MODO_PRESENTACION_CAMINO_AR,
 } = require('../../src/features/games/camino-ar/caminoAr.constants.js');
 const {
   TIPOS_EVENTO_SESION,
@@ -26,6 +26,11 @@ const {
   reducirDeteccionSuperficieAr,
   resolverMensajeDeteccionSuperficieAr,
 } = require('../../src/features/games/camino-ar/presentacion/ar/deteccionSuperficieAr.js');
+const {
+  calcularColocacionTableroAr,
+  esPlanoCandidatoAPiso,
+  resolverReferenciaPisoDesdeHitTests,
+} = require('../../src/features/games/camino-ar/presentacion/ar/posicionamientoTableroAr.js');
 
 test('normalizarConfiguracionCaminoAr usa defaults seguros y valida modo de presentacion', () => {
   const configuracion = normalizarConfiguracionCaminoAr({
@@ -37,10 +42,10 @@ test('normalizarConfiguracionCaminoAr usa defaults seguros y valida modo de pres
     },
   });
 
-  assert.equal(configuracion.dificultad, 1);
+  assert.equal(configuracion.dificultad, 2);
   assert.equal(
     configuracion.modoPresentacion,
-    MODOS_PRESENTACION_CAMINO_AR.tablero2d,
+    MODO_PRESENTACION_CAMINO_AR,
   );
   assert.equal(configuracion.configuracion.cantidadBaldosas, 6);
   assert.equal(configuracion.configuracion.longitudPatron, 5);
@@ -105,6 +110,31 @@ test('construirResumenPartida devuelve contrato comun con estadisticas consisten
   assert.equal(resultado.detalles.patronResuelto, true);
 });
 
+test('construirResumenPartida marca completado cuando la ronda termina aunque el patron falle', () => {
+  const configuracion = normalizarConfiguracionCaminoAr({
+    dificultad: 1,
+    configuracion: {
+      cantidadBaldosas: 4,
+      longitudPatron: 3,
+      ayudasDisponibles: 1,
+    },
+  });
+
+  const resultado = construirResumenPartida({
+    exito: false,
+    configuracion,
+    aciertos: 2,
+    errores: 1,
+    ayudasUsadas: 0,
+    tiempoTranscurridoMs: 7000,
+    patron: [0, 1, 2],
+  });
+
+  assert.equal(resultado.finalizacionSesion.estado, ESTADOS_FINALIZACION_SESION.completado);
+  assert.equal(resultado.detalles.patronResuelto, false);
+  assert.equal(resultado.estadisticas.estadoSesion, ESTADOS_FINALIZACION_SESION.completado);
+});
+
 test('construirEscenaCaminoAr traduce el estado a una escena reusable para cualquier renderer', () => {
   const accionesInvocadas = [];
   const configuracion = normalizarConfiguracionCaminoAr({
@@ -136,7 +166,6 @@ test('construirEscenaCaminoAr traduce el estado a una escena reusable para cualq
       error: null,
     },
     iniciarPartida: () => accionesInvocadas.push('iniciar'),
-    reiniciarPartida: () => accionesInvocadas.push('reiniciar'),
     seleccionarBaldosa: (indice) => accionesInvocadas.push(`baldosa:${indice}`),
     usarPista: () => accionesInvocadas.push('pista'),
     puedePedirPista: true,
@@ -149,18 +178,102 @@ test('construirEscenaCaminoAr traduce el estado a una escena reusable para cualq
   assert.equal(escena.tablero.baldosas[1].activa, true);
   assert.equal(escena.tablero.baldosas[0].varianteColumna, 'dos');
   assert.equal(escena.acciones.pista.deshabilitada, false);
+  assert.equal(escena.acciones.mostrarControlesPrincipales, true);
+  assert.equal(escena.acciones.iniciar.deshabilitada, true);
+  assert.equal(escena.salida.permitida, false);
 
   escena.acciones.iniciar.accion();
   escena.tablero.alSeleccionarBaldosa(3);
-  escena.acciones.reiniciar.accion();
 
-  assert.deepEqual(accionesInvocadas, ['iniciar', 'baldosa:3', 'reiniciar']);
+  assert.deepEqual(accionesInvocadas, ['iniciar', 'baldosa:3']);
+});
+
+test('construirEscenaCaminoAr usa resumen oficial, logros y progreso para el cierre final', () => {
+  const configuracion = normalizarConfiguracionCaminoAr({
+    dificultad: 2,
+    configuracion: {
+      cantidadBaldosas: 4,
+      longitudPatron: 3,
+      tiempoLimiteMs: 15000,
+      ayudasDisponibles: 1,
+    },
+  });
+
+  const escena = construirEscenaCaminoAr({
+    configuracion,
+    estado: {
+      fase: 'completado',
+      mensaje: 'Actividad completada.',
+      tiempoRestanteMs: 0,
+      ayudasRestantes: 0,
+      aciertos: 2,
+      errores: 1,
+      baldosaActiva: null,
+      resultado: {
+        estadisticas: {
+          puntaje: 20,
+          aciertos: 2,
+          errores: 1,
+          precisionPct: 66.67,
+          comboMaximo: 2,
+          tiempoTotalMs: 7800,
+        },
+        detalles: {
+          patronLongitud: 3,
+          patronResuelto: false,
+        },
+      },
+    },
+    columnasTablero: 2,
+    persistenciaSesion: {
+      modo: 'remota',
+      estado: 'finalizada',
+      error: null,
+    },
+    respuestaInicioSesion: {
+      sesion: {
+        minijuego_id: 1,
+      },
+    },
+    respuestaFinalizacionSesion: {
+      resumen_oficial: {
+        puntaje: 25,
+        aciertos: 2,
+        errores: 1,
+        combo_maximo: 2,
+      },
+      logros_desbloqueados: [
+        {
+          id: 1,
+          nombre_logro: 'Primer intento',
+          descripcion: 'Completaste tu primera sesión.',
+        },
+      ],
+      progreso_ruta: {
+        haySiguientePaso: false,
+        participanteEstado: 'completado',
+      },
+    },
+    iniciarPartida: () => {},
+    seleccionarBaldosa: () => {},
+    usarPista: () => {},
+    puedePedirPista: false,
+    salirActividad: () => {},
+  });
+
+  assert.equal(escena.resultado.visible, true);
+  assert.equal(escena.resultado.titulo, 'Buen intento');
+  assert.match(escena.resultado.mensajeProgreso, /Actividad completada/i);
+  assert.equal(escena.resultado.metricas[0].valor, 25);
+  assert.equal(escena.resultado.metricas[1].valor, 2);
+  assert.equal(escena.resultado.logros.length, 1);
+  assert.equal(escena.resultado.etiquetaSalir, 'Volver al inicio');
 });
 
 test('construirEscenaEspacialCaminoAr deja listo un modelo AR agnostico al renderer', () => {
   const configuracion = normalizarConfiguracionCaminoAr({
     dificultad: 2,
-    modoPresentacion: MODOS_PRESENTACION_CAMINO_AR.realidadAumentada,
+    modoPresentacion: MODO_PRESENTACION_CAMINO_AR,
     configuracion: {
       cantidadBaldosas: 4,
       longitudPatron: 3,
@@ -198,9 +311,11 @@ test('construirEscenaEspacialCaminoAr deja listo un modelo AR agnostico al rende
   });
 
   assert.equal(escenaEspacial.plano.tipo, 'horizontal');
+  assert.equal(escenaEspacial.plano.ancho, 0.78);
+  assert.equal(escenaEspacial.plano.profundo, 0.78);
   assert.equal(escenaEspacial.baldosas.length, 4);
-  assert.deepEqual(escenaEspacial.baldosas[0].posicion, [-0.14, 0, -0.14]);
-  assert.deepEqual(escenaEspacial.baldosas[2].posicion, [-0.14, 0, 0.14]);
+  assert.deepEqual(escenaEspacial.baldosas[0].posicion, [-0.16, 0, -0.16]);
+  assert.deepEqual(escenaEspacial.baldosas[2].posicion, [-0.16, 0, 0.16]);
   assert.equal(escenaEspacial.baldosas[2].estadoVisual, 'activa');
   assert.equal(escenaEspacial.adaptacion.modoPresentacion, 'realidad-aumentada');
 });
@@ -230,4 +345,64 @@ test('reducirDeteccionSuperficieAr modela la busqueda y fijacion del piso sin ac
 
   assert.equal(estadoReiniciado.estado, 'buscando');
   assert.equal(estadoReiniciado.cantidadSuperficies, 0);
+});
+
+test('esPlanoCandidatoAPiso filtra superficies elevadas que no parecen piso', () => {
+  const posicionCamara = [0, 1.45, 0];
+
+  assert.equal(
+    esPlanoCandidatoAPiso({
+      plano: { position: [0.15, 0.02, -0.8] },
+      posicionCamara,
+    }),
+    true,
+  );
+
+  assert.equal(
+    esPlanoCandidatoAPiso({
+      plano: { position: [0, 1.2, -0.5] },
+      posicionCamara,
+    }),
+    false,
+  );
+});
+
+test('calcularColocacionTableroAr usa la altura del plano para no levantar el tablero', () => {
+  const colocacion = calcularColocacionTableroAr({
+    puntoToque: [0.1, 0.65, -0.6],
+    posicionCamara: [0, 1.45, 0],
+    alturaPlano: 0.02,
+    anchoTablero: 0.74,
+    profundoTablero: 0.74,
+  });
+
+  assert.equal(colocacion.posicion[1], 0.026);
+  assert.ok(colocacion.posicion[2] < -0.6);
+});
+
+test('resolverReferenciaPisoDesdeHitTests elige un plano real antes que una estimacion', () => {
+  const referencia = resolverReferenciaPisoDesdeHitTests({
+    posicionCamara: [0, 1.45, 0],
+    hitTestResults: [
+      {
+        type: 'EstimatedHorizontalPlane',
+        transform: {
+          position: [0.05, 0.02, -0.7],
+          rotation: [0, 0, 0],
+          scale: [1, 1, 1],
+        },
+      },
+      {
+        type: 'ExistingPlaneUsingExtent',
+        transform: {
+          position: [0, 0.01, -0.9],
+          rotation: [0, 10, 0],
+          scale: [1, 1, 1],
+        },
+      },
+    ],
+  });
+
+  assert.equal(referencia.tipo, 'ExistingPlaneUsingExtent');
+  assert.deepEqual(referencia.posicion, [0, 0.01, -0.9]);
 });

@@ -1,10 +1,10 @@
-export const SLUG_TREN_FIGURAS = 'tren-figuras';
-export const HABILIDAD_TREN_FIGURAS = 'Lógica';
-export const TITULO_TREN_FIGURAS = 'Tren de Figuras';
+export const SLUG_TREN_3D = 'tren-figuras';
+export const HABILIDAD_TREN_3D = 'Patrones';
+export const TITULO_TREN_3D = 'Tren 3D de Patrones';
 export const VAGONES_POR_NIVEL = 10;
 export const NIVELES_POR_PARTIDA = 4;
 
-export const ESTADOS_TREN_FIGURAS = Object.freeze({
+export const ESTADOS_TREN_3D = Object.freeze({
   esperando: 'esperando',
   jugando: 'jugando',
   evaluando: 'evaluando',

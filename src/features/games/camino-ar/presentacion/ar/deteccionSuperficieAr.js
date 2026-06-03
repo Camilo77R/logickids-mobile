@@ -8,12 +8,21 @@ export const crearEstadoInicialDeteccionSuperficieAr = () => ({
   estado: ESTADOS_DETECCION_SUPERFICIE_AR.buscando,
   cantidadSuperficies: 0,
   superficieSeleccionada: false,
+  revisionReinicio: 0,
 });
 
 export const reducirDeteccionSuperficieAr = (estado, evento) => {
   switch (evento.tipo) {
     case 'ancla-registrada': {
       const cantidadSuperficies = Math.max(1, evento.cantidadSuperficies ?? 1);
+
+      if (
+        estado.cantidadSuperficies === cantidadSuperficies &&
+        estado.estado === ESTADOS_DETECCION_SUPERFICIE_AR.superficiesDisponibles
+      ) {
+        return estado;
+      }
+
       return {
         ...estado,
         estado: ESTADOS_DETECCION_SUPERFICIE_AR.superficiesDisponibles,
@@ -21,6 +30,14 @@ export const reducirDeteccionSuperficieAr = (estado, evento) => {
       };
     }
     case 'anclas-vacias':
+      if (
+        estado.estado === ESTADOS_DETECCION_SUPERFICIE_AR.buscando &&
+        estado.cantidadSuperficies === 0 &&
+        estado.superficieSeleccionada === false
+      ) {
+        return estado;
+      }
+
       return {
         ...estado,
         estado: ESTADOS_DETECCION_SUPERFICIE_AR.buscando,
@@ -28,13 +45,28 @@ export const reducirDeteccionSuperficieAr = (estado, evento) => {
         superficieSeleccionada: false,
       };
     case 'superficie-seleccionada':
+      if (estado.superficieSeleccionada) {
+        return estado;
+      }
+
       return {
         ...estado,
         estado: ESTADOS_DETECCION_SUPERFICIE_AR.superficieSeleccionada,
         superficieSeleccionada: true,
       };
     case 'reiniciar-seleccion':
-      return crearEstadoInicialDeteccionSuperficieAr();
+      if (
+        estado.estado === ESTADOS_DETECCION_SUPERFICIE_AR.buscando &&
+        estado.cantidadSuperficies === 0 &&
+        estado.superficieSeleccionada === false
+      ) {
+        return estado;
+      }
+
+      return {
+        ...crearEstadoInicialDeteccionSuperficieAr(),
+        revisionReinicio: estado.revisionReinicio + 1,
+      };
     default:
       return estado;
   }
@@ -65,4 +97,3 @@ export const resolverEtiquetaEstadoDeteccionAr = (estado) => {
       return 'Preparando AR';
   }
 };
-

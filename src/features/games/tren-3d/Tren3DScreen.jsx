@@ -8,20 +8,20 @@ import {
   View,
 } from 'react-native';
 import { TIPOS_EVENTO_SESION } from '../core/contratoSesionJuego';
-import { useSesionTrenFiguras } from './aplicacion/useSesionTrenFiguras';
+import { useSesionTren3D } from './aplicacion/useSesionTren3D';
 import {
   calcularAdaptacionInterNivel,
   generarPatronNivel,
-  normalizarConfiguracionTrenFiguras,
+  normalizarConfiguracionTren3D,
   obtenerParametrosDificultad,
-} from './trenFigurasConfiguracion';
+} from './tren3dConfiguracion';
 import {
   calcularPuntaje,
-  construirEventoTrenFiguras,
-  construirResumenPartidaTren,
-} from './trenFigurasMotor';
-import { ESTADOS_TREN_FIGURAS } from './trenFiguras.constants';
-import TrenFigurasVistaWebView from './presentacion/TrenFigurasVistaWebView';
+  construirEventoTren3D,
+  construirResumenPartidaTren3D,
+} from './tren3dMotor';
+import { ESTADOS_TREN_3D } from './tren3d.constants';
+import Tren3DVistaWebView from './presentacion/Tren3DVistaWebView';
 import { colores, espaciado, radios, tipografia } from '../../../theme/tokens';
 
 const construirParametrosNivel = ({ dificultad, configuracion }) => {
@@ -49,6 +49,7 @@ const FiguraPatron = ({ paso, completado }) => {
     { backgroundColor: paso.colorHex },
     paso.figuraId === 'circulo' && styles.figuraCirculo,
     paso.figuraId === 'triangulo' && styles.figuraTriangulo,
+    paso.figuraId === 'triangulo' && { borderBottomColor: paso.colorHex },
     paso.figuraId === 'estrella' && styles.figuraEstrella,
     completado && styles.figuraCompletada,
   ];
@@ -61,13 +62,13 @@ const FiguraPatron = ({ paso, completado }) => {
   );
 };
 
-export default function TrenFigurasScreen({
+export default function Tren3DScreen({
   onSalir,
   configuracionInicial,
   contextoSesion,
 }) {
   const configuracion = useMemo(
-    () => normalizarConfiguracionTrenFiguras(configuracionInicial),
+    () => normalizarConfiguracionTren3D(configuracionInicial),
     [configuracionInicial],
   );
   const webViewRef = useRef(null);
@@ -80,6 +81,7 @@ export default function TrenFigurasScreen({
   });
   const nivelRef = useRef(1);
   const dificultadRef = useRef(configuracion.dificultad);
+  const partidaIniciadaRef = useRef(false);
   const finalizadoRef = useRef(false);
 
   const parametrosIniciales = useMemo(
@@ -91,13 +93,13 @@ export default function TrenFigurasScreen({
     [configuracion],
   );
 
-  const sesionTren = useSesionTrenFiguras({
+  const sesionTren = useSesionTren3D({
     configuracion,
     contextoSesion,
   });
 
   const [estado, setEstado] = useState({
-    fase: ESTADOS_TREN_FIGURAS.esperando,
+    fase: ESTADOS_TREN_3D.esperando,
     nivel: 1,
     dificultad: configuracion.dificultad,
     aciertos: 0,
@@ -106,8 +108,10 @@ export default function TrenFigurasScreen({
     puntaje: 0,
     patronActual: parametrosIniciales.patron,
     vagonesCompletados: 0,
+    vagonesResueltos: [],
     mensaje: 'Toca una figura y luego el vagon que quieres completar.',
     resultado: null,
+    seleccionClave: null,
   });
 
   const opcionesUnicas = useMemo(() => {
@@ -120,25 +124,15 @@ export default function TrenFigurasScreen({
 
   const seleccionarFiguraNativa = (paso) => {
     const script = `
-      window.establecerSeleccion && window.establecerSeleccion('${paso.clave}');
+      window.establecerSeleccion && window.establecerSeleccion(${JSON.stringify(paso)});
       true;
     `;
     webViewRef.current?.injectJavaScript(script);
-  };
-
-  const obtenerSimboloFigura = (figuraId) => {
-    switch (figuraId) {
-      case 'circulo':
-        return '⬤';
-      case 'cuadrado':
-        return '■';
-      case 'triangulo':
-        return '▲';
-      case 'estrella':
-        return '★';
-      default:
-        return '?';
-    }
+    setEstado((previo) => ({
+      ...previo,
+      seleccionClave: paso.clave,
+      mensaje: 'Figura lista. Toca el vagon que tenga esa figura.',
+    }));
   };
 
   const finalizarPartida = ({ estadoFinal = 'completado' } = {}) => {
@@ -148,7 +142,7 @@ export default function TrenFigurasScreen({
 
     finalizadoRef.current = true;
     const acumulado = acumuladoRef.current;
-    const resultado = construirResumenPartidaTren({
+    const resultado = construirResumenPartidaTren3D({
       configuracion,
       aciertos: acumulado.aciertos,
       errores: acumulado.errores,
@@ -162,7 +156,7 @@ export default function TrenFigurasScreen({
     sesionTren.observadoresJuego.alFinalizarPartida(resultado);
     setEstado((previo) => ({
       ...previo,
-      fase: ESTADOS_TREN_FIGURAS.finalizado,
+      fase: ESTADOS_TREN_3D.finalizado,
       puntaje: resultado.estadisticas.puntaje,
       resultado,
       mensaje: 'Partida finalizada. Buen trabajo con los patrones.',
@@ -174,7 +168,7 @@ export default function TrenFigurasScreen({
       mensaje.tipo === 'acierto'
         ? TIPOS_EVENTO_SESION.acierto
         : TIPOS_EVENTO_SESION.error;
-    const evento = construirEventoTrenFiguras({
+    const evento = construirEventoTren3D({
       tipoEvento,
       tiempoReaccionMs: mensaje.tiempoReaccionMs,
       puntos: mensaje.puntos,
@@ -201,22 +195,25 @@ export default function TrenFigurasScreen({
     setEstado((previo) => {
       const aciertos = previo.aciertos + (mensaje.tipo === 'acierto' ? 1 : 0);
       const errores = previo.errores + (mensaje.tipo === 'error' ? 1 : 0);
+      const vagonesResueltos =
+        mensaje.tipo === 'acierto'
+          ? [...new Set([...previo.vagonesResueltos, mensaje.vagonIndex])]
+          : previo.vagonesResueltos;
 
       return {
         ...previo,
-        fase: ESTADOS_TREN_FIGURAS.jugando,
+        fase: ESTADOS_TREN_3D.jugando,
         aciertos,
         errores,
         comboMaximo: Math.max(previo.comboMaximo, mensaje.comboEnEvento ?? 0),
         puntaje: calcularPuntaje({ aciertos, errores }),
-        vagonesCompletados:
-          mensaje.tipo === 'acierto'
-            ? Math.min(previo.vagonesCompletados + 1, previo.patronActual.length)
-            : previo.vagonesCompletados,
+        vagonesCompletados: vagonesResueltos.length,
+        vagonesResueltos,
         mensaje:
           mensaje.tipo === 'acierto'
-            ? 'Correcto. Sigue el siguiente vagon del patron.'
-            : 'Mira la barra de patron y vuelve a intentarlo.',
+            ? 'Correcto. Puedes elegir otra figura y otro vagon.'
+            : 'Ese vagon no corresponde. Mira el patron e intenta otra vez.',
+        seleccionClave: null,
       };
     });
   };
@@ -250,15 +247,23 @@ export default function TrenFigurasScreen({
 
     setEstado((previo) => ({
       ...previo,
-      fase: ESTADOS_TREN_FIGURAS.transicionNivel,
+      fase: ESTADOS_TREN_3D.transicionNivel,
       nivel: siguienteNivel,
       dificultad: adaptacion.nuevaDificultad,
       patronActual: parametros.patron,
       vagonesCompletados: 0,
+      vagonesResueltos: [],
+      seleccionClave: null,
       mensaje: `${adaptacion.descripcionNivel}. Precision: ${adaptacion.precisionPct}%.`,
     }));
 
-    setTimeout(() => inyectarNuevoNivel({ webViewRef, parametros }), 2200);
+    setTimeout(() => {
+      inyectarNuevoNivel({ webViewRef, parametros });
+      setEstado((previo) => ({
+        ...previo,
+        fase: ESTADOS_TREN_3D.jugando,
+      }));
+    }, 2500);
   };
 
   const manejarMensaje = (eventoWebView) => {
@@ -271,12 +276,13 @@ export default function TrenFigurasScreen({
     }
 
     if (mensaje.tipo === 'motorListo') {
+      partidaIniciadaRef.current = true;
       sesionTren.observadoresJuego.alIniciarPartida({
         configuracionPartida: configuracion,
       });
       setEstado((previo) => ({
         ...previo,
-        fase: ESTADOS_TREN_FIGURAS.jugando,
+        fase: ESTADOS_TREN_3D.jugando,
         mensaje: 'Elige una figura de abajo y toca el vagon correcto.',
       }));
       return;
@@ -292,6 +298,14 @@ export default function TrenFigurasScreen({
       return;
     }
 
+    if (mensaje.tipo === 'seleccionActualizada') {
+      setEstado((previo) => ({
+        ...previo,
+        seleccionClave: mensaje.clave,
+      }));
+      return;
+    }
+
     if (mensaje.tipo === 'errorMotor') {
       setEstado((previo) => ({
         ...previo,
@@ -301,7 +315,7 @@ export default function TrenFigurasScreen({
   };
 
   const salir = () => {
-    if (!finalizadoRef.current && acumuladoRef.current.aciertos + acumuladoRef.current.errores > 0) {
+    if (!finalizadoRef.current && partidaIniciadaRef.current) {
       finalizarPartida({ estadoFinal: 'abandonado' });
     }
 
@@ -310,7 +324,7 @@ export default function TrenFigurasScreen({
 
   return (
     <SafeAreaView style={styles.contenedor}>
-      <TrenFigurasVistaWebView
+      <Tren3DVistaWebView
         webViewRef={webViewRef}
         onMensaje={manejarMensaje}
         parametrosIniciales={parametrosIniciales}
@@ -318,7 +332,7 @@ export default function TrenFigurasScreen({
 
       <View style={styles.barraSuperior}>
         <View>
-          <Text style={styles.titulo}>Tren de Figuras</Text>
+          <Text style={styles.titulo}>Tren 3D de Patrones</Text>
           <Text style={styles.subtitulo}>{estado.mensaje}</Text>
         </View>
         <TouchableOpacity style={styles.botonSalir} onPress={salir}>
@@ -337,7 +351,7 @@ export default function TrenFigurasScreen({
             <FiguraPatron
               key={`${paso.posicion}-${paso.clave}`}
               paso={paso}
-              completado={paso.posicion < estado.vagonesCompletados}
+              completado={estado.vagonesResueltos.includes(paso.posicion)}
             />
           ))}
         </ScrollView>
@@ -349,15 +363,24 @@ export default function TrenFigurasScreen({
           <TouchableOpacity
             key={opcion.clave}
             activeOpacity={0.8}
-            disabled={estado.fase !== ESTADOS_TREN_FIGURAS.jugando}
+            disabled={estado.fase !== ESTADOS_TREN_3D.jugando}
             style={[
               styles.botonNativo,
               { backgroundColor: opcion.colorHex },
-              estado.fase !== ESTADOS_TREN_FIGURAS.jugando && { opacity: 0.5 }
+              estado.seleccionClave === opcion.clave && styles.botonNativoActivo,
+              estado.fase !== ESTADOS_TREN_3D.jugando && { opacity: 0.5 }
             ]}
             onPress={() => seleccionarFiguraNativa(opcion)}
           >
-            <Text style={styles.botonNativoSimbolo}>{obtenerSimboloFigura(opcion.figuraId)}</Text>
+            <View
+              style={[
+                styles.figuraBoton,
+                opcion.figuraId === 'circulo' && styles.figuraBotonCirculo,
+                opcion.figuraId === 'triangulo' && styles.figuraBotonTriangulo,
+                opcion.figuraId === 'triangulo' && { borderBottomColor: opcion.colorHex },
+                opcion.figuraId === 'estrella' && styles.figuraBotonEstrella,
+              ]}
+            />
             <Text style={styles.botonNativoTexto}>{opcion.figuraLabel}</Text>
           </TouchableOpacity>
         ))}
@@ -568,8 +591,8 @@ const styles = StyleSheet.create({
   },
   botonNativo: {
     flex: 1,
-    maxWidth: 90,
-    height: 60,
+    maxWidth: 96,
+    minHeight: 68,
     borderRadius: radios.md,
     justifyContent: 'center',
     alignItems: 'center',
@@ -581,11 +604,36 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 3,
   },
-  botonNativoSimbolo: {
-    color: '#06131f',
-    fontSize: 18,
-    fontWeight: '900',
-    lineHeight: 20,
+  botonNativoActivo: {
+    transform: [{ translateY: -4 }],
+    borderColor: '#ffffff',
+    borderWidth: 4,
+  },
+  figuraBoton: {
+    width: 24,
+    height: 24,
+    borderRadius: 5,
+    backgroundColor: 'rgba(6,19,31,0.86)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.85)',
+  },
+  figuraBotonCirculo: {
+    borderRadius: 999,
+  },
+  figuraBotonTriangulo: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 14,
+    borderRightWidth: 14,
+    borderBottomWidth: 25,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: 'rgba(6,19,31,0.86)',
+    backgroundColor: 'transparent',
+    borderTopWidth: 0,
+  },
+  figuraBotonEstrella: {
+    transform: [{ rotate: '45deg' }],
   },
   botonNativoTexto: {
     color: '#06131f',
@@ -594,3 +642,4 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
+

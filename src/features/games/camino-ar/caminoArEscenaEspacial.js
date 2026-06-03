@@ -1,8 +1,8 @@
 const PARAMETROS_ESCENA_ESPACIAL = Object.freeze({
-  separacionBaldosas: 0.28,
-  tamanoBaldosa: 0.18,
-  alturaBase: 0.01,
-  elevacionActiva: 0.025,
+  separacionBaldosas: 0.32,
+  tamanoBaldosa: 0.14,
+  alturaBase: 0.06,
+  elevacionActiva: 0.02,
 });
 
 const calcularDimensionPlano = (cantidadElementos, separacionBaldosas, tamanoBaldosa) =>

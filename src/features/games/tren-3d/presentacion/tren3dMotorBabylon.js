@@ -28,14 +28,16 @@ export const generarHtmlMotorBabylon = (parametrosIniciales) => {
         var engine = null;
         var scene = null;
         var vagones = [];
-        var opciones = [];
         var grupoTren = null;
-        var estadoTren = 'estacionado'; // 'entrando' | 'saliendo' | 'estacionado'
+        var estadoTren = 'entrando'; // 'entrando' | 'jugando' | 'saliendo' | 'nivelCompletado'
+        var inicioRecorridoX = -12.0;
+        var finRecorridoX = 12.0;
         var estado = {
           patron: [],
           dificultad: 1,
           velocidadTren: 1,
-          indiceActual: 0,
+          completados: {},
+          totalCompletados: 0,
           aciertos: 0,
           errores: 0,
           combo: 0,
@@ -75,12 +77,7 @@ export const generarHtmlMotorBabylon = (parametrosIniciales) => {
 
         function limpiarEscena() {
           vagones.forEach(function (m) { m.dispose(); });
-          opciones.forEach(function (m) { m.dispose(); });
           vagones = [];
-          opciones = [];
-          if (grupoTren) {
-            grupoTren.position.x = 0;
-          }
         }
 
         function crearFigura(tipo, nombre, posicion, escala, hex) {
@@ -100,22 +97,24 @@ export const generarHtmlMotorBabylon = (parametrosIniciales) => {
         }
 
         function crearVagon(paso, indice) {
-          var x = -4.05 + indice * 0.86;
-          var base = BABYLON.MeshBuilder.CreateBox('vagon-' + indice, { width: 0.74, height: 0.44, depth: 0.72 }, scene);
+          var x = -4.85 + indice * 1.02;
+          var completado = !!estado.completados[indice];
+          var seleccionado = estado.seleccion && estado.seleccion.clave === paso.clave;
+          var base = BABYLON.MeshBuilder.CreateBox('vagon-' + indice, { width: 0.9, height: 0.56, depth: 0.82 }, scene);
           base.position = new BABYLON.Vector3(x, 0, 0);
-          base.material = material('vagon-mat-' + indice, indice === estado.indiceActual ? '#ffd85f' : '#4bb2e6');
+          base.material = material('vagon-mat-' + indice, completado ? '#64d28a' : seleccionado ? '#ffd85f' : '#4bb2e6');
           base.metadata = { tipo: 'vagon', indice: indice, paso: paso };
 
           var ruedaA = BABYLON.MeshBuilder.CreateCylinder('rueda-a-' + indice, { diameter: 0.18, height: 0.1, tessellation: 18 }, scene);
           ruedaA.rotation.z = Math.PI / 2;
-          ruedaA.position = new BABYLON.Vector3(x - 0.2, -0.32, 0.38);
+          ruedaA.position = new BABYLON.Vector3(x - 0.25, -0.38, 0.43);
           ruedaA.material = material('rueda-mat-a-' + indice, '#263348');
 
           var ruedaB = ruedaA.clone('rueda-b-' + indice);
           ruedaB.position.x = x + 0.2;
 
-          var esperado = crearFigura(paso.figuraId, 'objetivo-' + indice, new BABYLON.Vector3(x, 0.43, 0), 0.42, indice < estado.indiceActual ? paso.colorHex : '#e9f2fb');
-          esperado.visibility = indice < estado.indiceActual ? 1 : 0.28;
+          var esperado = crearFigura(paso.figuraId, 'objetivo-' + indice, new BABYLON.Vector3(x, 0.56, 0), 0.52, completado ? paso.colorHex : '#e9f2fb');
+          esperado.visibility = completado ? 1 : 0.32;
           esperado.metadata = { decoracion: true, indice: indice };
 
           base.parent = grupoTren;
@@ -127,11 +126,11 @@ export const generarHtmlMotorBabylon = (parametrosIniciales) => {
         }
 
         function crearLocomotora() {
-          var cuerpo = BABYLON.MeshBuilder.CreateBox('locomotora', { width: 0.96, height: 0.7, depth: 0.82 }, scene);
-          cuerpo.position = new BABYLON.Vector3(-5.05, 0.05, 0);
+          var cuerpo = BABYLON.MeshBuilder.CreateBox('locomotora', { width: 1.18, height: 0.82, depth: 0.92 }, scene);
+          cuerpo.position = new BABYLON.Vector3(-6.05, 0.08, 0);
           cuerpo.material = material('locomotora-mat', '#ff6b6b');
-          var chimenea = BABYLON.MeshBuilder.CreateCylinder('chimenea', { diameter: 0.24, height: 0.45, tessellation: 18 }, scene);
-          chimenea.position = new BABYLON.Vector3(-5.22, 0.65, 0);
+          var chimenea = BABYLON.MeshBuilder.CreateCylinder('chimenea', { diameter: 0.3, height: 0.5, tessellation: 18 }, scene);
+          chimenea.position = new BABYLON.Vector3(-6.28, 0.76, 0);
           chimenea.material = material('chimenea-mat', '#273548');
           
           cuerpo.parent = grupoTren;
@@ -140,80 +139,19 @@ export const generarHtmlMotorBabylon = (parametrosIniciales) => {
           vagones.push(cuerpo, chimenea);
         }
 
-        function opcionesUnicas() {
-          var mapa = {};
-          estado.patron.forEach(function (paso) { mapa[paso.clave] = paso; });
-          return Object.keys(mapa).map(function (clave) { return mapa[clave]; });
-        }
-
-        function crearOpciones() {
-          opcionesUnicas().forEach(function (paso, indice) {
-            var x = -2.0 + indice * 1.35;
-            var mesh = crearFigura(paso.figuraId, 'opcion-' + paso.clave, new BABYLON.Vector3(x, -0.3, 1.8), 1.1, paso.colorHex);
-            mesh.metadata = { tipo: 'opcion', paso: paso, xStart: x, yStart: -0.3, zStart: 1.8 };
-            
-            // PointerDragBehavior Setup
-            var dragBehavior = new BABYLON.PointerDragBehavior({ dragPlaneNormal: new BABYLON.Vector3(0, 0, 1) });
-            dragBehavior.useObjectOrientationForDragging = false;
-            
-            var hasDragged = false;
-            
-            dragBehavior.onDragStartObservable.add(function() {
-              hasDragged = false;
-              marcarSeleccion(mesh);
-              if (scene.activeCamera && canvas) {
-                scene.activeCamera.detachControl(canvas);
-              }
-            });
-            
-            dragBehavior.onDragObservable.add(function() {
-              hasDragged = true;
-              // Interpolate Z from 1.8 to 0 as Y goes from -0.3 to 0.43 (wagon height)
-              var progress = (mesh.position.y - (-0.3)) / (0.43 - (-0.3));
-              progress = Math.max(0, Math.min(1, progress));
-              mesh.position.z = 1.8 + (0 - 1.8) * progress;
-            });
-            
-            dragBehavior.onDragEndObservable.add(function() {
-              if (scene.activeCamera && canvas) {
-                scene.activeCamera.attachControl(canvas, true);
-              }
-              
-              var xWagon = -4.05 + estado.indiceActual * 0.86;
-              var yWagon = 0.43;
-              
-              var dx = mesh.position.x - xWagon;
-              var dy = mesh.position.y - yWagon;
-              var dist = Math.sqrt(dx * dx + dy * dy);
-              
-              if (hasDragged && dist < 1.0) {
-                resolverJugada();
-              } else {
-                // Snap back to starting position
-                BABYLON.Animation.CreateAndStartAnimation(
-                  'snapBack', mesh, 'position', 60, 12,
-                  mesh.position, new BABYLON.Vector3(mesh.metadata.xStart, mesh.metadata.yStart, mesh.metadata.zStart),
-                  BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
-                );
-                // Reset mesh scale just in case
-                mesh.scaling = new BABYLON.Vector3(1, 1, 1);
-              }
-            });
-            
-            mesh.addBehavior(dragBehavior);
-            opciones.push(mesh);
+        function marcarSeleccion(paso) {
+          estado.seleccion = paso;
+          enviar({
+            tipo: 'seleccionActualizada',
+            clave: paso ? paso.clave : null
           });
+          dibujarNivel();
         }
 
-        function marcarSeleccion(mesh) {
-          opciones.forEach(function (opcion) { opcion.scaling = new BABYLON.Vector3(1, 1, 1); });
-          estado.seleccion = mesh.metadata.paso;
-          mesh.scaling = new BABYLON.Vector3(1.22, 1.22, 1.22);
-        }
-
-        function resolverJugada() {
-          if (!estado.seleccion || estado.indiceActual >= estado.patron.length || estadoTren !== 'estacionado') return;
-          var esperado = estado.patron[estado.indiceActual];
+        function resolverJugada(indiceVagon) {
+          if (!estado.seleccion || indiceVagon == null || estado.completados[indiceVagon] || estadoTren === 'saliendo') return;
+          var esperado = estado.patron[indiceVagon];
+          if (!esperado) return;
           var acierto = estado.seleccion.clave === esperado.clave;
           var ahora = Date.now();
           var tiempoReaccionMs = ahora - estado.ultimaJugadaMs;
@@ -223,7 +161,8 @@ export const generarHtmlMotorBabylon = (parametrosIniciales) => {
             estado.aciertos += 1;
             estado.combo += 1;
             estado.comboMaximo = Math.max(estado.comboMaximo, estado.combo);
-            estado.indiceActual += 1;
+            estado.completados[indiceVagon] = true;
+            estado.totalCompletados += 1;
           } else {
             estado.errores += 1;
             estado.combo = 0;
@@ -234,17 +173,17 @@ export const generarHtmlMotorBabylon = (parametrosIniciales) => {
             tiempoReaccionMs: tiempoReaccionMs,
             puntos: acierto ? 10 : 0,
             comboEnEvento: estado.combo,
-            vagonIndex: estado.indiceActual,
+            vagonIndex: indiceVagon,
             figuraSolicitada: esperado.figuraId,
             colorSolicitado: esperado.colorId,
             figuraIngresada: estado.seleccion.figuraId,
             colorIngresado: estado.seleccion.colorId
           });
 
-          estado.seleccion = null;
+          marcarSeleccion(null);
           dibujarNivel();
 
-          if (estado.indiceActual >= estado.patron.length) {
+          if (estado.totalCompletados >= estado.patron.length) {
             estadoTren = 'saliendo';
           }
         }
@@ -253,7 +192,6 @@ export const generarHtmlMotorBabylon = (parametrosIniciales) => {
           limpiarEscena();
           crearLocomotora();
           estado.patron.forEach(crearVagon);
-          crearOpciones();
           crearNube('nube-a', -3.8, 2.15, 1.8, 0.85);
           crearNube('nube-b', 2.9, 2.35, 1.9, 0.75);
         }
@@ -262,7 +200,8 @@ export const generarHtmlMotorBabylon = (parametrosIniciales) => {
           estado.patron = params.patron || [];
           estado.dificultad = params.dificultad || 1;
           estado.velocidadTren = params.velocidadTren || 1;
-          estado.indiceActual = 0;
+          estado.completados = {};
+          estado.totalCompletados = 0;
           estado.aciertos = 0;
           estado.errores = 0;
           estado.combo = 0;
@@ -273,7 +212,7 @@ export const generarHtmlMotorBabylon = (parametrosIniciales) => {
           dibujarNivel();
           
           if (grupoTren) {
-            grupoTren.position.x = -12.0;
+            grupoTren.position.x = inicioRecorridoX;
             estadoTren = 'entrando';
           }
         };
@@ -289,7 +228,7 @@ export const generarHtmlMotorBabylon = (parametrosIniciales) => {
           scene = new BABYLON.Scene(engine);
           scene.clearColor = new BABYLON.Color4(0.57, 0.86, 1, 1);
 
-          var camera = new BABYLON.ArcRotateCamera('camara', Math.PI / 2, Math.PI / 2.52, 9.9, new BABYLON.Vector3(-0.75, -0.05, 0), scene);
+          var camera = new BABYLON.ArcRotateCamera('camara', Math.PI / 2, Math.PI / 2.5, 10.8, new BABYLON.Vector3(-0.85, 0.02, 0), scene);
           camera.attachControl(canvas, true);
           camera.lowerRadiusLimit = 6.8;
           camera.upperRadiusLimit = 13;
@@ -318,6 +257,7 @@ export const generarHtmlMotorBabylon = (parametrosIniciales) => {
           }
 
           grupoTren = new BABYLON.TransformNode('grupoTren', scene);
+          grupoTren.scaling = new BABYLON.Vector3(1.12, 1.12, 1.12);
 
           // Tunnels (Left and Right)
           var tunelMat = material('tunel-mat', '#b87c4c');
@@ -344,25 +284,20 @@ export const generarHtmlMotorBabylon = (parametrosIniciales) => {
           fondoDer.material = fondoMat;
 
           scene.onPointerObservable.add(function (info) {
-            if (estadoTren !== 'estacionado') return;
+            if (estadoTren === 'saliendo') return;
             if (info.type !== BABYLON.PointerEventTypes.POINTERPICK) return;
             var picked = info.pickInfo && info.pickInfo.pickedMesh;
             if (!picked || !picked.metadata) return;
-            if (picked.metadata.tipo === 'opcion') marcarSeleccion(picked);
             if (picked.metadata.tipo === 'vagon') {
-              if (picked.metadata.indice === estado.indiceActual) {
-                resolverJugada();
-              }
+              resolverJugada(picked.metadata.indice);
             }
           });
 
-          window.establecerSeleccion = function (clave) {
-            if (estadoTren !== 'estacionado') return;
-            var picked = opciones.find(function (op) { return op.metadata && op.metadata.paso.clave === clave; });
-            if (picked) {
-              marcarSeleccion(picked);
-              resolverJugada();
-            }
+          window.establecerSeleccion = function (entrada) {
+            if (estadoTren === 'saliendo') return;
+            var clave = typeof entrada === 'string' ? entrada : entrada && entrada.clave;
+            var paso = estado.patron.find(function (item) { return item.clave === clave; });
+            if (paso) marcarSeleccion(paso);
           };
 
           window.iniciarNuevoNivel(parametros);
@@ -371,17 +306,20 @@ export const generarHtmlMotorBabylon = (parametrosIniciales) => {
             var t = performance.now() * 0.001 * estado.velocidadTren;
             
             if (grupoTren) {
-              if (estadoTren === 'entrando') {
-                grupoTren.position.x += 0.08 * estado.velocidadTren;
-                if (grupoTren.position.x >= 0) {
-                  grupoTren.position.x = 0;
-                  estadoTren = 'estacionado';
-                }
-              } else if (estadoTren === 'saliendo') {
-                grupoTren.position.x += 0.08 * estado.velocidadTren;
-                if (grupoTren.position.x >= 12.0) {
-                  grupoTren.position.x = 12.0;
-                  estadoTren = 'estacionado';
+              var avance = 0.028 * estado.velocidadTren;
+              grupoTren.position.x += avance;
+
+              if (estadoTren === 'entrando' && grupoTren.position.x >= -5.8) {
+                estadoTren = 'jugando';
+              }
+
+              if (estadoTren === 'jugando' && grupoTren.position.x >= finRecorridoX) {
+                grupoTren.position.x = inicioRecorridoX;
+              }
+
+              if (estadoTren === 'saliendo' && grupoTren.position.x >= finRecorridoX) {
+                  grupoTren.position.x = finRecorridoX;
+                  estadoTren = 'nivelCompletado';
                   
                   enviar({
                     tipo: 'nivelCompletado',
@@ -390,7 +328,6 @@ export const generarHtmlMotorBabylon = (parametrosIniciales) => {
                     comboMaximo: estado.comboMaximo,
                     tiempoNivelMs: Date.now() - estado.inicioNivelMs
                   });
-                }
               }
             }
 
@@ -399,9 +336,7 @@ export const generarHtmlMotorBabylon = (parametrosIniciales) => {
                 mesh.rotation.y += 0.01;
               }
               if (mesh.name.indexOf('rueda') === 0) {
-                if (estadoTren !== 'estacionado') {
-                  mesh.rotation.x += 0.15 * estado.velocidadTren;
-                }
+                mesh.rotation.x += 0.08 * estado.velocidadTren;
               }
               
               var globalX = mesh.absolutePosition.x;
@@ -409,7 +344,7 @@ export const generarHtmlMotorBabylon = (parametrosIniciales) => {
                 mesh.visibility = 0;
               } else {
                 if (mesh.metadata && mesh.metadata.decoracion) {
-                  mesh.visibility = mesh.metadata.indice < estado.indiceActual ? 1 : 0.28;
+                  mesh.visibility = estado.completados[mesh.metadata.indice] ? 1 : 0.32;
                 } else {
                   mesh.visibility = 1;
                 }

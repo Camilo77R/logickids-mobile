@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import WebView from 'react-native-webview';
-import { generarHtmlMotorBabylon } from './trenFigurasMotorBabylon';
+import { generarHtmlMotorBabylon } from './tren3dMotorBabylon';
 
-export default function TrenFigurasVistaWebView({
+export default function Tren3DVistaWebView({
   webViewRef,
   onMensaje,
   parametrosIniciales,

@@ -7,17 +7,24 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "test:juegos": "node --require ./scripts/registrarBabelTests.cjs --test tests/juegos/caminoAr.nucleo.test.cjs tests/juegos/trenFiguras.nucleo.test.cjs"
+    "test:juegos": "node --require ./scripts/registrarBabelTests.cjs --test tests/juegos/caminoAr.nucleo.test.cjs tests/juegos/tren3d.nucleo.test.cjs"
   },
   "dependencies": {
+    "@expo-google-fonts/poppins": "^0.4.1",
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@reactvision/react-viro": "^2.55.0",
     "babel-preset-expo": "~55.0.8",
     "expo": "^55.0.26",
+    "expo-camera": "~55.0.19",
     "expo-dev-client": "~55.0.35",
+    "expo-font": "~55.0.8",
     "expo-status-bar": "~55.0.6",
     "expo-system-ui": "~55.0.18",
+    "expo-video": "~55.0.17",
     "react": "19.2.0",
     "react-native": "0.83.6",
+    "react-native-safe-area-context": "~5.6.2",
     "react-native-webview": "^13.16.0"
   },
   "devDependencies": {

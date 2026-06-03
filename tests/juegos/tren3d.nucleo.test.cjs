@@ -4,29 +4,32 @@ const assert = require('node:assert/strict');
 const {
   calcularAdaptacionInterNivel,
   generarPatronNivel,
-  normalizarConfiguracionTrenFiguras,
-} = require('../../src/features/games/tren-figuras/trenFigurasConfiguracion.js');
+  normalizarConfiguracionTren3D,
+} = require('../../src/features/games/tren-3d/tren3dConfiguracion.js');
 const {
   calcularPuntaje,
-  construirEventoTrenFiguras,
-  construirResumenPartidaTren,
-} = require('../../src/features/games/tren-figuras/trenFigurasMotor.js');
+  construirEventoTren3D,
+  construirResumenPartidaTren3D,
+} = require('../../src/features/games/tren-3d/tren3dMotor.js');
 const {
-  SLUG_TREN_FIGURAS,
-} = require('../../src/features/games/tren-figuras/trenFiguras.constants.js');
+  SLUG_TREN_3D,
+} = require('../../src/features/games/tren-3d/tren3d.constants.js');
+const {
+  generarHtmlMotorBabylon,
+} = require('../../src/features/games/tren-3d/presentacion/tren3dMotorBabylon.js');
 const {
   ESTADOS_FINALIZACION_SESION,
   TIPOS_EVENTO_SESION,
 } = require('../../src/features/games/core/contratoSesionJuego.js');
 
-test('normalizarConfiguracionTrenFiguras limita dificultad y conserva defaults seguros', () => {
-  assert.equal(normalizarConfiguracionTrenFiguras({ dificultad: 0 }).dificultad, 1);
-  assert.equal(normalizarConfiguracionTrenFiguras({ dificultad: -4 }).dificultad, 1);
-  assert.equal(normalizarConfiguracionTrenFiguras({ dificultad: 'abc' }).dificultad, 1);
-  assert.equal(normalizarConfiguracionTrenFiguras({ dificultad: 99 }).dificultad, 4);
+test('normalizarConfiguracionTren3D limita dificultad y conserva defaults seguros', () => {
+  assert.equal(normalizarConfiguracionTren3D({ dificultad: 0 }).dificultad, 1);
+  assert.equal(normalizarConfiguracionTren3D({ dificultad: -4 }).dificultad, 1);
+  assert.equal(normalizarConfiguracionTren3D({ dificultad: 'abc' }).dificultad, 1);
+  assert.equal(normalizarConfiguracionTren3D({ dificultad: 99 }).dificultad, 4);
 
-  const configuracion = normalizarConfiguracionTrenFiguras({});
-  assert.equal(configuracion.slug, SLUG_TREN_FIGURAS);
+  const configuracion = normalizarConfiguracionTren3D({});
+  assert.equal(configuracion.slug, SLUG_TREN_3D);
   assert.equal(configuracion.nivelesPorPartida, 4);
   assert.equal(configuracion.vagonesPorNivel, 10);
 });
@@ -60,9 +63,9 @@ test('calcularAdaptacionInterNivel ajusta dificultad y velocidad por precision',
     {
       precisionPct: 90,
       nuevaDificultad: 2,
-      nuevaVelocidad: 1.25,
+      nuevaVelocidad: 0.95,
       patronNuevo: generarPatronNivel(2),
-      descripcionNivel: 'Patron ABC con tres figuras y velocidad media',
+      descripcionNivel: 'Patron ABC con tres figuras y velocidad tranquila',
       subioNivel: true,
       bajoNivel: false,
     },
@@ -71,12 +74,12 @@ test('calcularAdaptacionInterNivel ajusta dificultad y velocidad por precision',
   const mantiene = calcularAdaptacionInterNivel({ aciertos: 7, errores: 3, dificultadActual: 2 });
   assert.equal(mantiene.precisionPct, 70);
   assert.equal(mantiene.nuevaDificultad, 2);
-  assert.equal(mantiene.nuevaVelocidad, 1.19);
+  assert.equal(mantiene.nuevaVelocidad, 0.9);
 
   const baja = calcularAdaptacionInterNivel({ aciertos: 4, errores: 6, dificultadActual: 3 });
   assert.equal(baja.precisionPct, 40);
   assert.equal(baja.nuevaDificultad, 2);
-  assert.equal(baja.nuevaVelocidad, 1.13);
+  assert.equal(baja.nuevaVelocidad, 0.85);
 
   const maximo = calcularAdaptacionInterNivel({ aciertos: 10, errores: 0, dificultadActual: 4 });
   assert.equal(maximo.nuevaDificultad, 4);
@@ -85,8 +88,8 @@ test('calcularAdaptacionInterNivel ajusta dificultad y velocidad por precision',
   assert.equal(minimo.nuevaDificultad, 1);
 });
 
-test('construirEventoTrenFiguras respeta el contrato de sesion', () => {
-  const evento = construirEventoTrenFiguras({
+test('construirEventoTren3D respeta el contrato de sesion', () => {
+  const evento = construirEventoTren3D({
     tipoEvento: TIPOS_EVENTO_SESION.acierto,
     tiempoReaccionMs: 980,
     puntos: 10,
@@ -96,7 +99,7 @@ test('construirEventoTrenFiguras respeta el contrato de sesion', () => {
 
   assert.deepEqual(evento, {
     tipo_evento: 'acierto',
-    habilidad: 'Lógica',
+    habilidad: 'Patrones',
     tiempo_reaccion_ms: 980,
     puntos: 10,
     combo_en_evento: 3,
@@ -105,20 +108,20 @@ test('construirEventoTrenFiguras respeta el contrato de sesion', () => {
 
   assert.throws(
     () =>
-      construirEventoTrenFiguras({
+      construirEventoTren3D({
         tipoEvento: 'figura_errada',
       }),
     /no soportado/i,
   );
 });
 
-test('construirResumenPartidaTren devuelve resultado-juego-v1 consistente', () => {
-  const configuracion = normalizarConfiguracionTrenFiguras({
+test('construirResumenPartidaTren3D devuelve resultado-juego-v1 consistente', () => {
+  const configuracion = normalizarConfiguracionTren3D({
     dificultad: 2,
     fuenteAdaptacion: 'base',
     versionAdaptacion: 'v1',
   });
-  const resultado = construirResumenPartidaTren({
+  const resultado = construirResumenPartidaTren3D({
     configuracion,
     aciertos: 8,
     errores: 2,
@@ -128,8 +131,8 @@ test('construirResumenPartidaTren devuelve resultado-juego-v1 consistente', () =
   });
 
   assert.equal(resultado.contrato, 'resultado-juego-v1');
-  assert.equal(resultado.juego.slug, 'tren-figuras');
-  assert.equal(resultado.juego.habilidad, 'Lógica');
+  assert.equal(resultado.juego.slug, SLUG_TREN_3D);
+  assert.equal(resultado.juego.habilidad, 'Patrones');
   assert.equal(resultado.estadisticas.puntaje, 74);
   assert.equal(resultado.estadisticas.precisionPct, 80);
   assert.equal(resultado.estadisticas.totalIntentos, 10);
@@ -141,3 +144,22 @@ test('calcularPuntaje nunca retorna valores negativos', () => {
   assert.equal(calcularPuntaje({ aciertos: 0, errores: 10 }), 0);
   assert.equal(calcularPuntaje({ aciertos: 10, errores: 0 }), 100);
 });
+
+test('motor Babylon V2 expone selector nativo y movimiento continuo del tren', () => {
+  const html = generarHtmlMotorBabylon({
+    dificultad: 1,
+    velocidadTren: 1,
+    patron: generarPatronNivel(1),
+  });
+
+  assert.match(html, /window\.establecerSeleccion/);
+  assert.match(html, /grupoTren/);
+  assert.match(html, /estadoTren === 'jugando'/);
+  assert.match(html, /inicioRecorridoX/);
+  assert.match(html, /finRecorridoX/);
+  assert.match(html, /resolverJugada\(picked\.metadata\.indice\)/);
+  assert.doesNotMatch(html, /function crearOpciones/);
+  assert.doesNotMatch(html, /PointerDragBehavior/);
+  assert.doesNotMatch(html, /direccionMovimiento/);
+});
+

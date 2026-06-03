@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { crearClienteSesionesJuego } from '../../core/clienteSesionesJuego';
 
-export const MODOS_PERSISTENCIA_TREN_FIGURAS = Object.freeze({
+export const MODOS_PERSISTENCIA_TREN_3D = Object.freeze({
   local: 'local',
   remota: 'remota',
 });
 
-export const ESTADOS_PERSISTENCIA_TREN_FIGURAS = Object.freeze({
+export const ESTADOS_PERSISTENCIA_TREN_3D = Object.freeze({
   inactiva: 'inactiva',
   iniciando: 'iniciando',
   activa: 'activa',
@@ -37,7 +37,7 @@ const normalizarContextoSesion = (contextoSesion = {}) => {
 
 const construirPersistenciaInicial = (modo) => ({
   modo,
-  estado: ESTADOS_PERSISTENCIA_TREN_FIGURAS.inactiva,
+  estado: ESTADOS_PERSISTENCIA_TREN_3D.inactiva,
   sesionId: null,
   eventosPendientes: 0,
   error: null,
@@ -47,7 +47,7 @@ const construirPersistenciaInicial = (modo) => ({
 const resolverMensajeError = (error) =>
   error instanceof Error ? error.message : 'Ocurrio un error al persistir la sesion del tren.';
 
-export const useSesionTrenFiguras = ({ configuracion, contextoSesion }) => {
+export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
   const contextoNormalizado = useMemo(
     () => normalizarContextoSesion(contextoSesion),
     [contextoSesion],
@@ -60,8 +60,8 @@ export const useSesionTrenFiguras = ({ configuracion, contextoSesion }) => {
   );
 
   const modoPersistencia = persistenciaRemotaHabilitada
-    ? MODOS_PERSISTENCIA_TREN_FIGURAS.remota
-    : MODOS_PERSISTENCIA_TREN_FIGURAS.local;
+    ? MODOS_PERSISTENCIA_TREN_3D.remota
+    : MODOS_PERSISTENCIA_TREN_3D.local;
 
   const clienteSesionesJuego = useMemo(() => {
     if (!persistenciaRemotaHabilitada) {
@@ -76,11 +76,13 @@ export const useSesionTrenFiguras = ({ configuracion, contextoSesion }) => {
   );
 
   const sesionIdRef = useRef(null);
+  const inicioSesionPromiseRef = useRef(null);
   const respuestaInicioRef = useRef(null);
   const colaOperacionesRef = useRef(Promise.resolve());
 
   useEffect(() => {
     sesionIdRef.current = null;
+    inicioSesionPromiseRef.current = null;
     respuestaInicioRef.current = null;
     colaOperacionesRef.current = Promise.resolve();
     setPersistencia(construirPersistenciaInicial(modoPersistencia));
@@ -108,13 +110,17 @@ export const useSesionTrenFiguras = ({ configuracion, contextoSesion }) => {
       return sesionIdRef.current;
     }
 
+    if (inicioSesionPromiseRef.current) {
+      return inicioSesionPromiseRef.current;
+    }
+
     setPersistencia((previo) => ({
       ...previo,
-      estado: ESTADOS_PERSISTENCIA_TREN_FIGURAS.iniciando,
+      estado: ESTADOS_PERSISTENCIA_TREN_3D.iniciando,
       error: null,
     }));
 
-    try {
+    inicioSesionPromiseRef.current = (async () => {
       const respuestaInicio = await clienteSesionesJuego.iniciarSesion({
         tokenEstudiante: contextoNormalizado.tokenEstudiante,
         minijuegoId: contextoNormalizado.minijuegoId,
@@ -127,21 +133,27 @@ export const useSesionTrenFiguras = ({ configuracion, contextoSesion }) => {
 
       setPersistencia((previo) => ({
         ...previo,
-        estado: ESTADOS_PERSISTENCIA_TREN_FIGURAS.activa,
+        estado: ESTADOS_PERSISTENCIA_TREN_3D.activa,
         sesionId,
         respuestaInicio,
         error: null,
       }));
 
       return sesionId;
+    })();
+
+    try {
+      return await inicioSesionPromiseRef.current;
     } catch (error) {
       setPersistencia((previo) => ({
         ...previo,
-        estado: ESTADOS_PERSISTENCIA_TREN_FIGURAS.error,
+        estado: ESTADOS_PERSISTENCIA_TREN_3D.error,
         error: resolverMensajeError(error),
       }));
 
       return null;
+    } finally {
+      inicioSesionPromiseRef.current = null;
     }
   };
 
@@ -154,9 +166,9 @@ export const useSesionTrenFiguras = ({ configuracion, contextoSesion }) => {
       setPersistencia((previo) => ({
         ...previo,
         estado:
-          previo.estado === ESTADOS_PERSISTENCIA_TREN_FIGURAS.iniciando
+          previo.estado === ESTADOS_PERSISTENCIA_TREN_3D.iniciando
             ? previo.estado
-            : ESTADOS_PERSISTENCIA_TREN_FIGURAS.sincronizando,
+            : ESTADOS_PERSISTENCIA_TREN_3D.sincronizando,
         eventosPendientes: previo.eventosPendientes + 1,
         error: null,
       }));
@@ -165,6 +177,10 @@ export const useSesionTrenFiguras = ({ configuracion, contextoSesion }) => {
         const sesionId = await iniciarSesionRemota(configuracion.dificultad);
 
         if (!sesionId) {
+          setPersistencia((previo) => ({
+            ...previo,
+            eventosPendientes: Math.max(0, previo.eventosPendientes - 1),
+          }));
           return;
         }
 
@@ -176,14 +192,14 @@ export const useSesionTrenFiguras = ({ configuracion, contextoSesion }) => {
 
         setPersistencia((previo) => ({
           ...previo,
-          estado: ESTADOS_PERSISTENCIA_TREN_FIGURAS.activa,
+          estado: ESTADOS_PERSISTENCIA_TREN_3D.activa,
           eventosPendientes: Math.max(0, previo.eventosPendientes - 1),
           error: null,
         }));
       } catch (error) {
         setPersistencia((previo) => ({
           ...previo,
-          estado: ESTADOS_PERSISTENCIA_TREN_FIGURAS.error,
+          estado: ESTADOS_PERSISTENCIA_TREN_3D.error,
           eventosPendientes: Math.max(0, previo.eventosPendientes - 1),
           error: resolverMensajeError(error),
         }));
@@ -199,7 +215,7 @@ export const useSesionTrenFiguras = ({ configuracion, contextoSesion }) => {
     return encadenarOperacion(async () => {
       setPersistencia((previo) => ({
         ...previo,
-        estado: ESTADOS_PERSISTENCIA_TREN_FIGURAS.finalizando,
+        estado: ESTADOS_PERSISTENCIA_TREN_3D.finalizando,
         error: null,
       }));
 
@@ -207,6 +223,11 @@ export const useSesionTrenFiguras = ({ configuracion, contextoSesion }) => {
         const sesionId = await iniciarSesionRemota(configuracion.dificultad);
 
         if (!sesionId) {
+          setPersistencia((previo) => ({
+            ...previo,
+            estado: ESTADOS_PERSISTENCIA_TREN_3D.error,
+            error: 'No fue posible iniciar la sesion del juego para finalizarla.',
+          }));
           return;
         }
 
@@ -218,13 +239,13 @@ export const useSesionTrenFiguras = ({ configuracion, contextoSesion }) => {
 
         setPersistencia((previo) => ({
           ...previo,
-          estado: ESTADOS_PERSISTENCIA_TREN_FIGURAS.finalizada,
+          estado: ESTADOS_PERSISTENCIA_TREN_3D.finalizada,
           error: null,
         }));
       } catch (error) {
         setPersistencia((previo) => ({
           ...previo,
-          estado: ESTADOS_PERSISTENCIA_TREN_FIGURAS.error,
+          estado: ESTADOS_PERSISTENCIA_TREN_3D.error,
           error: resolverMensajeError(error),
         }));
       }

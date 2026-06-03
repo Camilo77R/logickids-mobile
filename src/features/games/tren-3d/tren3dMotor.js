@@ -8,9 +8,9 @@ import {
   crearResultadoJuegoComun,
 } from '../core/contratoResultadoJuego';
 import {
-  HABILIDAD_TREN_FIGURAS,
+  HABILIDAD_TREN_3D,
   VAGONES_POR_NIVEL,
-} from './trenFiguras.constants';
+} from './tren3d.constants';
 
 const normalizarEnteroNoNegativo = (valor) => {
   const numero = Number(valor);
@@ -22,7 +22,7 @@ const normalizarEnteroNoNegativo = (valor) => {
   return Math.round(numero);
 };
 
-export const construirEventoTrenFiguras = ({
+export const construirEventoTren3D = ({
   tipoEvento,
   tiempoReaccionMs,
   puntos = 0,
@@ -31,7 +31,7 @@ export const construirEventoTrenFiguras = ({
 }) => ({
   ...crearEventoSesion({
     tipoEvento,
-    habilidad: HABILIDAD_TREN_FIGURAS,
+    habilidad: HABILIDAD_TREN_3D,
     tiempoReaccionMs,
     puntos,
     comboEnEvento,
@@ -42,7 +42,7 @@ export const construirEventoTrenFiguras = ({
 export const calcularPuntaje = ({ aciertos = 0, errores = 0 }) =>
   Math.max(normalizarEnteroNoNegativo(aciertos) * 10 - normalizarEnteroNoNegativo(errores) * 3, 0);
 
-export const construirResumenPartidaTren = ({
+export const construirResumenPartidaTren3D = ({
   configuracion,
   aciertos,
   errores,
@@ -67,7 +67,7 @@ export const construirResumenPartidaTren = ({
     juego: {
       slug: configuracion.slug,
       titulo: configuracion.titulo,
-      habilidad: HABILIDAD_TREN_FIGURAS,
+      habilidad: HABILIDAD_TREN_3D,
       fuenteAdaptacion: configuracion.fuenteAdaptacion,
       versionAdaptacion: configuracion.versionAdaptacion,
     },

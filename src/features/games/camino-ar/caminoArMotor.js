@@ -37,6 +37,17 @@ export const construirResumenPartida = ({
 }) => {
   const puntajeBase = Math.max(aciertos * 10 - errores * 3 - ayudasUsadas * 2, 0);
   const comboMaximo = exito ? aciertos : Math.max(aciertos - 1, 0);
+
+  /**
+   * REGLA DE NEGOCIO:
+   * - `abandonado` se reserva para interrupciones reales: salirse, cierre del tutor,
+   *   cambio de grupo, desactivación, etc.
+   * - si la ronda terminó de forma natural, aunque el patrón no se haya resuelto,
+   *   la actividad del estudiante sí quedó concluida y debe cerrar como `completado`.
+   *
+   * ANALOGÍA:
+   * perder un examen no significa abandonar el salón. El intento terminó y se registra.
+   */
   const finalizacionSesion = crearFinalizacionSesion({
     puntaje: puntajeBase,
     aciertos,
@@ -79,6 +90,7 @@ export const construirEventoCaminoAr = ({
   tiempoReaccionMs,
   puntos = 0,
   comboEnEvento = 0,
+  metadata,
 }) =>
   crearEventoSesion({
     tipoEvento,
@@ -86,4 +98,5 @@ export const construirEventoCaminoAr = ({
     tiempoReaccionMs,
     puntos,
     comboEnEvento,
+    metadata,
   });

@@ -2,10 +2,10 @@ import {
   COLORES_ORDENADOS,
   FIGURAS_ORDENADAS,
   NIVELES_POR_PARTIDA,
-  SLUG_TREN_FIGURAS,
-  TITULO_TREN_FIGURAS,
+  SLUG_TREN_3D,
+  TITULO_TREN_3D,
   VAGONES_POR_NIVEL,
-} from './trenFiguras.constants';
+} from './tren3d.constants';
 
 const DIFICULTAD_MINIMA = 1;
 const DIFICULTAD_MAXIMA = 4;
@@ -13,21 +13,21 @@ const DIFICULTAD_MAXIMA = 4;
 const TABLA_DIFICULTAD = Object.freeze([
   Object.freeze({
     dificultad: 1,
-    velocidadTren: 1,
+    velocidadTren: 0.75,
     longitudSecuencia: 2,
     usaColores: false,
     descripcion: 'Patron AB con dos figuras y tren lento',
   }),
   Object.freeze({
     dificultad: 2,
-    velocidadTren: 1.25,
+    velocidadTren: 0.95,
     longitudSecuencia: 3,
     usaColores: false,
-    descripcion: 'Patron ABC con tres figuras y velocidad media',
+    descripcion: 'Patron ABC con tres figuras y velocidad tranquila',
   }),
   Object.freeze({
     dificultad: 3,
-    velocidadTren: 1.5,
+    velocidadTren: 1.15,
     longitudSecuencia: 4,
     usaColores: true,
     paresConsecutivos: true,
@@ -35,7 +35,7 @@ const TABLA_DIFICULTAD = Object.freeze([
   }),
   Object.freeze({
     dificultad: 4,
-    velocidadTren: 1.8,
+    velocidadTren: 1.35,
     longitudSecuencia: 7,
     usaColores: true,
     descripcion: 'Patron largo de siete pasos con figura y color',
@@ -43,11 +43,11 @@ const TABLA_DIFICULTAD = Object.freeze([
 ]);
 
 const CONFIGURACION_BASE = Object.freeze({
-  slug: SLUG_TREN_FIGURAS,
-  titulo: TITULO_TREN_FIGURAS,
+  slug: SLUG_TREN_3D,
+  titulo: TITULO_TREN_3D,
   dificultad: 1,
   fuenteAdaptacion: 'base',
-  versionAdaptacion: 'v1-tren-figuras',
+  versionAdaptacion: 'v1-tren-3d-patrones',
   nivelesPorPartida: NIVELES_POR_PARTIDA,
   vagonesPorNivel: VAGONES_POR_NIVEL,
 });
@@ -62,7 +62,7 @@ const asegurarEnteroPositivo = (valor, respaldo) => {
   return numero;
 };
 
-export const clampDificultadTrenFiguras = (valor) => {
+export const clampDificultadTren3D = (valor) => {
   const numero = Number(valor);
   const dificultad = Number.isFinite(numero) ? Math.round(numero) : DIFICULTAD_MINIMA;
 
@@ -70,7 +70,7 @@ export const clampDificultadTrenFiguras = (valor) => {
 };
 
 export const obtenerParametrosDificultad = (dificultad) => {
-  const nivel = clampDificultadTrenFiguras(dificultad);
+  const nivel = clampDificultadTren3D(dificultad);
 
   return TABLA_DIFICULTAD.find((fila) => fila.dificultad === nivel) ?? TABLA_DIFICULTAD[0];
 };
@@ -122,7 +122,7 @@ export const calcularAdaptacionInterNivel = ({
   errores = 0,
   dificultadActual = DIFICULTAD_MINIMA,
 }) => {
-  const dificultadBase = clampDificultadTrenFiguras(dificultadActual);
+  const dificultadBase = clampDificultadTren3D(dificultadActual);
   const aciertosNormalizados = Math.max(0, Math.round(Number(aciertos) || 0));
   const erroresNormalizados = Math.max(0, Math.round(Number(errores) || 0));
   const totalIntentos = aciertosNormalizados + erroresNormalizados;
@@ -154,10 +154,10 @@ export const calcularAdaptacionInterNivel = ({
   };
 };
 
-export const normalizarConfiguracionTrenFiguras = (entrada = {}) => ({
+export const normalizarConfiguracionTren3D = (entrada = {}) => ({
   slug: entrada.slug ?? CONFIGURACION_BASE.slug,
   titulo: entrada.titulo ?? CONFIGURACION_BASE.titulo,
-  dificultad: clampDificultadTrenFiguras(entrada.dificultad ?? CONFIGURACION_BASE.dificultad),
+  dificultad: clampDificultadTren3D(entrada.dificultad ?? CONFIGURACION_BASE.dificultad),
   fuenteAdaptacion: entrada.fuenteAdaptacion ?? CONFIGURACION_BASE.fuenteAdaptacion,
   versionAdaptacion: entrada.versionAdaptacion ?? CONFIGURACION_BASE.versionAdaptacion,
   nivelesPorPartida: asegurarEnteroPositivo(
@@ -170,5 +170,5 @@ export const normalizarConfiguracionTrenFiguras = (entrada = {}) => ({
   ),
 });
 
-export const obtenerConfiguracionBaseTrenFiguras = (sobrescrituras = {}) =>
-  normalizarConfiguracionTrenFiguras(sobrescrituras);
+export const obtenerConfiguracionBaseTren3D = (sobrescrituras = {}) =>
+  normalizarConfiguracionTren3D(sobrescrituras);
