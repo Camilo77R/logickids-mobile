@@ -238,13 +238,15 @@ Agregar o quitar codigo nativo requiere nueva build.
 Ejemplos:
 
 - `expo-camera`
-- `expo-video`
 - `@react-native-async-storage/async-storage`
 - `@reactvision/react-viro`
 - cambios en plugins de `app.json`
 - permisos de camara o AR
 
 `npx expo start` no mete codigo nativo nuevo dentro de una app instalada.
+
+El onboarding vigente no usa `expo-video`; si se decide recuperar video nativo,
+esa dependencia exige nueva build.
 
 ## 10. Checklist antes de integrar PRs
 

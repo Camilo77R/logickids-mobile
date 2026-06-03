@@ -51,8 +51,7 @@
           }
         }
       ],
-      "expo-font",
-      "expo-video"
+      "expo-font"
     ],
     "web": {
       "favicon": "./assets/favicon.png"

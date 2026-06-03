@@ -1,14 +1,13 @@
 import React, { useMemo } from 'react';
-import { Dimensions, StyleSheet, Text, View } from 'react-native';
+import { Dimensions, Image, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { VideoView, useVideoPlayer } from 'expo-video';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import BrandBackground from '../components/BrandBackground';
 import PrimaryButton from '../components/PrimaryButton';
 import { colors, fonts, spacing } from '../constants/theme';
 
-const welcomeVideo = require('../../assets/branding/Vid/Prueba 2.mp4');
+const welcomeImage = require('../../assets/branding/logo-logickids-badge.png');
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -17,12 +16,6 @@ export default function OnboardingScreen({ onStart }) {
   const { width, height } = Dimensions.get('window');
   const ctaBottomPadding = insets.bottom + 22;
   const buttonSpace = 62 + ctaBottomPadding;
-  const player = useVideoPlayer(welcomeVideo, (videoPlayer) => {
-    videoPlayer.loop = true;
-    videoPlayer.muted = true;
-    videoPlayer.play();
-  });
-
   const sizes = useMemo(() => {
     const videoSize = clamp(width * 0.76, 260, 342);
     const copySize = clamp(width * 0.043, 15, 17);
@@ -58,7 +51,7 @@ export default function OnboardingScreen({ onStart }) {
         >
           <View
             style={[
-              styles.videoClip,
+              styles.mediaClip,
               {
                 width: sizes.videoSize,
                 height: sizes.videoSize,
@@ -67,15 +60,7 @@ export default function OnboardingScreen({ onStart }) {
               },
             ]}
           >
-            <VideoView
-              player={player}
-              style={styles.video}
-              contentFit="cover"
-              surfaceType="textureView"
-              nativeControls={false}
-              allowsFullscreen={false}
-              allowsPictureInPicture={false}
-            />
+            <Image source={welcomeImage} style={styles.media} resizeMode="cover" />
           </View>
 
           <View style={[styles.copyBlock, { marginTop: sizes.copyGap }]}>
@@ -102,11 +87,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
   },
-  videoClip: {
+  mediaClip: {
     overflow: 'hidden',
-    backgroundColor: 'transparent',
+    backgroundColor: colors.white,
   },
-  video: {
+  media: {
     width: '100%',
     height: '100%',
   },
