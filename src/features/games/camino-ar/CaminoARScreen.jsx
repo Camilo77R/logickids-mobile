@@ -29,11 +29,20 @@ export default function CaminoARScreen({
     configuracionEfectiva,
     sesionCaminoAr.observadoresJuego,
   );
-  const solicitarInicioRonda = useCallback(async () => {
+  const cancelarRondaTecnica = useCallback((motivo) => {
+    controlador.cancelarPartidaTecnica(motivo);
+    sesionCaminoAr.prepararNuevaRonda();
+  }, [controlador, sesionCaminoAr]);
+
+  const solicitarInicioRonda = useCallback(async ({ tableroDisponible } = {}) => {
+    const tableroSigueListo =
+      typeof tableroDisponible === 'function' ? tableroDisponible : () => true;
+
     if (
       preparandoRonda ||
       controlador.estado.fase !== ESTADOS_CAMINO_AR.listo ||
-      controlador.estado.resultado
+      controlador.estado.resultado ||
+      !tableroSigueListo()
     ) {
       return;
     }
@@ -47,19 +56,34 @@ export default function CaminoARScreen({
         return;
       }
 
+      if (!tableroSigueListo()) {
+        cancelarRondaTecnica('El tablero se movio antes de empezar. Vamos a buscarlo de nuevo.');
+        return;
+      }
+
       controlador.iniciarPartida();
     } finally {
       setPreparandoRonda(false);
     }
   }, [
     configuracionInicial.dificultad,
+    cancelarRondaTecnica,
     controlador,
     preparandoRonda,
     sesionCaminoAr,
   ]);
 
-  const continuarActividad = useCallback(async () => {
+  const continuarActividad = useCallback(async ({ tableroDisponible } = {}) => {
+    const tableroSigueListo =
+      typeof tableroDisponible === 'function' ? tableroDisponible : () => true;
+
     if (preparandoRonda) {
+      return;
+    }
+
+    if (!tableroSigueListo()) {
+      sesionCaminoAr.prepararNuevaRonda();
+      controlador.reiniciarPartida();
       return;
     }
 
@@ -74,12 +98,18 @@ export default function CaminoARScreen({
         return;
       }
 
+      if (!tableroSigueListo()) {
+        cancelarRondaTecnica('El tablero se movio antes del siguiente reto. Vamos a buscarlo de nuevo.');
+        return;
+      }
+
       controlador.iniciarPartida();
     } finally {
       setPreparandoRonda(false);
     }
   }, [
     configuracionInicial.dificultad,
+    cancelarRondaTecnica,
     controlador,
     preparandoRonda,
     sesionCaminoAr,
@@ -132,6 +162,7 @@ export default function CaminoARScreen({
       escenaEspacial={escenaEspacial}
       persistenciaSesion={sesionCaminoAr.persistencia}
       respuestaInicioSesion={sesionCaminoAr.respuestaInicio}
+      cancelarPartidaTecnica={cancelarRondaTecnica}
       {...controlador}
     />
   );

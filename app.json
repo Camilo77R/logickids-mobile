@@ -3,7 +3,6 @@
     "name": "logickidsMobile",
     "slug": "logickidsMobile",
     "version": "1.0.0",
-    "newArchEnabled": true,
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -52,7 +51,9 @@
         }
       ],
       "expo-font",
-      "expo-video"
+      "expo-video",
+      "expo-audio",
+      "expo-asset"
     ],
     "web": {
       "favicon": "./assets/favicon.png"

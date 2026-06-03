@@ -124,7 +124,7 @@ export default function App() {
   const logout = () => {
     setStudentSession(null);
     setScannerError('');
-    setRoute('login');
+    setRoute('onboarding');
   };
 
   if (!fontsLoaded || !apiBaseUrl) {

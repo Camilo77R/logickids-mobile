@@ -188,6 +188,8 @@ POST /api/sesiones/:id/finalizar
 - Si el grupo fue abierto para otro minijuego, Camino AR no inicia.
 - Si el paso actual es Camino AR, se puede iniciar.
 - El backend calcula el resumen oficial desde eventos persistidos.
+- Las estrellas son oficiales: mobile las muestra desde
+  `resumen_oficial.estrellas_obtenidas`, no las calcula ni las hardcodea.
 
 ## 7. Camino AR
 
@@ -207,8 +209,9 @@ Rutas protegidas:
 3. Camino AR llama `POST /api/sesiones/iniciar`.
 4. Camino AR registra eventos.
 5. Camino AR finaliza la sesion de juego.
-6. El backend avanza o cierra la participacion.
-7. Al volver al dashboard se recarga `mi-perfil`.
+6. El backend calcula puntaje, aciertos, errores, combo y estrellas oficiales.
+7. El backend avanza o cierra la participacion.
+8. Al volver al dashboard se recarga `mi-perfil`.
 
 ### Regla de propiedad
 
@@ -259,4 +262,3 @@ Ejemplos:
 - Usa endpoints reales.
 - Valida con `npm run test:juegos`.
 - Valida bundle con `npx expo export --platform android`.
-
