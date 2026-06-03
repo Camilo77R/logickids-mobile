@@ -49,38 +49,81 @@ const resolverNumeroFinito = (valor, respaldo = 0) => {
   return Number.isFinite(numero) ? numero : respaldo;
 };
 
-const construirMetricasResultado = ({
+const construirDatosResultadoOficial = ({
   resultado,
   respuestaFinalizacionSesion,
 }) => {
   const resumenOficial = respuestaFinalizacionSesion?.resumen_oficial ?? {};
-  const puntajeOficial = resolverNumeroFinito(
-    resumenOficial.puntaje,
-    resultado.estadisticas.puntaje,
-  );
-  const aciertosOficiales = resolverNumeroFinito(
-    resumenOficial.aciertos,
-    resultado.estadisticas.aciertos,
-  );
-  const erroresOficiales = resolverNumeroFinito(
-    resumenOficial.errores,
-    resultado.estadisticas.errores,
-  );
-  const comboOficial = resolverNumeroFinito(
-    resumenOficial.combo_maximo,
-    resultado.estadisticas.comboMaximo,
-  );
+  const estrellasObtenidas = resumenOficial.estrellas_obtenidas;
+
+  return {
+    puntaje: resolverNumeroFinito(
+      resumenOficial.puntaje,
+      resultado.estadisticas.puntaje,
+    ),
+    aciertos: resolverNumeroFinito(
+      resumenOficial.aciertos,
+      resultado.estadisticas.aciertos,
+    ),
+    errores: resolverNumeroFinito(
+      resumenOficial.errores,
+      resultado.estadisticas.errores,
+    ),
+    comboMaximo: resolverNumeroFinito(
+      resumenOficial.combo_maximo,
+      resultado.estadisticas.comboMaximo,
+    ),
+    estrellasObtenidas:
+      estrellasObtenidas == null ? null : resolverNumeroFinito(estrellasObtenidas, 0),
+  };
+};
+
+const construirResumenInfantilResultado = ({
+  resultado,
+  respuestaFinalizacionSesion,
+}) => {
+  const datosResultado = construirDatosResultadoOficial({
+    resultado,
+    respuestaFinalizacionSesion,
+  });
+  const patronLongitud = resolverNumeroFinito(resultado.detalles.patronLongitud, 0);
+  const patronResuelto = Boolean(resultado.detalles.patronResuelto);
+
+  return {
+    estrellas: datosResultado.estrellasObtenidas ?? 0,
+    estrellasSincronizadas: datosResultado.estrellasObtenidas != null,
+    estrellasMaximas: 3,
+    aciertos: datosResultado.aciertos,
+    errores: datosResultado.errores,
+    faltaron: patronResuelto
+      ? 0
+      : Math.max(0, patronLongitud - datosResultado.aciertos),
+    combo: datosResultado.comboMaximo,
+    patronLongitud,
+    patronResuelto,
+  };
+};
+
+const construirMetricasResultado = ({
+  resultado,
+  respuestaFinalizacionSesion,
+}) => {
+  const datosResultado = construirDatosResultadoOficial({
+    resultado,
+    respuestaFinalizacionSesion,
+  });
 
   return [
-    { etiqueta: 'Estrellas', valor: puntajeOficial },
-    { etiqueta: 'Aciertos', valor: aciertosOficiales },
-    { etiqueta: 'Errores', valor: erroresOficiales },
+    { etiqueta: 'Puntaje', valor: datosResultado.puntaje },
+    { etiqueta: 'Aciertos', valor: datosResultado.aciertos },
+    { etiqueta: 'Errores', valor: datosResultado.errores },
     { etiqueta: 'Precision', valor: `${resultado.estadisticas.precisionPct}%` },
     {
       etiqueta: 'Tiempo',
       valor: `${Math.ceil(resultado.estadisticas.tiempoTotalMs / 1000)} s`,
     },
-    { etiqueta: 'Combo', valor: comboOficial },
+    { etiqueta: 'Combo', valor: datosResultado.comboMaximo },
+    { etiqueta: 'Estrellas', valor: datosResultado.estrellasObtenidas ?? '--' },
   ];
 };
 
@@ -142,14 +185,16 @@ const resolverMensajeProgreso = ({ cierreSesion }) => {
   return 'Tus resultados quedaron guardados para esta actividad.';
 };
 
-const construirCopyResultado = ({ resultado, cierreSesion }) => {
+const construirCopyResultado = ({ resultado, cierreSesion, resumenInfantil }) => {
   const patronResuelto = Boolean(resultado.detalles.patronResuelto);
 
   return {
     titulo: patronResuelto ? 'Misión cumplida' : 'Buen intento',
     descripcion: patronResuelto
-      ? `Seguiste ${resultado.detalles.patronLongitud} luces y reuniste ${resultado.estadisticas.puntaje} estrellas.`
-      : `Llegaste a ${resultado.estadisticas.aciertos} aciertos. Tu avance quedo guardado para seguir practicando.`,
+      ? resumenInfantil.estrellasSincronizadas
+        ? `Seguiste ${resumenInfantil.patronLongitud} luces y ganaste ${resumenInfantil.estrellas} estrellas.`
+        : `Seguiste ${resumenInfantil.patronLongitud} luces. Estamos guardando tus estrellas.`
+      : `Llegaste a ${resumenInfantil.aciertos} aciertos. Tu avance quedo guardado para seguir practicando.`,
     mensajeProgreso: resolverMensajeProgreso({ cierreSesion }),
   };
 };
@@ -319,9 +364,14 @@ export const construirEscenaCaminoAr = ({
       continuarActividad,
       salirActividad,
     });
+    const resumenInfantil = construirResumenInfantilResultado({
+      resultado: estado.resultado,
+      respuestaFinalizacionSesion,
+    });
     const copyResultado = construirCopyResultado({
       resultado: estado.resultado,
       cierreSesion,
+      resumenInfantil,
     });
 
     return {
@@ -329,6 +379,9 @@ export const construirEscenaCaminoAr = ({
       titulo: copyResultado.titulo,
       descripcion: copyResultado.descripcion,
       mensajeProgreso: copyResultado.mensajeProgreso,
+      resumenInfantil,
+      mostrarCelebracion:
+        resumenInfantil.estrellas >= 2 || Boolean(cierreSesion?.logros?.length),
       metricas: construirMetricasResultado({
         resultado: estado.resultado,
         respuestaFinalizacionSesion,

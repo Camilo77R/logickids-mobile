@@ -211,6 +211,28 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
     setEstado(construirEstadoInicial(configuracion));
   };
 
+  const cancelarPartidaTecnica = (motivo) => {
+    if (
+      estadoRef.current.fase !== ESTADOS_CAMINO_AR.mostrandoPatron &&
+      estadoRef.current.fase !== ESTADOS_CAMINO_AR.esperandoRespuesta
+    ) {
+      return;
+    }
+
+    limpiarTemporizadores();
+    detenerCuentaRegresiva();
+    bloqueoInicioRef.current = false;
+    partidaIniciadaEnRef.current = null;
+    marcaInicioRespuestaRef.current = null;
+    marcaUltimoIntentoRef.current = null;
+    setEstado({
+      ...construirEstadoInicial(configuracion),
+      mensaje:
+        motivo ??
+        'El tablero se movio. Busca un piso estable y vuelve a intentarlo.',
+    });
+  };
+
   const usarPista = () => {
     if (
       estado.fase !== ESTADOS_CAMINO_AR.esperandoRespuesta ||
@@ -338,6 +360,7 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
     columnasTablero: resolverColumnasTablero(configuracion.configuracion.cantidadBaldosas),
     iniciarPartida,
     reiniciarPartida,
+    cancelarPartidaTecnica,
     seleccionarBaldosa,
     usarPista,
     puedePedirPista:
