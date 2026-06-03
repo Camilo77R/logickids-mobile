@@ -3,13 +3,13 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { resolveDefaultApiBaseUrl } from '../config/api';
 import StudentAccessCameraStage from '../features/student-access/components/StudentAccessCameraStage';
 import StudentAccessHero from '../features/student-access/components/StudentAccessHero';

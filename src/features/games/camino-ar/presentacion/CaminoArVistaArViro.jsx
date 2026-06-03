@@ -1,7 +1,5 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -9,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ViroAmbientLight,
   ViroARPlane,
@@ -23,8 +22,11 @@ import {
 } from '@reactvision/react-viro';
 import { colores, espaciado, radios } from '../../../../theme/tokens';
 import { caminoArTheme, resolverColorInsigniaCaminoAr } from '../caminoArTheme';
+import { useCaminoArAudio } from '../useCaminoArAudio';
 
 const RADIANES_A_GRADOS = 180 / Math.PI;
+const PERDIDA_PLANO_CANCELACION_MS = 900;
+const FASES_CON_TABLERO_ACTIVO = new Set(['mostrandoPatron', 'esperandoRespuesta']);
 
 const PALETA_BALDOSAS = [
   'caminoArBaldosaCielo',
@@ -193,6 +195,48 @@ const construirMomentoJuego = ({ escena, estadoPlano }) => {
   }
 };
 
+function ConfettiCelebracion() {
+  const piezas = [
+    { id: 'rosa-1', left: '8%', top: 22, color: caminoArTheme.tintas.rosa, rotate: '18deg' },
+    { id: 'sol-1', left: '18%', top: 56, color: caminoArTheme.tintas.sol, rotate: '-12deg' },
+    { id: 'menta-1', left: '31%', top: 30, color: caminoArTheme.tintas.menta, rotate: '31deg' },
+    { id: 'aqua-1', left: '52%', top: 18, color: caminoArTheme.tintas.aqua, rotate: '-28deg' },
+    { id: 'uva-1', left: '70%', top: 52, color: caminoArTheme.tintas.uva, rotate: '9deg' },
+    { id: 'naranja-1', left: '86%', top: 26, color: caminoArTheme.tintas.naranja, rotate: '-18deg' },
+    { id: 'rosa-2', left: '12%', top: 118, color: caminoArTheme.tintas.rosa, rotate: '-38deg' },
+    { id: 'sol-2', left: '25%', top: 136, color: caminoArTheme.tintas.sol, rotate: '42deg' },
+    { id: 'menta-2', left: '40%', top: 104, color: caminoArTheme.tintas.menta, rotate: '-8deg' },
+    { id: 'aqua-2', left: '60%', top: 124, color: caminoArTheme.tintas.aqua, rotate: '35deg' },
+    { id: 'uva-2', left: '76%', top: 106, color: caminoArTheme.tintas.uva, rotate: '-44deg' },
+    { id: 'naranja-2', left: '91%', top: 132, color: caminoArTheme.tintas.naranja, rotate: '20deg' },
+    { id: 'rosa-3', left: '6%', top: 212, color: caminoArTheme.tintas.rosa, rotate: '62deg' },
+    { id: 'sol-3', left: '19%', top: 238, color: caminoArTheme.tintas.sol, rotate: '-54deg' },
+    { id: 'menta-3', left: '34%', top: 204, color: caminoArTheme.tintas.menta, rotate: '15deg' },
+    { id: 'aqua-3', left: '55%', top: 226, color: caminoArTheme.tintas.aqua, rotate: '-17deg' },
+    { id: 'uva-3', left: '73%', top: 206, color: caminoArTheme.tintas.uva, rotate: '48deg' },
+    { id: 'naranja-3', left: '88%', top: 232, color: caminoArTheme.tintas.naranja, rotate: '-28deg' },
+  ];
+
+  return (
+    <View pointerEvents="none" style={styles.confettiCapa}>
+      {piezas.map((pieza) => (
+        <View
+          key={pieza.id}
+          style={[
+            styles.confettiPieza,
+            {
+              backgroundColor: pieza.color,
+              left: pieza.left,
+              top: pieza.top,
+              transform: [{ rotate: pieza.rotate }],
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
 function EscenaCaminoArViro(props) {
   const viroAppProps =
     props.sceneNavigator?.viroAppProps ?? props.arSceneNavigator?.viroAppProps ?? {};
@@ -292,65 +336,156 @@ export default function CaminoArVistaArViro({
   escenaEspacial,
   onSalir,
   seleccionarBaldosa,
+  cancelarPartidaTecnica,
 }) {
-  const insetSuperior = Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0;
-  const insetInferior = Platform.OS === 'android' ? 28 : 0;
+  const insets = useSafeAreaInsets();
+  const insetSuperior = insets.top;
+  const insetInferior = insets.bottom;
   const ultimaCamaraRef = useRef(null);
-  const [resetKey, setResetKey] = useState(0);
+  const perdidaPlanoTimeoutRef = useRef(null);
   const [rotacionTableroY, setRotacionTableroY] = useState(0);
   const [estadoPlano, setEstadoPlano] = useState({
     disponible: false,
     mensaje: 'Mueve el celular despacio hasta que aparezca el camino.',
   });
+  const estadoPlanoRef = useRef(estadoPlano);
+
+  const actualizarEstadoPlano = useCallback((siguienteEstado) => {
+    estadoPlanoRef.current = siguienteEstado;
+    setEstadoPlano((previo) => (
+      previo.disponible === siguienteEstado.disponible &&
+      previo.mensaje === siguienteEstado.mensaje
+        ? previo
+        : siguienteEstado
+    ));
+  }, []);
+
+  const limpiarCancelacionPorPerdida = useCallback(() => {
+    if (perdidaPlanoTimeoutRef.current) {
+      clearTimeout(perdidaPlanoTimeoutRef.current);
+      perdidaPlanoTimeoutRef.current = null;
+    }
+  }, []);
+
+  const tableroDisponible = useCallback(
+    () => estadoPlanoRef.current.disponible,
+    [],
+  );
+
+  useEffect(() => {
+    estadoPlanoRef.current = estadoPlano;
+  }, [estadoPlano]);
+
+  useEffect(() => () => {
+    limpiarCancelacionPorPerdida();
+  }, [limpiarCancelacionPorPerdida]);
+
+  const { reproducirToque } = useCaminoArAudio({ escena, escenaEspacial });
+  const manejarSeleccionarBaldosa = useCallback(
+    (indiceBaldosa) => {
+      reproducirToque();
+      seleccionarBaldosa?.(indiceBaldosa);
+    },
+    [reproducirToque, seleccionarBaldosa],
+  );
 
   const viroAppProps = useMemo(
     () => ({
       escenaEspacial,
-      onSeleccionarBaldosa: seleccionarBaldosa,
+      onSeleccionarBaldosa: manejarSeleccionarBaldosa,
       mostrarTablero: !escena.resultado.visible,
       rotacionTableroY,
       onCameraTransformUpdate: (cameraTransform) => {
         ultimaCamaraRef.current = cameraTransform;
       },
       onPlaneFound: (anchor) => {
+        limpiarCancelacionPorPerdida();
         setRotacionTableroY(
           resolverRotacionTablero({
             forwardCamara: ultimaCamaraRef.current?.forward,
             rotacionPlano: anchor?.rotation,
           }),
         );
-        setEstadoPlano({
+        actualizarEstadoPlano({
           disponible: true,
           mensaje: 'El tablero ya aparecio sobre el suelo.',
         });
       },
       onPlaneUpdated: () => {
-        setEstadoPlano((previo) => ({
-          ...previo,
+        limpiarCancelacionPorPerdida();
+        actualizarEstadoPlano({
           disponible: true,
           mensaje: 'El tablero ya esta listo para jugar.',
-        }));
+        });
       },
       onPlaneRemoved: () => {
-        setEstadoPlano({
+        actualizarEstadoPlano({
           disponible: false,
           mensaje: 'Perdimos el suelo por un momento. Muevete despacio para recuperarlo.',
         });
+
+        if (!FASES_CON_TABLERO_ACTIVO.has(escena.estadoActual.fase)) {
+          return;
+        }
+
+        limpiarCancelacionPorPerdida();
+        perdidaPlanoTimeoutRef.current = setTimeout(() => {
+          cancelarPartidaTecnica?.(
+            'El tablero se movio. Busca el suelo y vuelve a intentarlo.',
+          );
+        }, PERDIDA_PLANO_CANCELACION_MS);
       },
     }),
-    [escena.resultado.visible, escenaEspacial, rotacionTableroY, seleccionarBaldosa],
+    [
+      actualizarEstadoPlano,
+      cancelarPartidaTecnica,
+      escena.estadoActual.fase,
+      escena.resultado.visible,
+      escenaEspacial,
+      limpiarCancelacionPorPerdida,
+      manejarSeleccionarBaldosa,
+      rotacionTableroY,
+    ],
   );
 
   const momentoJuego = construirMomentoJuego({ escena, estadoPlano });
   const hud = construirHud({ escena, estadoPlano });
-  const puedeRecolocarPiso = escena.salida.permitida && !escena.resultado.visible;
   const colorInsignia = resolverColorInsigniaCaminoAr(momentoJuego.badge);
+  const resumenResultado = escena.resultado.resumenInfantil ?? {
+    estrellas: 0,
+    estrellasMaximas: 3,
+    aciertos: 0,
+    errores: 0,
+    faltaron: 0,
+    combo: 0,
+    patronLongitud: 0,
+    patronResuelto: false,
+  };
+  const estrellasResultado = Array.from(
+    { length: resumenResultado.estrellasMaximas },
+    (_, indice) => indice < resumenResultado.estrellas,
+  );
+  const metricasResultadoInfantil = [
+    {
+      etiqueta: 'Aciertos',
+      valor: `${resumenResultado.aciertos}/${resumenResultado.patronLongitud}`,
+    },
+    {
+      etiqueta: resumenResultado.patronResuelto ? 'Errores' : 'Faltaron',
+      valor: resumenResultado.patronResuelto
+        ? resumenResultado.errores
+        : resumenResultado.faltaron,
+    },
+    {
+      etiqueta: 'Combo',
+      valor: `x${resumenResultado.combo}`,
+    },
+  ];
 
   return (
     <View style={styles.contenedor}>
       <StatusBar barStyle="light-content" backgroundColor={colores.fondoPrincipal} />
       <ViroARSceneNavigator
-        key={`camino-ar-plane-${resetKey}`}
         autofocus
         initialScene={{ scene: EscenaCaminoArViro }}
         viroAppProps={viroAppProps}
@@ -414,7 +549,9 @@ export default function CaminoArVistaArViro({
                     styles.botonInactivo,
                 ]}
                 disabled={!estadoPlano.disponible || escena.acciones.iniciar.deshabilitada}
-                onPress={escena.acciones.iniciar.accion}
+                onPress={() => {
+                  escena.acciones.iniciar.accion?.({ tableroDisponible });
+                }}
               >
                 <Text style={styles.botonPrimarioTexto}>
                   {escena.acciones.iniciar.etiqueta}
@@ -435,30 +572,22 @@ export default function CaminoArVistaArViro({
                     {escena.acciones.pista.etiqueta}
                   </Text>
                 </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.botonFantasma,
-                    !puedeRecolocarPiso &&
-                      styles.botonInactivo,
-                  ]}
-                  disabled={!puedeRecolocarPiso}
-                  onPress={() => {
-                    setRotacionTableroY(0);
-                    setEstadoPlano({
-                      disponible: false,
-                      mensaje: 'Mueve el celular despacio hasta que aparezca el camino.',
-                    });
-                    setResetKey((previo) => previo + 1);
-                  }}
-                >
-                  <Text style={styles.botonFantasmaTexto}>Cambiar lugar</Text>
-                </TouchableOpacity>
               </View>
             </View>
           </View>
         ) : (
           <View style={styles.resultadoOverlay}>
+            {escena.resultado.mostrarCelebracion ? <ConfettiCelebracion /> : null}
+
+            <View pointerEvents="none" style={styles.resultadoDecoracion}>
+              <View style={[styles.resultadoBurbujaFondo, styles.resultadoBurbujaAqua]} />
+              <View style={[styles.resultadoBurbujaFondo, styles.resultadoBurbujaSol]} />
+              <View style={[styles.resultadoBurbujaFondo, styles.resultadoBurbujaRosa]} />
+              <Text style={[styles.resultadoIconoFondo, styles.resultadoIconoUno]}>★</Text>
+              <Text style={[styles.resultadoIconoFondo, styles.resultadoIconoDos]}>◆</Text>
+              <Text style={[styles.resultadoIconoFondo, styles.resultadoIconoTres]}>●</Text>
+            </View>
+
             <View
               style={[
                 styles.resultadoHeaderBar,
@@ -477,24 +606,61 @@ export default function CaminoArVistaArViro({
               </TouchableOpacity>
             </View>
 
-            <View style={styles.panelResultado}>
-              <ScrollView
-                bounces={false}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={[
-                  styles.panelResultadoContenido,
-                  { paddingBottom: Math.max(espaciado.lg, insetInferior + espaciado.md) },
-                ]}
-              >
-                <View style={styles.badgeResultado}>
-                  <Text style={styles.badgeResultadoTexto}>Tesoro de la ronda</Text>
+            <ScrollView
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={[
+                styles.panelResultadoContenido,
+                {
+                  paddingTop: Math.max(92, insetSuperior + 70),
+                  paddingBottom: Math.max(espaciado.xl, insetInferior + espaciado.xl),
+                },
+              ]}
+            >
+              <View style={styles.panelResultado}>
+                <View style={styles.resultadoCinta}>
+                  <Text style={styles.resultadoCintaTexto}>
+                    {escena.resultado.mostrarCelebracion ? 'VICTORIA' : 'RETO TERMINADO'}
+                  </Text>
                 </View>
 
-                <Text style={styles.tituloResultado}>{escena.resultado.titulo}</Text>
-                <Text style={styles.resultadoTexto}>{escena.resultado.descripcion}</Text>
+                <View style={styles.resultadoHero}>
+                  <View style={styles.resultadoAura} />
+                  <View style={styles.resultadoNivelPill}>
+                    <Text style={styles.resultadoNivelTexto}>Camino AR · Memoria</Text>
+                  </View>
+
+                  <Text style={styles.tituloResultado}>{escena.resultado.titulo}</Text>
+
+                  <View style={styles.estrellasResultado}>
+                    {estrellasResultado.map((activa, indice) => (
+                      <View
+                        key={`estrella-${indice}`}
+                        style={[
+                          styles.estrellaBurbuja,
+                          !activa && styles.estrellaBurbujaInactiva,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.estrellaResultado,
+                            !activa && styles.estrellaResultadoInactiva,
+                          ]}
+                        >
+                          {activa ? '★' : '☆'}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  <View style={styles.resultadoRecompensa}>
+                    <Text style={styles.resultadoRecompensaLabel}>Premio del reto</Text>
+                    <Text style={styles.resultadoTexto}>{escena.resultado.descripcion}</Text>
+                  </View>
+                </View>
 
                 <View style={styles.gridMetricasResultado}>
-                  {escena.resultado.metricas.map((metrica, indice) => (
+                  {metricasResultadoInfantil.map((metrica, indice) => (
                     <View
                       key={metrica.etiqueta}
                       style={[
@@ -525,14 +691,31 @@ export default function CaminoArVistaArViro({
                 {escena.resultado.logros?.length ? (
                   <View style={styles.listaLogrosResultado}>
                     <Text style={styles.resumenResultadoTitulo}>Logros nuevos</Text>
-                    {escena.resultado.logros.map((logro) => (
-                      <View key={logro.id} style={styles.logroResultadoCard}>
-                        <Text style={styles.logroResultadoTitulo}>{logro.nombre_logro}</Text>
-                        {logro.descripcion ? (
-                          <Text style={styles.logroResultadoTexto}>{logro.descripcion}</Text>
-                        ) : null}
-                      </View>
-                    ))}
+                    {escena.resultado.logros.map((logro) => {
+                      const iconoLogro = logro.icono ?? logro.icono_logro ?? logro.emoji ?? '★';
+
+                      return (
+                        <View
+                          key={logro.id ?? logro.nombre_logro}
+                          style={styles.logroResultadoCard}
+                        >
+                          <View style={styles.logroIconoBurbuja}>
+                            <Text style={styles.logroIconoTexto}>{iconoLogro}</Text>
+                          </View>
+
+                          <View style={styles.logroTextoContenido}>
+                            <Text style={styles.logroResultadoTitulo}>
+                              {logro.nombre_logro}
+                            </Text>
+                            {logro.descripcion ? (
+                              <Text style={styles.logroResultadoTexto}>
+                                {logro.descripcion}
+                              </Text>
+                            ) : null}
+                          </View>
+                        </View>
+                      );
+                    })}
                   </View>
                 ) : null}
 
@@ -540,7 +723,9 @@ export default function CaminoArVistaArViro({
                   {escena.resultado.haySiguientePaso && escena.resultado.siguienteEsMismoJuego ? (
                     <TouchableOpacity
                       style={styles.botonContinuar}
-                      onPress={escena.resultado.accionContinuar}
+                      onPress={() => {
+                        escena.resultado.accionContinuar?.({ tableroDisponible });
+                      }}
                     >
                       <Text style={styles.botonContinuarTexto}>
                         {escena.resultado.etiquetaContinuar ?? 'Continuar'}
@@ -553,14 +738,14 @@ export default function CaminoArVistaArViro({
                       style={styles.botonResultadoSalir}
                       onPress={escena.resultado.accionSalir}
                     >
-                  <Text style={styles.botonResultadoSalirTexto}>
+                      <Text style={styles.botonResultadoSalirTexto}>
                         {escena.resultado.etiquetaSalir ?? 'Volver'}
                       </Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>
-              </ScrollView>
-            </View>
+              </View>
+            </ScrollView>
           </View>
         )}
       </SafeAreaView>
@@ -724,160 +909,367 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 14,
   },
-  botonFantasma: {
-    minWidth: 138,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-    minHeight: 48,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.94)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,184,104,0.24)',
-  },
-  botonFantasmaTexto: {
-    color: caminoArTheme.tintas.medio,
-    fontWeight: '800',
-  },
   botonInactivo: {
     opacity: 0.45,
   },
   resultadoOverlay: {
     flex: 1,
-    justifyContent: 'space-between',
-    paddingTop: espaciado.md,
+    backgroundColor: '#10113A',
+  },
+  resultadoDecoracion: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+  },
+  resultadoBurbujaFondo: {
+    position: 'absolute',
+    borderRadius: 999,
+    opacity: 0.42,
+  },
+  resultadoBurbujaAqua: {
+    width: 260,
+    height: 260,
+    top: -90,
+    left: -100,
+    backgroundColor: '#40D9FF',
+  },
+  resultadoBurbujaSol: {
+    width: 220,
+    height: 220,
+    right: -86,
+    top: 72,
+    backgroundColor: '#FFD54F',
+  },
+  resultadoBurbujaRosa: {
+    width: 260,
+    height: 260,
+    bottom: -120,
+    left: 38,
+    backgroundColor: '#FF5B9F',
+  },
+  resultadoIconoFondo: {
+    position: 'absolute',
+    color: 'rgba(255,255,255,0.13)',
+    fontWeight: '900',
+  },
+  resultadoIconoUno: {
+    top: 116,
+    left: 48,
+    fontSize: 42,
+    transform: [{ rotate: '-14deg' }],
+  },
+  resultadoIconoDos: {
+    top: 286,
+    right: 42,
+    fontSize: 34,
+    transform: [{ rotate: '20deg' }],
+  },
+  resultadoIconoTres: {
+    bottom: 112,
+    left: 28,
+    fontSize: 28,
   },
   resultadoHeaderBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    zIndex: 4,
     paddingHorizontal: espaciado.md,
   },
   panelResultado: {
-    marginTop: espaciado.md,
-    maxHeight: '74%',
-    backgroundColor: caminoArTheme.paneles.resultado,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    borderWidth: 1,
-    borderColor: caminoArTheme.paneles.resultadoBorde,
+    width: '100%',
+    maxWidth: 430,
+    alignSelf: 'center',
+    backgroundColor: '#FFF8DE',
+    borderRadius: 34,
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
+    paddingTop: 38,
+    paddingHorizontal: espaciado.md,
+    paddingBottom: espaciado.md,
+    shadowColor: '#000000',
+    shadowOpacity: 0.32,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 12,
   },
   panelResultadoContenido: {
-    padding: espaciado.md,
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: espaciado.md,
     gap: espaciado.sm,
-    paddingBottom: espaciado.lg,
   },
-  badgeResultado: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  resultadoCinta: {
+    position: 'absolute',
+    top: -24,
+    alignSelf: 'center',
+    minWidth: 214,
+    paddingVertical: 11,
+    paddingHorizontal: espaciado.lg,
     borderRadius: radios.pill,
-    backgroundColor: 'rgba(255,125,142,0.20)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,125,142,0.24)',
+    backgroundColor: '#FF3E8A',
+    borderWidth: 3,
+    borderColor: '#FFD54F',
+    shadowColor: '#6D1446',
+    shadowOpacity: 0.38,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 10,
   },
-  badgeResultadoTexto: {
-    color: '#8A2E43',
+  resultadoCintaTexto: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: 1.2,
+    textShadowColor: 'rgba(0,0,0,0.22)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 3,
+  },
+  resultadoHero: {
+    overflow: 'hidden',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 3,
+    borderColor: '#8BE8FF',
+    gap: 10,
+  },
+  resultadoAura: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    top: -142,
+    backgroundColor: '#FFF1A8',
+  },
+  resultadoNivelPill: {
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: radios.pill,
+    backgroundColor: '#32236C',
+    borderWidth: 2,
+    borderColor: '#A897FF',
+  },
+  resultadoNivelTexto: {
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '900',
     textTransform: 'uppercase',
     letterSpacing: 0.7,
   },
   tituloResultado: {
-    color: caminoArTheme.tintas.oscuro,
-    fontSize: 24,
+    color: '#251B57',
+    fontSize: 30,
     fontWeight: '900',
+    textAlign: 'center',
+    textShadowColor: 'rgba(255,213,79,0.36)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 4,
   },
   resultadoTexto: {
-    color: caminoArTheme.tintas.medio,
-    lineHeight: 19,
+    color: '#31516D',
+    lineHeight: 20,
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+  resultadoRecompensa: {
+    width: '100%',
+    borderRadius: 22,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: '#EAFBFF',
+    borderWidth: 2,
+    borderColor: '#A9EFFF',
+    gap: 4,
+  },
+  resultadoRecompensaLabel: {
+    color: '#FF3E8A',
+    fontSize: 11,
+    fontWeight: '900',
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  confettiCapa: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+  },
+  confettiPieza: {
+    position: 'absolute',
+    width: 12,
+    height: 20,
+    borderRadius: 5,
+    opacity: 0.88,
+  },
+  estrellasResultado: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    paddingTop: 2,
+  },
+  estrellaBurbuja: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF4B8',
+    borderWidth: 3,
+    borderColor: '#FF9F1C',
+    shadowColor: '#C57A00',
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 8,
+  },
+  estrellaBurbujaInactiva: {
+    backgroundColor: '#EEF2F7',
+    borderColor: '#D4DCE8',
+  },
+  estrellaResultado: {
+    color: '#FFB703',
+    fontSize: 48,
+    fontWeight: '900',
+    textShadowColor: 'rgba(196, 126, 0, 0.34)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 6,
+  },
+  estrellaResultadoInactiva: {
+    color: '#A8B3C3',
+    textShadowColor: 'transparent',
   },
   resultadoSecundario: {
-    color: caminoArTheme.tintas.suave,
-    lineHeight: 18,
+    color: '#405C78',
+    lineHeight: 19,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   gridMetricasResultado: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: espaciado.xs,
+    gap: espaciado.sm,
+    marginTop: espaciado.sm,
   },
   cardMetricaResultado: {
-    minWidth: '31%',
+    minWidth: '30%',
     flexGrow: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: radios.md,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 22,
+    borderWidth: 2,
     gap: 4,
+    alignItems: 'center',
   },
   cardMetricaEtiqueta: {
-    color: caminoArTheme.tintas.suave,
+    color: '#324B66',
     fontSize: 11,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     fontWeight: '800',
   },
   cardMetricaValor: {
-    color: caminoArTheme.tintas.oscuro,
-    fontSize: 16,
+    color: '#251B57',
+    fontSize: 18,
     fontWeight: '900',
   },
   panelResumenResultado: {
+    marginTop: espaciado.sm,
     padding: espaciado.sm,
-    borderRadius: radios.md,
-    backgroundColor: 'rgba(255,255,255,0.62)',
+    borderRadius: 22,
+    backgroundColor: '#FFF2C7',
+    borderWidth: 2,
+    borderColor: '#FFD166',
     gap: espaciado.xs,
   },
   resumenResultadoTitulo: {
-    color: caminoArTheme.tintas.oscuro,
-    fontWeight: '800',
+    color: '#251B57',
+    fontWeight: '900',
+    textAlign: 'center',
   },
   listaLogrosResultado: {
+    marginTop: espaciado.sm,
     gap: espaciado.xs,
   },
   logroResultadoCard: {
     padding: espaciado.sm,
-    borderRadius: radios.md,
-    backgroundColor: 'rgba(255,255,255,0.68)',
-    borderWidth: 1,
-    borderColor: 'rgba(78,200,255,0.22)',
-    gap: 4,
+    borderRadius: 24,
+    backgroundColor: '#F1E9FF',
+    borderWidth: 2,
+    borderColor: '#C7B5FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espaciado.sm,
+  },
+  logroIconoBurbuja: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFD54F',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  logroIconoTexto: {
+    fontSize: 27,
+  },
+  logroTextoContenido: {
+    flex: 1,
+    gap: 3,
   },
   logroResultadoTitulo: {
-    color: caminoArTheme.tintas.oscuro,
+    color: '#251B57',
     fontWeight: '900',
   },
   logroResultadoTexto: {
-    color: caminoArTheme.tintas.medio,
+    color: '#405C78',
     lineHeight: 17,
   },
   resultadoBotones: {
+    flexDirection: 'row',
     gap: espaciado.sm,
-    marginTop: espaciado.sm,
+    marginTop: espaciado.md,
   },
   botonContinuar: {
-    borderRadius: 22,
-    paddingVertical: 14,
+    flex: 1,
+    borderRadius: 26,
+    paddingVertical: 17,
     alignItems: 'center',
-    backgroundColor: caminoArTheme.botones.primario,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: '#36D990',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#0B8B55',
+    shadowOpacity: 0.32,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
   botonContinuarTexto: {
-    color: caminoArTheme.botones.primarioTexto,
+    color: '#073B2A',
     fontWeight: '900',
     fontSize: 16,
   },
   botonResultadoSalir: {
-    borderRadius: 22,
-    paddingVertical: 14,
+    flex: 1,
+    borderRadius: 26,
+    paddingVertical: 17,
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: 'rgba(20,49,79,0.08)',
+    backgroundColor: '#4EC8FF',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#146D93',
+    shadowOpacity: 0.24,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
   },
   botonResultadoSalirTexto: {
-    color: caminoArTheme.tintas.medio,
-    fontWeight: '800',
+    color: '#083451',
+    fontWeight: '900',
     fontSize: 15,
   },
 });
