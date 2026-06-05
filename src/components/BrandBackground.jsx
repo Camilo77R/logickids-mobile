@@ -30,8 +30,8 @@ const styles = StyleSheet.create({
     opacity: 0.95,
   },
   blobTop: {
-    top: -120,
-    left: -76,
+    top: -158,
+    left: -120,
     backgroundColor: colors.yellow,
   },
   blobBottom: {

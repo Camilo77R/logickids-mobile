@@ -1,6 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,7 +20,6 @@ import Tren3DScreen from '../features/games/tren-3d/Tren3DScreen';
 import { obtenerConfiguracionBaseTren3D } from '../features/games/tren-3d/tren3dConfiguracion';
 import {
   SLUG_TREN_3D,
-  TITULO_TREN_3D,
 } from '../features/games/tren-3d/tren3d.constants';
 import {
   ESTADOS_ACCESO_JUEGO,
@@ -27,9 +28,11 @@ import {
 import { useStudentDashboard } from '../hooks/useStudentDashboard';
 import { colors, fonts, shadows, spacing } from '../constants/theme';
 import GamePathScreen from './GamePathScreen';
+import ProfileNinoScreen from './ProfileNinoScreen';
 
 const TERMINAL_PARTICIPANT_STATES = new Set(['completado', 'abandonado', 'cerrado']);
 const DASHBOARD_BACKGROUND = '#FAF3FF';
+const trainHeroImage = require('../../assets/branding/fondo definitivo.jpeg');
 
 const OFFICIAL_SKILLS = Object.freeze([
   { name: 'Memoria', icon: 'bulb', gameSlug: 'camino-ar' },
@@ -180,6 +183,38 @@ const buildActivityCopy = ({ profile, access, playState }) => {
   };
 };
 
+const buildLockedReason = (access, hasGame) => {
+  if (!hasGame) {
+    return 'Completa una actividad para desbloquear estadisticas';
+  }
+
+  if (access?.estado === ESTADOS_ACCESO_JUEGO.disponible) {
+    return '';
+  }
+
+  if (access?.motivo) {
+    return access.motivo;
+  }
+
+  return 'Disponible despues de finalizar la actividad anterior';
+};
+
+const buildMapLockedReason = (access, hasGame, gameSlug) => {
+  if (!hasGame) {
+    return 'Completa una actividad para desbloquear estadisticas';
+  }
+
+  if (!access || access.estado === ESTADOS_ACCESO_JUEGO.disponible) {
+    return '';
+  }
+
+  if (access.juegoHabilitadoSlug && access.juegoHabilitadoSlug !== gameSlug) {
+    return 'Disponible despues de finalizar la actividad anterior';
+  }
+
+  return access.motivo || 'Disponible despues de finalizar la actividad anterior';
+};
+
 const buildSkillCards = ({ accessBySlug, skillStatsView }) => {
   const entries = skillStatsView?.entries ?? [];
   const statsBySkill = new Map(
@@ -190,6 +225,7 @@ const buildSkillCards = ({ accessBySlug, skillStatsView }) => {
     const stat = statsBySkill.get(normalizeSkillKey(skill.name));
     const access = skill.gameSlug ? accessBySlug[skill.gameSlug] : null;
     const isAvailable = access?.estado === ESTADOS_ACCESO_JUEGO.disponible;
+    const lockedReason = buildMapLockedReason(access, Boolean(skill.gameSlug), skill.gameSlug);
 
     return {
       ...skill,
@@ -197,19 +233,33 @@ const buildSkillCards = ({ accessBySlug, skillStatsView }) => {
       number: index + 1,
       active: isAvailable,
       locked: !isAvailable,
-      value: stat?.precisionLabel ?? (isAvailable ? 'Jugar' : 'Pendiente'),
-      detail: stat?.attemptsLabel ?? (isAvailable ? 'Disponible' : 'Sin datos'),
+      value: stat?.precisionLabel ?? (isAvailable ? 'Listo para jugar' : 'Listo para comenzar'),
+      detail: stat?.attemptsLabel ?? (isAvailable ? 'Juego habilitado' : lockedReason),
+      activeMessage: isAvailable ? 'Juego habilitado' : '',
+      lockedReason,
       actionLabel: isAvailable ? 'OK' : index + 1,
     };
   });
+};
+
+const clampProgress = (value) => Math.min(Math.max(value, 0), 100);
+
+const buildProgressPercent = (value, maxValue) => {
+  if (!value || !maxValue) {
+    return 8;
+  }
+
+  return clampProgress(Math.round((value / maxValue) * 100));
 };
 
 export default function DashboardScreen({ studentSession, onLogout }) {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const compact = height < 760;
+  const fabScale = useRef(new Animated.Value(1)).current;
   const [activeGame, setActiveGame] = useState(null);
   const [showGamePath, setShowGamePath] = useState(false);
+  const [skillsExpanded, setSkillsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState(DASHBOARD_TABS.mapa);
   const {
     profile,
@@ -295,16 +345,117 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       ? tren3DConfig.slug
       : null;
   const achievementsCount = achievements.length;
-  const precisionLabel =
-    progressSummary.averagePrecision == null ? 'Sin datos' : `${progressSummary.averagePrecision}%`;
-  const attemptsLabel = progressSummary.totalAttempts || 0;
   const sessionStatusLabel = buildSessionStatusLabel(studentProfile);
   const dashboardAccess = resolveStudentDashboardAccess(studentProfile);
+  const activeActivitySlug =
+    currentGameAccess.juegoHabilitadoSlug ?? studentProfile?.sesion_minijuego_slug ?? availableGameSlug;
+  const activeActivityTitle = String(
+    studentProfile?.sesion_minijuego_titulo ?? currentGameAccess.juegoHabilitadoTitulo ?? activityCopy.title ?? '',
+  ).toLowerCase();
+  const isTrainHero =
+    activeActivitySlug === SLUG_TREN_3D ||
+    activeActivityTitle.includes('tren') ||
+    activeActivityTitle.includes('figura') ||
+    activeActivityTitle.includes('patron');
+  const scrollBottomPadding = activeTab === DASHBOARD_TABS.perfil ? 92 : 128;
+  const heroActivityLabel = isTrainHero
+    ? 'Tren de Figuras'
+    : activeActivityTitle.includes('camino')
+      ? 'Camino AR'
+      : 'Actividad de hoy';
+  const hasProgressData = progressSummary.skillsTracked > 0 || achievementsCount > 0 || progressSummary.totalAttempts > 0;
+  const progressIntro = hasProgressData
+    ? 'Mira como crece tu aventura'
+    : 'Comienza tu primera aventura!';
+  const precisionValue = progressSummary.averagePrecision == null
+    ? '0%'
+    : `${progressSummary.averagePrecision}%`;
+  const precisionLabel = precisionValue;
+  const precisionProgress = progressSummary.averagePrecision == null ? 8 : clampProgress(progressSummary.averagePrecision);
+  const attemptsLabel = progressSummary.totalAttempts
+    ? `${progressSummary.totalAttempts}`
+    : '0';
+  const achievementsProgress = buildProgressPercent(achievementsCount, 10);
+  const attemptsProgress = buildProgressPercent(progressSummary.totalAttempts, 10);
+  const activityCards = useMemo(
+    () => [
+      {
+        slug: caminoArConfig.slug,
+        id: caminoArConfig.slug,
+        title: 'Camino AR',
+        status: canPlayCaminoAr ? 'Actividad' : 'Bloqueado',
+        locked: !canPlayCaminoAr,
+        lockedReason: buildLockedReason(caminoArAccess, true),
+        icon: 'trail-sign',
+      },
+      {
+        slug: tren3DConfig.slug,
+        id: tren3DConfig.slug,
+        title: 'Tren de Figuras',
+        status: canPlayTren3D ? 'Actividad' : 'Bloqueado',
+        locked: !canPlayTren3D,
+        lockedReason: buildLockedReason(tren3DAccess, true),
+        icon: 'shapes',
+      },
+      {
+        slug: null,
+        id: 'robot-logico',
+        title: 'Robot Logico',
+        status: 'Proximamente',
+        locked: true,
+        lockedReason: 'Disponible despues de finalizar la actividad anterior',
+        icon: 'hardware-chip',
+      },
+    ],
+    [
+      caminoArAccess,
+      caminoArConfig.slug,
+      canPlayCaminoAr,
+      canPlayTren3D,
+      tren3DAccess,
+      tren3DConfig.slug,
+    ],
+  );
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(fabScale, {
+          toValue: 1.06,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fabScale, {
+          toValue: 1,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    animation.start();
+
+    return () => animation.stop();
+  }, [fabScale]);
+
+  const openActivityBySlug = (slug) => {
+    if (!slug) {
+      return false;
+    }
+
+    const access = accessBySlug[slug];
+
+    if (access?.estado !== ESTADOS_ACCESO_JUEGO.disponible) {
+      return false;
+    }
+
+    setActiveGame(slug);
+    setShowGamePath(false);
+    return true;
+  };
 
   const startOrRefresh = () => {
-    if (availableGameSlug) {
-      setActiveGame(availableGameSlug);
-      setShowGamePath(false);
+    if (openActivityBySlug(availableGameSlug)) {
       return;
     }
 
@@ -312,9 +463,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   };
 
   const handlePathSkillPress = (skill) => {
-    if (skill.gameSlug === 'camino-ar' || skill.gameSlug === 'tren-3d') {
-      startOrRefresh();
-    }
+    openActivityBySlug(skill.gameSlug);
   };
 
   const exitGame = async () => {
@@ -351,6 +500,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const selectDashboardTab = (nextTab) => {
     setActiveTab(nextTab);
     setShowGamePath(false);
+    setSkillsExpanded(false);
   };
 
   if (activeGame === SLUG_TREN_3D) {
@@ -372,7 +522,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
             styles.content,
             compact && styles.contentCompact,
             showGamePath && styles.pathContent,
-            { paddingBottom: (showGamePath ? 82 : 96) + Math.max(insets.bottom, 10) },
+            { paddingBottom: (showGamePath ? 82 : scrollBottomPadding) + Math.max(insets.bottom, 10) },
           ]}
           scrollEnabled={!showGamePath}
           showsVerticalScrollIndicator={false}
@@ -384,6 +534,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
               firstName={firstName}
               groupLabel={buildGroupLabel(studentProfile)}
               isRefreshing={isRefreshing}
+              onPress={() => selectDashboardTab(DASHBOARD_TABS.perfil)}
             />
           ) : null}
 
@@ -395,14 +546,19 @@ export default function DashboardScreen({ studentSession, onLogout }) {
           ) : null}
 
           {activeTab === DASHBOARD_TABS.perfil ? (
-            <ProfilePanel
+            <ProfileNinoScreen
               achievementsCount={achievementsCount}
+              activityTitle={activityCopy.title}
+              activityText={activityCopy.text}
+              canContinue={Boolean(availableGameSlug)}
               attemptsLabel={attemptsLabel}
               avatarColor={avatarColor}
               avatarUri={avatarUri}
               groupLabel={buildGroupLabel(studentProfile)}
               onLogout={onLogout}
+              onContinue={startOrRefresh}
               precisionLabel={precisionLabel}
+              progressSummary={progressSummary}
               sessionStatusLabel={sessionStatusLabel}
               studentName={getStudentName(studentProfile, studentSession?.studentProfile)}
             />
@@ -416,6 +572,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
             <>
               <View style={styles.hero}>
                 <View style={styles.heroTextBlock}>
+                  <Text style={styles.heroEyebrow}>{heroActivityLabel}</Text>
                   <Text style={styles.heroTitle}>{activityCopy.title}</Text>
                   <Text style={styles.heroText}>{activityCopy.text}</Text>
                   <TouchableOpacity
@@ -430,72 +587,87 @@ export default function DashboardScreen({ studentSession, onLogout }) {
                     <Ionicons name={availableGameSlug ? 'play' : 'sync'} size={18} color={colors.white} />
                   </TouchableOpacity>
                 </View>
-                <View style={styles.character}>
-                  <View style={styles.characterEyes}>
-                    <View style={styles.eye} />
-                    <View style={styles.eye} />
-                  </View>
-                  <View style={styles.smile} />
-                </View>
+                <Image source={trainHeroImage} resizeMode="contain" style={styles.heroImage} />
               </View>
 
               <View style={styles.sectionBlock}>
-                <SectionTitle title="Ruta de hoy" action="Ver mas" onAction={() => setShowGamePath(true)} />
-                <View style={styles.route}>
-                  {skillCards.map((skill) => (
-                    <RouteCard
-                      key={skill.id}
-                      active={skill.active}
-                      icon={skill.icon}
-                      label={skill.name}
-                      number={skill.actionLabel}
-                      onPress={skill.active ? () => setActiveGame(skill.gameSlug) : undefined}
-                    />
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.sectionBlock}>
-                <SectionTitle title="Mi progreso" />
+                <SectionTitle title="Mi progreso" subtitle={progressIntro} />
                 <View style={styles.progress}>
-                  <ProgressItem icon="trophy" value={achievementsCount} label="Logros desbloqueados" />
-                  <ProgressItem icon="analytics" value={precisionLabel} label="Precision promedio" />
-                  <ProgressItem icon="footsteps" value={attemptsLabel} label="Intentos registrados" />
+                  <ProgressItem
+                    icon="trophy"
+                    value={achievementsCount}
+                    label="Logros"
+                    helper={achievementsCount ? 'Desbloqueados' : 'Tu primer logro te espera'}
+                    progress={achievementsProgress}
+                  />
+                  <ProgressItem
+                    icon="star"
+                    value={precisionValue}
+                    label="Precision"
+                    helper={progressSummary.averagePrecision == null ? 'Comienza tu primera aventura!' : 'Promedio real'}
+                    progress={precisionProgress}
+                  />
+                  <ProgressItem
+                    icon="flame"
+                    value={attemptsLabel}
+                    label="Actividades"
+                    helper={progressSummary.totalAttempts ? 'Completadas' : 'Lista para empezar'}
+                    progress={attemptsProgress}
+                  />
                 </View>
               </View>
 
               <View style={styles.sectionBlock}>
                 <SectionTitle title="Continua jugando" />
                 <View style={styles.games}>
-                  <GameCard
-                    title={caminoArAccess.juegoHabilitadoTitulo ?? 'Camino AR'}
-                    status={canPlayCaminoAr ? 'Actividad' : 'Bloqueado'}
-                    locked={!canPlayCaminoAr}
-                    onPress={canPlayCaminoAr ? () => setActiveGame(caminoArConfig.slug) : undefined}
-                  />
-                  <GameCard
-                    title={tren3DAccess.juegoHabilitadoTitulo ?? TITULO_TREN_3D}
-                    status={canPlayTren3D ? 'Actividad' : 'Bloqueado'}
-                    locked={!canPlayTren3D}
-                    onPress={canPlayTren3D ? () => setActiveGame(SLUG_TREN_3D) : undefined}
-                  />
-                  <GameCard title="Equilibra ideas" status="Proximamente" locked />
+                  {activityCards.map((activity) => (
+                    <GameCard
+                      key={activity.id}
+                      icon={activity.icon}
+                      title={activity.title}
+                      status={activity.status}
+                      lockedReason={activity.lockedReason}
+                      locked={activity.locked}
+                      onPress={!activity.locked ? () => openActivityBySlug(activity.slug) : undefined}
+                    />
+                  ))}
                 </View>
               </View>
 
               <View style={styles.sectionBlock}>
-                <SectionTitle title="Habilidades" />
-                <View style={styles.skillGrid}>
-                  {skillCards.map((skill) => (
-                    <SkillCard key={skill.id} skill={skill} />
-                  ))}
-                </View>
+                <SectionTitle
+                  title="Habilidades"
+                  subtitle={skillsExpanded ? 'Tus habilidades escolares' : 'Toca para ver el detalle'}
+                  actionIcon={skillsExpanded ? 'chevron-up' : 'chevron-down'}
+                  onAction={() => setSkillsExpanded((current) => !current)}
+                />
+                {skillsExpanded ? (
+                  <View style={styles.skillGrid}>
+                    {skillCards.map((skill) => (
+                      <SkillCard key={skill.id} skill={skill} />
+                    ))}
+                  </View>
+                ) : null}
               </View>
             </>
           ) : (
             <View style={styles.emptyTabContent} />
           )}
         </ScrollView>
+
+        {activeTab === DASHBOARD_TABS.mapa && !showGamePath ? (
+          <Animated.View style={[styles.mapFabWrap, { bottom: Math.max(insets.bottom, 10) + 78, transform: [{ scale: fabScale }] }]}>
+            <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Abrir mapa de actividades"
+            activeOpacity={0.88}
+            onPress={() => setShowGamePath(true)}
+            style={styles.mapFab}
+            >
+              <Ionicons name="map" size={28} color={colors.purpleDark} />
+            </TouchableOpacity>
+          </Animated.View>
+        ) : null}
 
         <View style={[styles.nav, { bottom: Math.max(insets.bottom, 10) }]}>
           <NavItem
@@ -534,11 +706,21 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   );
 }
 
-function SectionTitle({ title, action, onAction }) {
+function SectionTitle({ title, subtitle, action, actionIcon, onAction }) {
   return (
     <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {action ? (
+      <View style={styles.sectionTitleBlock}>
+        <View style={styles.sectionTitleRow}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          {actionIcon ? (
+            <TouchableOpacity activeOpacity={0.82} onPress={onAction} style={styles.sectionIconButton}>
+              <Ionicons name={actionIcon} size={20} color={colors.white} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        {subtitle ? <Text style={styles.sectionSubtitle}>{subtitle}</Text> : null}
+      </View>
+      {!actionIcon && action ? (
         <TouchableOpacity activeOpacity={0.82} onPress={onAction} style={styles.sectionActionButton}>
           <Text style={styles.sectionAction}>{action} &gt;</Text>
         </TouchableOpacity>
@@ -547,35 +729,15 @@ function SectionTitle({ title, action, onAction }) {
   );
 }
 
-function RouteCard({ active, icon, label, number, onPress }) {
-  const content = (
-    <>
-      <View style={[styles.routeNumber, active && styles.routeNumberActive]}>
-        <Text style={styles.routeNumberText}>{number}</Text>
-      </View>
-      <Ionicons name={icon} size={24} color={active ? colors.white : colors.purple} />
-      <Text style={[styles.routeLabel, active && styles.routeLabelActive]}>{label}</Text>
-    </>
-  );
-
-  if (!onPress) {
-    return <View style={[styles.routeCard, active && styles.routeCardActive]}>{content}</View>;
-  }
-
+function StudentHeader({ avatarColor, avatarUri, firstName, groupLabel, isRefreshing, onPress }) {
   return (
     <TouchableOpacity
-      activeOpacity={0.88}
+      accessibilityRole="button"
+      accessibilityLabel="Abrir perfil"
+      activeOpacity={0.86}
       onPress={onPress}
-      style={[styles.routeCard, active && styles.routeCardActive]}
+      style={styles.header}
     >
-      {content}
-    </TouchableOpacity>
-  );
-}
-
-function StudentHeader({ avatarColor, avatarUri, firstName, groupLabel, isRefreshing }) {
-  return (
-    <View style={styles.header}>
       <AvatarImage avatarColor={avatarColor} avatarUri={avatarUri} size={58} iconSize={30} />
       <View style={styles.greeting}>
         <Text style={styles.title}>Hola, {firstName}!</Text>
@@ -583,7 +745,7 @@ function StudentHeader({ avatarColor, avatarUri, firstName, groupLabel, isRefres
           {groupLabel} · {isRefreshing ? 'Actualizando...' : 'Sesion sincronizada'}
         </Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -606,7 +768,7 @@ function AvatarImage({ avatarColor, avatarUri, size, iconSize }) {
   );
 }
 
-function ProgressItem({ icon, value, label }) {
+function ProgressItem({ icon, value, label, helper, progress = 0 }) {
   return (
     <View style={styles.progressItem}>
       <View style={styles.progressIcon}>
@@ -614,11 +776,15 @@ function ProgressItem({ icon, value, label }) {
       </View>
       <Text style={styles.progressValue}>{value}</Text>
       <Text style={styles.progressLabel}>{label}</Text>
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${clampProgress(progress)}%` }]} />
+      </View>
+      <Text style={styles.progressHelper}>{helper}</Text>
     </View>
   );
 }
 
-function GameCard({ title, status, locked, onPress }) {
+function GameCard({ icon, title, status, locked, lockedReason, onPress }) {
   return (
     <TouchableOpacity
       activeOpacity={0.88}
@@ -628,13 +794,14 @@ function GameCard({ title, status, locked, onPress }) {
     >
       <View style={styles.gameArt}>
         <Ionicons
-          name={locked ? 'lock-closed' : 'trail-sign'}
+          name={locked ? 'lock-closed' : icon}
           size={30}
           color={locked ? colors.muted : colors.purple}
         />
       </View>
       <Text style={styles.gameStatus}>{status}</Text>
       <Text style={styles.gameTitle}>{title}</Text>
+      {locked ? <Text style={styles.gameLockText}>{lockedReason}</Text> : null}
       <View style={styles.gameTrack}>
         <View style={[styles.gameFill, { width: locked ? '18%' : '72%' }]} />
       </View>
@@ -705,60 +872,6 @@ function StudentAccessGateScreen({
   );
 }
 
-function ProfilePanel({
-  achievementsCount,
-  attemptsLabel,
-  avatarColor,
-  avatarUri,
-  groupLabel,
-  onLogout,
-  precisionLabel,
-  sessionStatusLabel,
-  studentName,
-}) {
-  return (
-    <View style={styles.profilePanel}>
-      <View style={styles.profileHero}>
-        <AvatarImage avatarColor={avatarColor || colors.yellow} avatarUri={avatarUri} size={72} iconSize={36} />
-        <View style={styles.profileInfo}>
-          <Text style={styles.profileEyebrow}>Mi perfil</Text>
-          <Text style={styles.profileName}>{studentName}</Text>
-          <Text style={styles.profileMeta}>{groupLabel}</Text>
-        </View>
-      </View>
-
-      <View style={styles.profileStatusCard}>
-        <Ionicons name="school" size={22} color={colors.purple} />
-        <View style={styles.profileStatusTextBlock}>
-          <Text style={styles.profileStatusTitle}>Estado de clase</Text>
-          <Text style={styles.profileStatusText}>{sessionStatusLabel}</Text>
-        </View>
-      </View>
-
-      <View style={styles.profileMetrics}>
-        <ProfileMetric icon="trophy" label="Logros" value={achievementsCount} />
-        <ProfileMetric icon="analytics" label="Precision" value={precisionLabel} />
-        <ProfileMetric icon="footsteps" label="Intentos" value={attemptsLabel} />
-      </View>
-
-      <TouchableOpacity activeOpacity={0.88} onPress={onLogout} style={styles.logoutButton}>
-        <Ionicons name="log-out-outline" size={20} color={colors.white} />
-        <Text style={styles.logoutButtonText}>Salir de mi cuenta</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function ProfileMetric({ icon, label, value }) {
-  return (
-    <View style={styles.profileMetric}>
-      <Ionicons name={icon} size={20} color={colors.purple} />
-      <Text style={styles.profileMetricValue}>{value}</Text>
-      <Text style={styles.profileMetricLabel}>{label}</Text>
-    </View>
-  );
-}
-
 function SkillCard({ skill }) {
   return (
     <View style={[styles.skillCard, skill.active && styles.skillCardActive]}>
@@ -783,10 +896,10 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   content: {
     paddingHorizontal: 16,
-    paddingTop: spacing.sm,
-    gap: spacing.md,
+    paddingTop: spacing.md,
+    gap: spacing.lg,
   },
-  contentCompact: { paddingHorizontal: 14, paddingTop: spacing.xs, gap: spacing.sm },
+  contentCompact: { paddingHorizontal: 14, paddingTop: spacing.sm, gap: spacing.md },
   pathContent: { flexGrow: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   avatar: {
@@ -909,6 +1022,13 @@ const styles = StyleSheet.create({
     ...shadows.soft,
   },
   heroTextBlock: { flex: 1, justifyContent: 'center' },
+  heroEyebrow: {
+    color: colors.yellow,
+    fontFamily: fonts.black,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
   heroTitle: { color: colors.white, fontFamily: fonts.black, fontSize: 19, lineHeight: 24 },
   heroText: { color: '#F3DDFE', fontFamily: fonts.semiBold, fontSize: 12, lineHeight: 17, marginTop: 4 },
   heroButton: {
@@ -924,58 +1044,39 @@ const styles = StyleSheet.create({
   },
   heroButtonMuted: { backgroundColor: '#C7A3DA' },
   heroButtonText: { color: colors.white, fontFamily: fonts.black, fontSize: 13 },
-  character: {
-    width: 70,
-    height: 72,
-    borderRadius: 20,
-    backgroundColor: colors.yellow,
+  heroImage: {
+    width: 118,
+    height: 118,
     alignSelf: 'center',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{ rotate: '4deg' }],
+    marginLeft: spacing.xs,
   },
-  characterEyes: { flexDirection: 'row', gap: 14 },
-  eye: { width: 9, height: 12, borderRadius: 7, backgroundColor: colors.purpleDark },
-  smile: { width: 26, height: 13, borderBottomWidth: 4, borderBottomColor: colors.purpleDark, borderRadius: 14 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionTitleBlock: { flex: 1 },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   sectionTitle: { color: colors.purpleDark, fontFamily: fonts.black, fontSize: 16 },
+  sectionSubtitle: { color: colors.textGray, fontFamily: fonts.semiBold, fontSize: 11, marginTop: 2 },
   sectionActionButton: { minHeight: 32, justifyContent: 'center', paddingLeft: spacing.sm },
   sectionAction: { color: colors.purple, fontFamily: fonts.bold, fontSize: 13 },
-  sectionBlock: { gap: spacing.xs },
-  route: { flexDirection: 'row', gap: 6 },
-  routeCard: {
-    flex: 1,
-    height: 68,
-    borderRadius: 15,
-    backgroundColor: colors.white,
+  sectionIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.purpleDark,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
-    ...shadows.soft,
+    shadowColor: colors.purple,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 7,
   },
-  routeCardActive: { backgroundColor: colors.yellow },
-  routeNumber: {
-    position: 'absolute',
-    top: 6,
-    left: 6,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.purpleSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  routeNumberActive: { backgroundColor: colors.white },
-  routeNumberText: { color: colors.purple, fontFamily: fonts.black, fontSize: 9 },
-  routeLabel: { color: colors.purpleDark, fontFamily: fonts.black, fontSize: 9, textAlign: 'center' },
-  routeLabelActive: { color: colors.white },
+  sectionBlock: { gap: spacing.sm },
   progress: {
     borderRadius: 20,
     backgroundColor: colors.white,
-    minHeight: 88,
+    minHeight: 96,
     flexDirection: 'row',
-    padding: spacing.sm,
+    padding: spacing.md,
     ...shadows.soft,
   },
   progressItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
@@ -988,12 +1089,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 3,
   },
-  progressValue: { color: colors.purpleDark, fontFamily: fonts.black, fontSize: 15 },
-  progressLabel: { color: colors.textGray, fontFamily: fonts.semiBold, fontSize: 9, lineHeight: 12, textAlign: 'center' },
+  progressValue: { color: colors.purpleDark, fontFamily: fonts.black, fontSize: 14, textAlign: 'center' },
+  progressLabel: { color: colors.textGray, fontFamily: fonts.black, fontSize: 9, lineHeight: 12, textAlign: 'center' },
+  progressTrack: {
+    width: '82%',
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.lavender,
+    marginTop: 5,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: colors.yellow,
+  },
+  progressHelper: {
+    color: colors.textGray,
+    fontFamily: fonts.semiBold,
+    fontSize: 8,
+    lineHeight: 11,
+    textAlign: 'center',
+    marginTop: 4,
+  },
   games: { flexDirection: 'row', gap: spacing.sm },
   gameCard: {
     flex: 1,
-    minHeight: 112,
+    minHeight: 132,
     borderRadius: 18,
     backgroundColor: colors.white,
     padding: spacing.xs,
@@ -1010,118 +1132,15 @@ const styles = StyleSheet.create({
   },
   gameStatus: { color: colors.purple, fontFamily: fonts.black, fontSize: 8 },
   gameTitle: { color: colors.purpleDark, fontFamily: fonts.black, fontSize: 10, lineHeight: 13, marginTop: 2 },
-  gameTrack: { height: 6, borderRadius: 3, backgroundColor: colors.lavender, marginTop: 'auto', overflow: 'hidden' },
-  gameFill: { height: '100%', borderRadius: 4, backgroundColor: colors.purple },
-  profilePanel: {
-    gap: spacing.md,
-  },
-  profileHero: {
-    minHeight: 132,
-    borderRadius: 28,
-    backgroundColor: colors.purple,
-    padding: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    ...shadows.soft,
-  },
-  profileAvatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.yellow,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  profileEyebrow: {
-    color: '#F3DDFE',
-    fontFamily: fonts.black,
-    fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  profileName: {
-    color: colors.white,
-    fontFamily: fonts.black,
-    fontSize: 24,
-    lineHeight: 30,
+  gameLockText: {
+    color: colors.textGray,
+    fontFamily: fonts.semiBold,
+    fontSize: 8,
+    lineHeight: 11,
     marginTop: 3,
   },
-  profileMeta: {
-    color: '#F3DDFE',
-    fontFamily: fonts.semiBold,
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 4,
-  },
-  profileStatusCard: {
-    borderRadius: 22,
-    backgroundColor: colors.white,
-    padding: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    ...shadows.soft,
-  },
-  profileStatusTextBlock: {
-    flex: 1,
-  },
-  profileStatusTitle: {
-    color: colors.purpleDark,
-    fontFamily: fonts.black,
-    fontSize: 14,
-  },
-  profileStatusText: {
-    color: colors.textGray,
-    fontFamily: fonts.semiBold,
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 2,
-  },
-  profileMetrics: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  profileMetric: {
-    flex: 1,
-    minHeight: 94,
-    borderRadius: 20,
-    backgroundColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.sm,
-    ...shadows.soft,
-  },
-  profileMetricValue: {
-    color: colors.purpleDark,
-    fontFamily: fonts.black,
-    fontSize: 18,
-    marginTop: 5,
-  },
-  profileMetricLabel: {
-    color: colors.textGray,
-    fontFamily: fonts.semiBold,
-    fontSize: 10,
-    textAlign: 'center',
-  },
-  logoutButton: {
-    minHeight: 52,
-    borderRadius: 26,
-    backgroundColor: colors.danger,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    ...shadows.soft,
-  },
-  logoutButtonText: {
-    color: colors.white,
-    fontFamily: fonts.black,
-    fontSize: 14,
-  },
+  gameTrack: { height: 6, borderRadius: 3, backgroundColor: colors.lavender, marginTop: 'auto', overflow: 'hidden' },
+  gameFill: { height: '100%', borderRadius: 4, backgroundColor: colors.purple },
   skillGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   skillCard: {
     width: '47.5%',
@@ -1138,6 +1157,25 @@ const styles = StyleSheet.create({
   skillDetail: { color: colors.textGray, fontFamily: fonts.semiBold, fontSize: 10, marginTop: 2 },
   skillDetailActive: { color: colors.white },
   emptyTabContent: { flexGrow: 1 },
+  mapFabWrap: {
+    position: 'absolute',
+    right: 22,
+  },
+  mapFab: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: colors.yellow,
+    borderWidth: 4,
+    borderColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.purple,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    elevation: 10,
+  },
   nav: {
     position: 'absolute',
     left: 16,

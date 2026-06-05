@@ -135,6 +135,17 @@ function PathNode({ skill, layout, onStartSkill }) {
           {skill.number}. {skill.name}
         </Text>
       </View>
+      {skill.active && skill.activeMessage ? (
+        <View style={styles.activePill}>
+          <Text style={styles.activeText}>{skill.activeMessage}</Text>
+        </View>
+      ) : null}
+      {!skill.active ? (
+        <View style={styles.reasonPill}>
+          <Ionicons name="lock-closed" size={11} color={colors.purple} />
+          <Text style={styles.reasonText}>{skill.lockedReason}</Text>
+        </View>
+      ) : null}
     </>
   );
 
@@ -217,7 +228,7 @@ const styles = StyleSheet.create({
   },
   node: {
     position: 'absolute',
-    width: NODE_SIZE + 52,
+    width: NODE_SIZE + 76,
     alignItems: 'center',
   },
   nodeCircle: {
@@ -261,6 +272,51 @@ const styles = StyleSheet.create({
     color: colors.purple,
     fontFamily: fonts.black,
     fontSize: 11,
+  },
+  reasonPill: {
+    maxWidth: NODE_SIZE + 70,
+    minHeight: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.xs,
+    marginTop: 4,
+    ...shadows.soft,
+  },
+  reasonText: {
+    flex: 1,
+    color: colors.textGray,
+    fontFamily: fonts.semiBold,
+    fontSize: 8,
+    lineHeight: 10,
+    textAlign: 'center',
+  },
+  activePill: {
+    maxWidth: NODE_SIZE + 70,
+    minHeight: 30,
+    borderRadius: 15,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.yellow,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.xs,
+    marginTop: 4,
+    ...shadows.soft,
+  },
+  activeText: {
+    color: colors.purple,
+    fontFamily: fonts.black,
+    fontSize: 9,
+    lineHeight: 11,
+    textAlign: 'center',
   },
   finishMark: {
     position: 'absolute',
