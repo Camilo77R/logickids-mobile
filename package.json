@@ -7,7 +7,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "test:juegos": "node --require ./scripts/registrarBabelTests.cjs --test tests/juegos/caminoAr.nucleo.test.cjs tests/juegos/tren3d.nucleo.test.cjs"
+    "test:juegos": "node --require ./scripts/registrarBabelTests.cjs --test tests/juegos/caminoAr.nucleo.test.cjs tests/juegos/tren3d.nucleo.test.cjs tests/juegos/mercadoAr.nucleo.test.cjs tests/juegos/mercadoAr.escena.test.cjs"
   },
   "dependencies": {
     "@expo-google-fonts/poppins": "^0.4.1",
