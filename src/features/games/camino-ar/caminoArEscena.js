@@ -2,16 +2,31 @@ import { ESTADOS_CAMINO_AR } from './caminoAr.constants';
 
 const resolverDescripcionEstado = (fase) =>
   ({
-    [ESTADOS_CAMINO_AR.listo]: 'Prepara al estudiante para memorizar el recorrido base.',
+    [ESTADOS_CAMINO_AR.listo]: 'Tu camino magico ya esta listo.',
     [ESTADOS_CAMINO_AR.mostrandoPatron]:
-      'El sistema esta mostrando el patron que luego se debe repetir.',
+      'Las luces te muestran la ruta secreta.',
     [ESTADOS_CAMINO_AR.esperandoRespuesta]:
-      'Es turno del estudiante: debe tocar las baldosas en el mismo orden.',
+      'Ahora sigue la misma ruta con tus dedos.',
     [ESTADOS_CAMINO_AR.completado]:
-      'La ronda cerro bien y quedo lista para persistir sus resultados.',
+      'Terminaste esta ronda y tu avance ya quedo guardado.',
     [ESTADOS_CAMINO_AR.fallido]:
-      'La ronda cerro con error o tiempo agotado. Puede reiniciarse sin ruido.',
-  })[fase] ?? 'Estado del juego no reconocido.';
+      'La ronda termino y tu intento tambien quedo guardado.',
+  })[fase] ?? 'Seguimos preparando la actividad.';
+
+const construirResumenSesionBackend = ({ respuestaInicioSesion }) => {
+  const sesion = respuestaInicioSesion?.sesion;
+
+  if (!sesion) {
+    return [];
+  }
+
+  return [
+    { etiqueta: 'Modo', valor: sesion.modo ?? 'single' },
+    { etiqueta: 'Paso', valor: sesion.orden_en_ruta ?? 1 },
+    { etiqueta: 'Bloque', valor: sesion.bloque_orden ?? 1 },
+    { etiqueta: 'Nivel', valor: sesion.nivel_en_bloque ?? 1 },
+  ];
+};
 
 const construirMetricasSesion = ({ configuracion, persistenciaSesion }) => [
   { etiqueta: 'Dificultad', valor: configuracion.dificultad },
@@ -29,18 +44,207 @@ const construirMetricasEstado = ({ estado }) => [
   { etiqueta: 'Pistas', valor: estado.ayudasRestantes },
 ];
 
-const construirMetricasResultado = ({ resultado }) => [
-  { etiqueta: 'Nivel', valor: resultado.estadisticas.nivelAlcanzado },
-  {
-    etiqueta: 'Tiempo',
-    valor: `${Math.ceil(resultado.estadisticas.tiempoTotalMs / 1000)} s`,
-  },
-  {
-    etiqueta: 'Precision',
-    valor: `${resultado.estadisticas.precisionPct}%`,
-  },
-  { etiqueta: 'Patron', valor: resultado.detalles.patronLongitud },
-];
+const resolverNumeroFinito = (valor, respaldo = 0) => {
+  const numero = Number(valor);
+  return Number.isFinite(numero) ? numero : respaldo;
+};
+
+const construirDatosResultadoOficial = ({
+  resultado,
+  respuestaFinalizacionSesion,
+}) => {
+  const resumenOficial = respuestaFinalizacionSesion?.resumen_oficial ?? {};
+  const estrellasObtenidas = resumenOficial.estrellas_obtenidas;
+
+  return {
+    puntaje: resolverNumeroFinito(
+      resumenOficial.puntaje,
+      resultado.estadisticas.puntaje,
+    ),
+    aciertos: resolverNumeroFinito(
+      resumenOficial.aciertos,
+      resultado.estadisticas.aciertos,
+    ),
+    errores: resolverNumeroFinito(
+      resumenOficial.errores,
+      resultado.estadisticas.errores,
+    ),
+    comboMaximo: resolverNumeroFinito(
+      resumenOficial.combo_maximo,
+      resultado.estadisticas.comboMaximo,
+    ),
+    estrellasObtenidas:
+      estrellasObtenidas == null ? null : resolverNumeroFinito(estrellasObtenidas, 0),
+  };
+};
+
+const construirResumenInfantilResultado = ({
+  resultado,
+  respuestaFinalizacionSesion,
+}) => {
+  const datosResultado = construirDatosResultadoOficial({
+    resultado,
+    respuestaFinalizacionSesion,
+  });
+  const patronLongitud = resolverNumeroFinito(resultado.detalles.patronLongitud, 0);
+  const patronResuelto = Boolean(resultado.detalles.patronResuelto);
+
+  return {
+    estrellas: datosResultado.estrellasObtenidas ?? 0,
+    estrellasSincronizadas: datosResultado.estrellasObtenidas != null,
+    estrellasMaximas: 3,
+    aciertos: datosResultado.aciertos,
+    errores: datosResultado.errores,
+    faltaron: patronResuelto
+      ? 0
+      : Math.max(0, patronLongitud - datosResultado.aciertos),
+    combo: datosResultado.comboMaximo,
+    patronLongitud,
+    patronResuelto,
+  };
+};
+
+const construirMetricasResultado = ({
+  resultado,
+  respuestaFinalizacionSesion,
+}) => {
+  const datosResultado = construirDatosResultadoOficial({
+    resultado,
+    respuestaFinalizacionSesion,
+  });
+
+  return [
+    { etiqueta: 'Puntaje', valor: datosResultado.puntaje },
+    { etiqueta: 'Aciertos', valor: datosResultado.aciertos },
+    { etiqueta: 'Errores', valor: datosResultado.errores },
+    { etiqueta: 'Precision', valor: `${resultado.estadisticas.precisionPct}%` },
+    {
+      etiqueta: 'Tiempo',
+      valor: `${Math.ceil(resultado.estadisticas.tiempoTotalMs / 1000)} s`,
+    },
+    { etiqueta: 'Combo', valor: datosResultado.comboMaximo },
+    { etiqueta: 'Estrellas', valor: datosResultado.estrellasObtenidas ?? '--' },
+  ];
+};
+
+const construirResumenCierreSesion = ({
+  respuestaInicioSesion,
+  respuestaFinalizacionSesion,
+}) => {
+  if (!respuestaFinalizacionSesion) {
+    return null;
+  }
+
+  const logros = Array.isArray(respuestaFinalizacionSesion.logros_desbloqueados)
+    ? respuestaFinalizacionSesion.logros_desbloqueados
+    : [];
+  const progreso = respuestaFinalizacionSesion.progreso_ruta ?? null;
+  const siguientePaso = progreso?.siguientePaso ?? null;
+  const minijuegoActualId = Number(respuestaInicioSesion?.sesion?.minijuego_id ?? 0);
+  const siguienteMinijuegoId = Number(siguientePaso?.minijuego_id ?? 0);
+  const siguienteEsMismoJuego =
+    Boolean(siguientePaso) &&
+    minijuegoActualId > 0 &&
+    siguienteMinijuegoId > 0 &&
+    minijuegoActualId === siguienteMinijuegoId;
+
+  return {
+    logros,
+    haySiguientePaso: Boolean(progreso?.haySiguientePaso),
+    siguienteEsMismoJuego,
+    participanteEstado: progreso?.participanteEstado ?? null,
+    resumenOficial: respuestaFinalizacionSesion?.resumen_oficial ?? null,
+  };
+};
+
+const resolverMensajeProgreso = ({ cierreSesion }) => {
+  if (!cierreSesion) {
+    return 'Guardando tus resultados y actualizando tu progreso...';
+  }
+
+  if (cierreSesion.haySiguientePaso && cierreSesion.siguienteEsMismoJuego) {
+    return 'Tus resultados ya quedaron guardados. Sigue con el siguiente nivel cuando quieras.';
+  }
+
+  if (cierreSesion.haySiguientePaso && !cierreSesion.siguienteEsMismoJuego) {
+    return 'Camino AR ya terminó por ahora. Vuelve al tablero para continuar con el siguiente juego.';
+  }
+
+  if (cierreSesion.participanteEstado === 'completado') {
+    return 'Actividad completada. Al volver al tablero verás tus logros y tu progreso actualizado.';
+  }
+
+  if (cierreSesion.participanteEstado === 'abandonado') {
+    return 'La actividad se cerró antes de continuar. Vuelve al tablero para revisar tu estado.';
+  }
+
+  if (cierreSesion.participanteEstado === 'cerrado') {
+    return 'Esta actividad ya quedó cerrada para este estudiante.';
+  }
+
+  return 'Tus resultados quedaron guardados para esta actividad.';
+};
+
+const construirCopyResultado = ({ resultado, cierreSesion, resumenInfantil }) => {
+  const patronResuelto = Boolean(resultado.detalles.patronResuelto);
+
+  return {
+    titulo: patronResuelto ? 'Misión cumplida' : 'Buen intento',
+    descripcion: patronResuelto
+      ? resumenInfantil.estrellasSincronizadas
+        ? `Seguiste ${resumenInfantil.patronLongitud} luces y ganaste ${resumenInfantil.estrellas} estrellas.`
+        : `Seguiste ${resumenInfantil.patronLongitud} luces. Estamos guardando tus estrellas.`
+      : `Llegaste a ${resumenInfantil.aciertos} aciertos. Tu avance quedo guardado para seguir practicando.`,
+    mensajeProgreso: resolverMensajeProgreso({ cierreSesion }),
+  };
+};
+
+const construirAccionResultado = ({
+  cierreSesion,
+  continuarActividad,
+  salirActividad,
+}) => {
+  if (!cierreSesion) {
+    return {
+      accionContinuar: null,
+      etiquetaContinuar: null,
+      accionSalir: null,
+      etiquetaSalir: null,
+      sincronizandoCierre: true,
+    };
+  }
+
+  if (cierreSesion.haySiguientePaso && cierreSesion.siguienteEsMismoJuego) {
+    return {
+      accionContinuar: continuarActividad,
+      etiquetaContinuar: 'Siguiente reto',
+      accionSalir: salirActividad,
+      etiquetaSalir: 'Volver al tablero',
+      sincronizandoCierre: false,
+    };
+  }
+
+  if (cierreSesion.haySiguientePaso && !cierreSesion.siguienteEsMismoJuego) {
+    return {
+      accionContinuar: null,
+      etiquetaContinuar: null,
+      accionSalir: salirActividad,
+      etiquetaSalir: 'Volver al tablero',
+      sincronizandoCierre: false,
+    };
+  }
+
+  return {
+    accionContinuar: null,
+    etiquetaContinuar: null,
+    accionSalir: salirActividad,
+    etiquetaSalir:
+      cierreSesion.participanteEstado === 'abandonado'
+        ? 'Salir'
+        : 'Volver al inicio',
+    sincronizandoCierre: false,
+  };
+};
 
 const construirBaldosasEscena = ({ configuracion, estado, columnasTablero }) =>
   Array.from({ length: configuracion.configuracion.cantidadBaldosas }).map((_, indice) => ({
@@ -55,21 +259,22 @@ const construirBaldosasEscena = ({ configuracion, estado, columnasTablero }) =>
 const construirAccionesEscena = ({
   iniciarPartida,
   usarPista,
-  reiniciarPartida,
   puedePedirPista,
+  fase,
+  resultadoVisible,
+  preparandoRonda,
 }) => ({
+  mostrarControlesPrincipales: !resultadoVisible,
   iniciar: {
-    etiqueta: 'Iniciar ronda',
+    etiqueta: preparandoRonda ? 'Preparando...' : 'Vamos',
     accion: iniciarPartida,
+    deshabilitada:
+      resultadoVisible || preparandoRonda || fase !== ESTADOS_CAMINO_AR.listo,
   },
   pista: {
-    etiqueta: 'Usar pista',
+    etiqueta: 'Ver camino',
     accion: usarPista,
-    deshabilitada: !puedePedirPista,
-  },
-  reiniciar: {
-    etiqueta: 'Reiniciar',
-    accion: reiniciarPartida,
+    deshabilitada: resultadoVisible || preparandoRonda || !puedePedirPista,
   },
 });
 
@@ -77,43 +282,60 @@ const construirAccionesEscena = ({
  * Traduce el estado interno del juego a un modelo de escena reutilizable.
  *
  * POR QUÉ:
- * la vista 2D y la vista AR no deberían reconstruir reglas visuales cada una
- * por su cuenta. Ambas leen el mismo "mapa de escena".
+ * el renderer AR no deberia mezclar reglas de juego, estado remoto y copy
+ * pedagógico. Toda esa traduccion vive aqui.
  */
 export const construirEscenaCaminoAr = ({
   configuracion,
   estado,
   columnasTablero,
   persistenciaSesion,
+  respuestaInicioSesion,
+  respuestaFinalizacionSesion,
+  continuarActividad,
+  salirActividad,
   iniciarPartida,
-  reiniciarPartida,
   seleccionarBaldosa,
   usarPista,
   puedePedirPista,
+  preparandoRonda = false,
 }) => ({
+  salida: {
+    permitida:
+      estado.fase === ESTADOS_CAMINO_AR.listo ||
+      Boolean(estado.resultado && respuestaFinalizacionSesion),
+    etiqueta:
+      estado.fase === ESTADOS_CAMINO_AR.listo ||
+      Boolean(estado.resultado && respuestaFinalizacionSesion)
+        ? 'Volver'
+        : 'Espera a terminar',
+  },
   encabezado: {
-    ceja: 'Primer juego real del proyecto',
+    ceja: 'Reto de memoria',
     titulo: 'Camino AR',
-    subtitulo:
-      'El nucleo de memoria secuencial ya queda listo en React Native puro. La escena AR se conecta despues.',
+    subtitulo: 'Mira la ruta de luces y repitela tocando las baldosas en el mismo orden.',
   },
   sesion: {
-    titulo: 'Sesion base del juego',
+    titulo: 'Sesion actual',
     descripcion:
-      'Todos empiezan en nivel 1. Mas adelante otra capa podra adaptar esta configuracion con IA sin reescribir el juego.',
-    metricas: construirMetricasSesion({ configuracion, persistenciaSesion }),
+      'Cada ronda guarda tu avance y prepara el siguiente reto cuando corresponde.',
+    metricas: [
+      ...construirMetricasSesion({ configuracion, persistenciaSesion }),
+      ...construirResumenSesionBackend({ respuestaInicioSesion }),
+    ],
     errorPersistencia: persistenciaSesion?.error ?? null,
   },
   estadoActual: {
+    fase: estado.fase,
     titulo: 'Estado actual',
     mensaje: estado.mensaje,
     descripcion: resolverDescripcionEstado(estado.fase),
     metricas: construirMetricasEstado({ estado }),
   },
   tablero: {
-    titulo: 'Tablero base',
+    titulo: 'Recorrido activo',
     descripcion:
-      'Este tablero ya representa el corazon del juego: mostrar una secuencia y pedirle al nino que la repita en orden.',
+      'Primero se muestra el patron. Despues el estudiante debe repetirlo en el mismo orden para completar la ronda.',
     columnas: columnasTablero,
     baldosas: construirBaldosasEscena({ configuracion, estado, columnasTablero }),
     alSeleccionarBaldosa: seleccionarBaldosa,
@@ -121,21 +343,59 @@ export const construirEscenaCaminoAr = ({
   acciones: construirAccionesEscena({
     iniciarPartida,
     usarPista,
-    reiniciarPartida,
     puedePedirPista,
+    fase: estado.fase,
+    resultadoVisible: Boolean(estado.resultado),
+    preparandoRonda,
   }),
-  resultado: estado.resultado
-    ? {
-        visible: true,
-        titulo: estado.resultado.detalles.patronResuelto
-          ? 'Actividad completada'
-          : 'Actividad terminada',
-        descripcion: `Contrato comun listo: puntaje ${estado.resultado.estadisticas.puntaje}, ${estado.resultado.estadisticas.aciertos} aciertos, ${estado.resultado.estadisticas.errores} errores y ${estado.resultado.estadisticas.pistasUsadas} pistas usadas.`,
-        metricas: construirMetricasResultado({
-          resultado: estado.resultado,
-        }),
-      }
-    : {
+  resultado: (() => {
+    if (!estado.resultado) {
+      return {
         visible: false,
-      },
+      };
+    }
+
+    const cierreSesion = construirResumenCierreSesion({
+      respuestaInicioSesion,
+      respuestaFinalizacionSesion,
+    });
+    const accionesResultado = construirAccionResultado({
+      cierreSesion,
+      continuarActividad,
+      salirActividad,
+    });
+    const resumenInfantil = construirResumenInfantilResultado({
+      resultado: estado.resultado,
+      respuestaFinalizacionSesion,
+    });
+    const copyResultado = construirCopyResultado({
+      resultado: estado.resultado,
+      cierreSesion,
+      resumenInfantil,
+    });
+
+    return {
+      visible: true,
+      titulo: copyResultado.titulo,
+      descripcion: copyResultado.descripcion,
+      mensajeProgreso: copyResultado.mensajeProgreso,
+      resumenInfantil,
+      mostrarCelebracion:
+        resumenInfantil.estrellas >= 2 || Boolean(cierreSesion?.logros?.length),
+      metricas: construirMetricasResultado({
+        resultado: estado.resultado,
+        respuestaFinalizacionSesion,
+      }),
+      logros: cierreSesion?.logros ?? [],
+      resumenOficial: cierreSesion?.resumenOficial ?? null,
+      haySiguientePaso: cierreSesion?.haySiguientePaso ?? false,
+      siguienteEsMismoJuego: cierreSesion?.siguienteEsMismoJuego ?? false,
+      participanteEstado: cierreSesion?.participanteEstado ?? null,
+      accionContinuar: accionesResultado.accionContinuar,
+      etiquetaContinuar: accionesResultado.etiquetaContinuar,
+      accionSalir: accionesResultado.accionSalir,
+      etiquetaSalir: accionesResultado.etiquetaSalir,
+      sincronizandoCierre: accionesResultado.sincronizandoCierre ?? false,
+    };
+  })(),
 });

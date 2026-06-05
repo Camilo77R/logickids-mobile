@@ -1,17 +1,18 @@
 import React from 'react';
 import {
-  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colores, espaciado, radios, tipografia } from '../../../../theme/tokens';
 
 export default function CaminoArVistaArPreview({
   onSalir,
   configuracion,
+  escenaEspacial,
   persistenciaSesion,
 }) {
   return (
@@ -33,13 +34,27 @@ export default function CaminoArVistaArPreview({
         </View>
 
         <View style={styles.panel}>
-          <Text style={styles.tituloPanel}>Configuracion recibida</Text>
+          <Text style={styles.tituloPanel}>Modelo espacial listo</Text>
           <Text style={styles.texto}>Dificultad: {configuracion.dificultad}</Text>
-          <Text style={styles.texto}>Patron: {configuracion.configuracion.longitudPatron}</Text>
-          <Text style={styles.texto}>Baldosas: {configuracion.configuracion.cantidadBaldosas}</Text>
           <Text style={styles.texto}>Modo: {configuracion.modoPresentacion}</Text>
+          <Text style={styles.texto}>
+            Plano: {escenaEspacial.plano.ancho}m x {escenaEspacial.plano.profundo}m
+          </Text>
+          <Text style={styles.texto}>Baldosas: {escenaEspacial.baldosas.length}</Text>
+          <Text style={styles.texto}>
+            Activa: {escenaEspacial.baldosas.find((baldosa) => baldosa.estadoVisual === 'activa')?.numeroVisible ?? 'ninguna'}
+          </Text>
           <Text style={styles.texto}>Persistencia: {persistenciaSesion?.modo ?? 'local'}</Text>
           <Text style={styles.texto}>Estado sync: {persistenciaSesion?.estado ?? 'inactiva'}</Text>
+        </View>
+
+        <View style={styles.panel}>
+          <Text style={styles.tituloPanel}>Primeras posiciones en el mundo</Text>
+          {escenaEspacial.baldosas.slice(0, 3).map((baldosa) => (
+            <Text key={baldosa.id} style={styles.texto}>
+              Baldosa {baldosa.numeroVisible}: [{baldosa.posicion.join(', ')}] - {baldosa.estadoVisual}
+            </Text>
+          ))}
         </View>
       </View>
     </SafeAreaView>

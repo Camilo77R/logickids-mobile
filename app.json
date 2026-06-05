@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -15,7 +16,10 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "LogicKids necesita la camara para escanear codigos QR y usar experiencias de realidad aumentada."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -24,10 +28,39 @@
       },
       "package": "com.camilosr.logickidsmobile"
     },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "LogicKids necesita la camara para escanear codigos QR de inicio de sesion.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "@reactvision/react-viro",
+        {
+          "android": {
+            "xRMode": "AR"
+          },
+          "ios": {
+            "cameraUsagePermission": "$(PRODUCT_NAME) usa la camara para experiencias de realidad aumentada.",
+            "microphoneUsagePermission": "$(PRODUCT_NAME) usa el microfono para experiencias de realidad aumentada.",
+            "photosPermission": "$(PRODUCT_NAME) necesita acceder a fotos para funciones de realidad aumentada.",
+            "savephotosPermission": "$(PRODUCT_NAME) necesita guardar imagenes generadas durante experiencias de realidad aumentada."
+          }
+        }
+      ],
+      "expo-font",
+      "expo-video",
+      "expo-audio",
+      "expo-asset"
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "extra": {
+      "qrLoginPath": "/estudiantes/login",
+      "studentProfilePath": "/estudiantes/mi-perfil",
       "eas": {
         "projectId": "2b38a483-2833-421a-8bb1-b56bbfbfb76a"
       }

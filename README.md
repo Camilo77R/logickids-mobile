@@ -4,32 +4,45 @@ Este repositorio contiene el código fuente de la aplicación móvil de **LogicK
 
 La aplicación integra de forma nativa un motor de renderizado 3D (**Babylon.js**) utilizando una arquitectura basada en `WebView`, lo que permite un rendimiento óptimo y multiplataforma sin depender de compilaciones pesadas de C++.
 
-##  Cómo ejecutar el proyecto (Para Revisión)
+##  Cómo ejecutar el proyecto (Para revisión)
 
-Para probar la aplicación en tu propio dispositivo móvil (Android o iOS), sigue estos 3 sencillos pasos:
+### Nota importante sobre Camino AR
 
-### 1. Requisitos Previos
+La parte de `Camino AR` usa `@reactvision/react-viro`, por lo tanto:
+
+- **no funciona con Expo Go**
+- debe abrirse con **development build / dev client**
+
+Si la revision incluye `Camino AR`, sigue esta guia y no la de Expo Go.
+
+### 1. Requisitos previos
 * Asegúrate de tener instalado **Node.js** en tu computadora.
-* Descarga la aplicación **"Expo Go"** en tu celular desde la Google Play Store (Android) o la App Store (iOS).
+* Tener disponible un **development build** de la app en el celular.
 
-### 2. Instalación
+### 2. Instalacion
 Abre una terminal en la carpeta raíz del proyecto y ejecuta el siguiente comando para instalar todas las dependencias de React Native:
 ```bash
 npm install
 ```
 
-### 3. Ejecutar el Servidor Local
+### 3. Ejecutar el servidor local
 Una vez instaladas las dependencias, inicia el servidor de desarrollo de Expo ejecutando:
 ```bash
 npx expo start -c
 ```
 *(Nota: El flag `-c` limpia la caché para asegurar que no haya errores residuales).*
 
-### 4. Ver la App en tu Celular
+### 4. Ver la app en tu celular
 1. La terminal mostrará un **Código QR**.
-2. Abre la aplicación **Expo Go** en tu celular.
-3. Presiona **"Scan QR Code"** (o usa la cámara de tu iPhone) y escanea el código de la terminal.
+2. Abre el **dev client** de la app en tu celular.
+3. Escanea el código de la terminal o abre el proyecto desde el dev client.
 4. La aplicación cargará el código fuente por Wi-Fi de forma inalámbrica.
+
+### 5. Playtest de Camino AR
+
+Para una prueba funcional de `Camino AR`, revisar:
+
+- [docs/PLAYTEST_CAMINO_AR.md](./docs/PLAYTEST_CAMINO_AR.md)
 
 ---
 

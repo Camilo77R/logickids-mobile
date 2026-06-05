@@ -2,6 +2,7 @@
 
 # dependencies
 node_modules/
+.npm-cache/
 
 # Expo
 .expo/
@@ -9,6 +10,8 @@ dist/
 web-build/
 
 # Native
+android/
+ios/
 *.orig.*
 *.jks
 *.p8
@@ -29,6 +32,7 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # typescript

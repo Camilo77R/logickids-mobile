@@ -1,43 +1,168 @@
-import React from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useCaminoArControlador } from './useCaminoArControlador';
-import { MODOS_PRESENTACION_CAMINO_AR } from './caminoAr.constants';
 import { construirEscenaCaminoAr } from './caminoArEscena';
+import { construirEscenaEspacialCaminoAr } from './caminoArEscenaEspacial';
 import { useSesionCaminoAr } from './aplicacion/useSesionCaminoAr';
-import CaminoArVista2d from './presentacion/CaminoArVista2d';
-import CaminoArVistaArPreview from './presentacion/CaminoArVistaArPreview';
-
-const renderizadoresCaminoAr = Object.freeze({
-  [MODOS_PRESENTACION_CAMINO_AR.tablero2d]: CaminoArVista2d,
-  [MODOS_PRESENTACION_CAMINO_AR.realidadAumentada]: CaminoArVistaArPreview,
-});
+import { resolverConfiguracionCaminoArDesdeBackend } from './caminoArConfiguracion';
+import CaminoArVistaArViro from './presentacion/CaminoArVistaArViro';
+import { ESTADOS_CAMINO_AR } from './caminoAr.constants';
 
 export default function CaminoARScreen({
   onSalir,
   configuracionInicial,
   contextoSesion,
 }) {
+  const [preparandoRonda, setPreparandoRonda] = useState(false);
   const sesionCaminoAr = useSesionCaminoAr({
     configuracion: configuracionInicial,
     contextoSesion,
   });
+  const configuracionEfectiva = useMemo(
+    () =>
+      resolverConfiguracionCaminoArDesdeBackend({
+        configuracionLocal: configuracionInicial,
+        respuestaInicioSesion: sesionCaminoAr.respuestaInicio,
+      }),
+    [configuracionInicial, sesionCaminoAr.respuestaInicio],
+  );
   const controlador = useCaminoArControlador(
-    configuracionInicial,
+    configuracionEfectiva,
     sesionCaminoAr.observadoresJuego,
   );
-  const escena = construirEscenaCaminoAr({
-    ...controlador,
-    persistenciaSesion: sesionCaminoAr.persistencia,
-  });
-  const RenderizadorCaminoAr =
-    renderizadoresCaminoAr[controlador.configuracion.modoPresentacion] ??
-    CaminoArVista2d;
+  const cancelarRondaTecnica = useCallback((motivo) => {
+    controlador.cancelarPartidaTecnica(motivo);
+    sesionCaminoAr.prepararNuevaRonda();
+  }, [controlador, sesionCaminoAr]);
+
+  const solicitarInicioRonda = useCallback(async ({ tableroDisponible } = {}) => {
+    const tableroSigueListo =
+      typeof tableroDisponible === 'function' ? tableroDisponible : () => true;
+
+    if (
+      preparandoRonda ||
+      controlador.estado.fase !== ESTADOS_CAMINO_AR.listo ||
+      controlador.estado.resultado ||
+      !tableroSigueListo()
+    ) {
+      return;
+    }
+
+    setPreparandoRonda(true);
+
+    try {
+      const rondaLista = await sesionCaminoAr.prepararRonda(configuracionInicial.dificultad);
+
+      if (!rondaLista) {
+        return;
+      }
+
+      if (!tableroSigueListo()) {
+        cancelarRondaTecnica('El tablero se movio antes de empezar. Vamos a buscarlo de nuevo.');
+        return;
+      }
+
+      controlador.iniciarPartida();
+    } finally {
+      setPreparandoRonda(false);
+    }
+  }, [
+    configuracionInicial.dificultad,
+    cancelarRondaTecnica,
+    controlador,
+    preparandoRonda,
+    sesionCaminoAr,
+  ]);
+
+  const continuarActividad = useCallback(async ({ tableroDisponible } = {}) => {
+    const tableroSigueListo =
+      typeof tableroDisponible === 'function' ? tableroDisponible : () => true;
+
+    if (preparandoRonda) {
+      return;
+    }
+
+    if (!tableroSigueListo()) {
+      sesionCaminoAr.prepararNuevaRonda();
+      controlador.reiniciarPartida();
+      return;
+    }
+
+    setPreparandoRonda(true);
+    sesionCaminoAr.prepararNuevaRonda();
+    controlador.reiniciarPartida();
+
+    try {
+      const rondaLista = await sesionCaminoAr.prepararRonda(configuracionInicial.dificultad);
+
+      if (!rondaLista) {
+        return;
+      }
+
+      if (!tableroSigueListo()) {
+        cancelarRondaTecnica('El tablero se movio antes del siguiente reto. Vamos a buscarlo de nuevo.');
+        return;
+      }
+
+      controlador.iniciarPartida();
+    } finally {
+      setPreparandoRonda(false);
+    }
+  }, [
+    configuracionInicial.dificultad,
+    cancelarRondaTecnica,
+    controlador,
+    preparandoRonda,
+    sesionCaminoAr,
+  ]);
+
+  const escena = useMemo(
+    () =>
+      construirEscenaCaminoAr({
+        ...controlador,
+        iniciarPartida: solicitarInicioRonda,
+        persistenciaSesion: sesionCaminoAr.persistencia,
+        respuestaInicioSesion: sesionCaminoAr.respuestaInicio,
+        respuestaFinalizacionSesion: sesionCaminoAr.respuestaFinalizacion,
+        continuarActividad,
+        salirActividad: onSalir,
+        puedePedirPista: controlador.puedePedirPista,
+        preparandoRonda,
+      }),
+    [
+      continuarActividad,
+      controlador,
+      onSalir,
+      preparandoRonda,
+      solicitarInicioRonda,
+      sesionCaminoAr.persistencia,
+      sesionCaminoAr.respuestaFinalizacion,
+      sesionCaminoAr.respuestaInicio,
+    ],
+  );
+  const escenaEspacial = useMemo(
+    () =>
+      construirEscenaEspacialCaminoAr({
+        escena,
+        configuracion: controlador.configuracion,
+      }),
+    [
+      controlador.configuracion,
+      controlador.columnasTablero,
+      controlador.estado.baldosaActiva,
+      controlador.estado.fase,
+      controlador.estado.mensaje,
+      controlador.configuracion.configuracion.cantidadBaldosas,
+    ],
+  );
 
   return (
-    <RenderizadorCaminoAr
+    <CaminoArVistaArViro
       onSalir={onSalir}
       escena={escena}
+      escenaEspacial={escenaEspacial}
       persistenciaSesion={sesionCaminoAr.persistencia}
       respuestaInicioSesion={sesionCaminoAr.respuestaInicio}
+      cancelarPartidaTecnica={cancelarRondaTecnica}
       {...controlador}
     />
   );

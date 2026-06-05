@@ -1,3 +1,5 @@
+export const SLUG_CAMINO_AR = 'camino-ar';
+
 export const ESTADOS_CAMINO_AR = Object.freeze({
   listo: 'listo',
   mostrandoPatron: 'mostrandoPatron',
@@ -6,7 +8,4 @@ export const ESTADOS_CAMINO_AR = Object.freeze({
   fallido: 'fallido',
 });
 
-export const MODOS_PRESENTACION_CAMINO_AR = Object.freeze({
-  tablero2d: 'tablero-2d',
-  realidadAumentada: 'realidad-aumentada',
-});
+export const MODO_PRESENTACION_CAMINO_AR = 'realidad-aumentada';
