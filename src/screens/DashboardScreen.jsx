@@ -14,6 +14,12 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import CaminoARScreen from '../features/games/camino-ar/CaminoARScreen';
 import { obtenerConfiguracionBaseCaminoAr } from '../features/games/camino-ar/caminoArConfiguracion';
+import Tren3DScreen from '../features/games/tren-3d/Tren3DScreen';
+import { obtenerConfiguracionBaseTren3D } from '../features/games/tren-3d/tren3dConfiguracion';
+import {
+  SLUG_TREN_3D,
+  TITULO_TREN_3D,
+} from '../features/games/tren-3d/tren3d.constants';
 import RobotTallerScreen from '../features/games/robot-taller/RobotTallerScreen';
 import { obtenerConfiguracionBaseRobotTaller } from '../features/games/robot-taller/robotTallerConfiguracion';
 import {
@@ -29,7 +35,7 @@ const DASHBOARD_BACKGROUND = '#FAF3FF';
 
 const OFFICIAL_SKILLS = Object.freeze([
   { name: 'Memoria', icon: 'bulb', gameSlug: 'camino-ar' },
-  { name: 'Patrones', icon: 'extension-puzzle' },
+  { name: 'Patrones', icon: 'extension-puzzle', gameSlug: SLUG_TREN_3D },
   { name: 'Logica', icon: 'scale', gameSlug: 'robot-taller' },
   { name: 'Razonar', icon: 'cube' },
   { name: 'Atencion', icon: 'search' },
@@ -163,7 +169,7 @@ const buildActivityCopy = ({ profile, access, robotTallerAccess, playState }) =>
       text:
         accesoEfectivo.juegoHabilitadoSlug === 'robot-taller'
           ? 'Tu clase esta activa. Entra, observa el orden de las piezas y arma el robot.'
-          : 'Tu clase esta activa. Entra, observa el patron y completa el camino.',
+          : 'Tu clase esta activa. Entra, observa el patron y completa la actividad.',
       buttonLabel: 'Comenzar',
     };
   }
@@ -186,7 +192,7 @@ const buildActivityCopy = ({ profile, access, robotTallerAccess, playState }) =>
   };
 };
 
-const buildSkillCards = ({ access, robotTallerAccess, skillStatsView }) => {
+const buildSkillCards = ({ accessBySlug, skillStatsView }) => {
   const entries = skillStatsView?.entries ?? [];
   const statsBySkill = new Map(
     entries.map((entry) => [normalizeSkillKey(entry.skillName), entry]),
@@ -194,11 +200,8 @@ const buildSkillCards = ({ access, robotTallerAccess, skillStatsView }) => {
 
   return OFFICIAL_SKILLS.map((skill, index) => {
     const stat = statsBySkill.get(normalizeSkillKey(skill.name));
-    const isCaminoArCard = skill.gameSlug === 'camino-ar';
-    const isRobotTallerCard = skill.gameSlug === 'robot-taller';
-    const isAvailable =
-      (isCaminoArCard && access.estado === ESTADOS_ACCESO_JUEGO.disponible) ||
-      (isRobotTallerCard && robotTallerAccess.estado === ESTADOS_ACCESO_JUEGO.disponible);
+    const access = skill.gameSlug ? accessBySlug[skill.gameSlug] : null;
+    const isAvailable = access?.estado === ESTADOS_ACCESO_JUEGO.disponible;
 
     return {
       ...skill,
@@ -234,6 +237,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
 
   const studentProfile = profile ?? studentSession?.studentProfile ?? null;
   const caminoArConfig = useMemo(() => obtenerConfiguracionBaseCaminoAr(), []);
+  const tren3DConfig = useMemo(() => obtenerConfiguracionBaseTren3D(), []);
   const caminoArAccess = useMemo(
     () =>
       resolverAccesoJuegoDesdePerfil({
@@ -241,6 +245,14 @@ export default function DashboardScreen({ studentSession, onLogout }) {
         slugJuego: caminoArConfig.slug,
       }),
     [caminoArConfig.slug, studentProfile],
+  );
+  const tren3DAccess = useMemo(
+    () =>
+      resolverAccesoJuegoDesdePerfil({
+        perfilEstudiante: studentProfile,
+        slugJuego: tren3DConfig.slug,
+      }),
+    [studentProfile, tren3DConfig.slug],
   );
   const caminoArSessionContext = useMemo(
     () => ({
@@ -267,31 +279,55 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     }),
     [studentProfile?.sesion_minijuego_id, studentSession?.apiBaseUrl, studentSession?.token],
   );
+  const tren3DSessionContext = useMemo(
+    () => ({
+      tokenEstudiante: studentSession?.token ?? null,
+      baseUrlApi: studentSession?.apiBaseUrl ?? null,
+      minijuegoId: studentProfile?.sesion_minijuego_id ?? null,
+    }),
+    [studentProfile?.sesion_minijuego_id, studentSession?.apiBaseUrl, studentSession?.token],
+  );
+  const accessBySlug = useMemo(
+    () => ({
+      [caminoArConfig.slug]: caminoArAccess,
+      [tren3DConfig.slug]: tren3DAccess,
+      [robotTallerConfig.slug]: robotTallerAccess,
+    }),
+    [caminoArAccess, caminoArConfig.slug, tren3DAccess, tren3DConfig.slug, robotTallerAccess, robotTallerConfig.slug],
+  );
+  const currentGameAccess = accessBySlug[studentProfile?.sesion_minijuego_slug] ?? caminoArAccess;
   const activityCopy = useMemo(
     () =>
       buildActivityCopy({
         profile: studentProfile,
-        access: caminoArAccess,
+        access: currentGameAccess,
         robotTallerAccess,
         playState,
       }),
-    [caminoArAccess, robotTallerAccess, playState, studentProfile],
+    [currentGameAccess, robotTallerAccess, playState, studentProfile],
   );
   const skillCards = useMemo(
     () =>
       buildSkillCards({
-        access: caminoArAccess,
-        robotTallerAccess,
+        accessBySlug,
         skillStatsView,
       }),
-    [caminoArAccess, robotTallerAccess, skillStatsView],
+    [accessBySlug, skillStatsView],
   );
 
   const firstName = getStudentName(studentProfile, studentSession?.studentProfile).split(' ')[0];
   const avatarUri = getFrontendAvatarUri(studentProfile, studentSession?.studentProfile);
   const avatarColor = getStudentAvatarColor(studentProfile, studentSession?.studentProfile);
   const canPlayCaminoAr = caminoArAccess.estado === ESTADOS_ACCESO_JUEGO.disponible;
+  const canPlayTren3D = tren3DAccess.estado === ESTADOS_ACCESO_JUEGO.disponible;
   const canPlayRobotTaller = robotTallerAccess.estado === ESTADOS_ACCESO_JUEGO.disponible;
+  const availableGameSlug = canPlayCaminoAr
+    ? caminoArConfig.slug
+    : canPlayTren3D
+      ? tren3DConfig.slug
+      : canPlayRobotTaller
+        ? robotTallerConfig.slug
+        : null;
   const achievementsCount = achievements.length;
   const precisionLabel =
     progressSummary.averagePrecision == null ? 'Sin datos' : `${progressSummary.averagePrecision}%`;
@@ -300,8 +336,8 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const dashboardAccess = resolveStudentDashboardAccess(studentProfile);
 
   const startOrRefresh = () => {
-    if (canPlayCaminoAr) {
-      setActiveGame('camino-ar');
+    if (availableGameSlug) {
+      setActiveGame(availableGameSlug);
       setShowGamePath(false);
       return;
     }
@@ -315,12 +351,12 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   };
 
   const handlePathSkillPress = (skill) => {
-    if (skill.gameSlug === 'camino-ar' || skill.gameSlug === 'robot-taller') {
+    if (skill.gameSlug === 'camino-ar' || skill.gameSlug === 'tren-3d' || skill.gameSlug === 'robot-taller') {
       startOrRefresh();
     }
   };
 
-  const exitCaminoAr = async () => {
+  const exitGame = async () => {
     try {
       await reloadDashboard();
     } finally {
@@ -352,7 +388,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   if (activeGame === 'camino-ar') {
     return (
       <CaminoARScreen
-        onSalir={exitCaminoAr}
+        onSalir={exitGame}
         configuracionInicial={caminoArConfig}
         contextoSesion={caminoArSessionContext}
       />
@@ -373,6 +409,16 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     setActiveTab(nextTab);
     setShowGamePath(false);
   };
+
+  if (activeGame === SLUG_TREN_3D) {
+    return (
+      <Tren3DScreen
+        onSalir={exitGame}
+        configuracionInicial={tren3DConfig}
+        contextoSesion={tren3DSessionContext}
+      />
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -432,20 +478,13 @@ export default function DashboardScreen({ studentSession, onLogout }) {
                   <TouchableOpacity
                     activeOpacity={0.9}
                     onPress={startOrRefresh}
-                    style={[
-                      styles.heroButton,
-                      !canPlayCaminoAr && !canPlayRobotTaller && styles.heroButtonMuted,
-                    ]}
+                    style={[styles.heroButton, !availableGameSlug && styles.heroButtonMuted]}
                   >
                     {isLoading || isRefreshing ? <ActivityIndicator color={colors.white} /> : null}
                     <Text style={styles.heroButtonText}>
                       {isLoading || isRefreshing ? 'Cargando' : activityCopy.buttonLabel}
                     </Text>
-                    <Ionicons
-                      name={canPlayCaminoAr || canPlayRobotTaller ? 'play' : 'sync'}
-                      size={18}
-                      color={colors.white}
-                    />
+                    <Ionicons name={availableGameSlug ? 'play' : 'sync'} size={18} color={colors.white} />
                   </TouchableOpacity>
                 </View>
                 <View style={styles.character}>
@@ -467,11 +506,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
                       icon={skill.icon}
                       label={skill.name}
                       number={skill.actionLabel}
-                      onPress={
-                        skill.gameSlug === 'camino-ar' || skill.gameSlug === 'robot-taller'
-                          ? startOrRefresh
-                          : undefined
-                      }
+                      onPress={skill.active ? startOrRefresh : undefined}
                     />
                   ))}
                 </View>
@@ -490,10 +525,16 @@ export default function DashboardScreen({ studentSession, onLogout }) {
                 <SectionTitle title="Continua jugando" />
                 <View style={styles.games}>
                   <GameCard
-                    title={caminoArAccess.juegoHabilitadoTitulo ?? studentProfile?.sesion_minijuego_titulo ?? 'Camino AR'}
+                    title={caminoArAccess.juegoHabilitadoTitulo ?? 'Camino AR'}
                     status={canPlayCaminoAr ? 'Actividad' : 'Bloqueado'}
                     locked={!canPlayCaminoAr}
-                    onPress={startOrRefresh}
+                    onPress={canPlayCaminoAr ? () => setActiveGame(caminoArConfig.slug) : undefined}
+                  />
+                  <GameCard
+                    title={tren3DAccess.juegoHabilitadoTitulo ?? TITULO_TREN_3D}
+                    status={canPlayTren3D ? 'Actividad' : 'Bloqueado'}
+                    locked={!canPlayTren3D}
+                    onPress={canPlayTren3D ? () => setActiveGame(SLUG_TREN_3D) : undefined}
                   />
                   <GameCard
                     title={robotTallerAccess.juegoHabilitadoTitulo ?? 'Taller del Robot'}
