@@ -341,6 +341,11 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       setShowGamePath(false);
       return;
     }
+    if (canPlayRobotTaller) {
+      setActiveGame('robot-taller');
+      setShowGamePath(false);
+      return;
+    }
 
     reloadDashboard();
   };

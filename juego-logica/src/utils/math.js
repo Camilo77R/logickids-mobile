@@ -1,0 +1,248 @@
+/**
+ * Math utility functions for vector operations and coordinate transformations
+ */
+
+import * as THREE from 'three';
+
+
+/**
+ * Calculate Euclidean distance between two 3D points
+ */
+export function distance3D(
+  p1,
+  p2
+) {
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const dz = p2.z - p1.z;
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+/**
+ * Calculate midpoint between two 3D points
+ */
+export function midpoint3D(
+  p1,
+  p2
+) {
+  return new THREE.Vector3((p1.x + p2.x) / 2, (p1.y + p2.y) / 2, (p1.z + p2.z) / 2);
+}
+
+/**
+ * Convert normalized landmark coordinates to Three.js world space
+ * MediaPipe normalized coordinates: x,y in [0,1], z is depth relative to wrist
+ * Three.js world: centered at origin, scaled appropriately
+ */
+export function normalizedToWorld(landmark, scale = 10) {
+  // Convert from [0,1] to [-0.5, 0.5] range, then scale
+  // Flip Y because screen Y is inverted relative to 3D Y
+  return new THREE.Vector3(
+    (landmark.x - 0.5) * scale,
+    -(landmark.y - 0.5) * scale,
+    -landmark.z * scale // Z points toward camera in MediaPipe
+  );
+}
+
+/**
+ * Apply Gram-Schmidt orthogonalization to create orthonormal basis
+ * This is critical for creating valid rotation matrices from hand landmarks
+ * because landmark vectors are not guaranteed to be perpendicular
+ *
+ * @param forward - Primary direction vector (will be normalized)
+ * @param right - Secondary direction vector (will be orthogonalized to forward)
+ * @returns Orthonormal basis { forward, right, up }
+ */
+export function gramSchmidtOrthogonalize(
+  rawForward,
+  rawRight
+) {
+  // Step 1: Normalize forward vector
+  const forward = rawForward.clone().normalize();
+
+  // Step 2: Remove component of rawRight parallel to forward
+  const rightProjection = forward.clone().multiplyScalar(forward.dot(rawRight));
+  const right = rawRight.clone().sub(rightProjection).normalize();
+
+  // Step 3: Compute up vector via cross product (guaranteed perpendicular)
+  const up = new THREE.Vector3().crossVectors(forward, right).normalize();
+
+  // Step 4: Re-orthogonalize right for numerical stability
+  right.crossVectors(up, forward).normalize();
+
+  return { forward, right, up };
+}
+
+/**
+ * Create rotation matrix from hand landmarks using Gram-Schmidt orthogonalization
+ *
+ * @param wrist - Wrist landmark position
+ * @param indexMCP - Index finger MCP landmark position
+ * @param middleMCP - Middle finger MCP landmark position
+ * @returns THREE.Euler rotation angles
+ */
+export function calculateHandRotation(
+  wrist,
+  indexMCP,
+  middleMCP
+) {
+  // Create raw direction vectors from landmarks
+  const rawForward = new THREE.Vector3(
+    middleMCP.x - wrist.x,
+    middleMCP.y - wrist.y,
+    middleMCP.z - wrist.z
+  );
+
+  const rawRight = new THREE.Vector3(
+    indexMCP.x - wrist.x,
+    indexMCP.y - wrist.y,
+    indexMCP.z - wrist.z
+  );
+
+  // Apply Gram-Schmidt to ensure orthonormal basis
+  const { forward, right, up } = gramSchmidtOrthogonalize(rawForward, rawRight);
+
+  // Create rotation matrix from orthonormal basis
+  const matrix = new THREE.Matrix4();
+  matrix.makeBasis(right, up, forward);
+
+  // Extract Euler angles
+  return new THREE.Euler().setFromRotationMatrix(matrix);
+}
+
+/**
+ * Average two rotations using quaternion SLERP
+ * Handles quaternion double-cover to ensure shortest path interpolation
+ */
+export function averageRotations(
+  rot1,
+  rot2,
+  t = 0.5
+) {
+  const quat1 = new THREE.Quaternion().setFromEuler(rot1);
+  const quat2 = new THREE.Quaternion().setFromEuler(rot2);
+
+  // Handle quaternion double-cover: ensure shortest path
+  if (quat1.dot(quat2) < 0) {
+    quat2.set(-quat2.x, -quat2.y, -quat2.z, -quat2.w);
+  }
+
+  // SLERP interpolation
+  const avgQuat = quat1.clone().slerp(quat2, t);
+
+  return new THREE.Euler().setFromQuaternion(avgQuat);
+}
+
+/**
+ * Clamp a value between min and max
+ */
+export function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+/**
+ * Linear interpolation
+ */
+export function lerp(start, end, t) {
+  return start + (end - start) * t;
+}
+
+/**
+ * Smooth step function (ease-in-out)
+ * Creates smoother transitions than linear interpolation
+ */
+export function smoothStep(x) {
+  const clamped = clamp(x, 0, 1);
+  return clamped * clamped * (3 - 2 * clamped);
+}
+
+/**
+ * Smoother step function (Ken Perlin's improvement)
+ * Even smoother acceleration/deceleration
+ */
+export function smootherStep(x) {
+  const clamped = clamp(x, 0, 1);
+  return clamped * clamped * clamped * (clamped * (clamped * 6 - 15) + 10);
+}
+
+/**
+ * Map a value from one range to another
+ */
+export function mapRange(
+  value,
+  inMin,
+  inMax,
+  outMin,
+  outMax
+) {
+  const normalized = (value - inMin) / (inMax - inMin);
+  return outMin + normalized * (outMax - outMin);
+}
+
+/**
+ * Map hand distance to galaxy scale with smooth curve
+ *
+ * @param distance - Distance between hands (normalized coordinates)
+ * @param minDist - Minimum distance threshold (galaxy appears)
+ * @param maxDist - Maximum distance threshold (galaxy at full size)
+ * @returns Scale value 0-1
+ */
+export function mapDistanceToScale(
+  distance,
+  minDist = 0.05,
+  maxDist = 0.3
+) {
+  const clamped = clamp(distance, minDist, maxDist);
+  const normalized = (clamped - minDist) / (maxDist - minDist);
+  return smoothStep(normalized);
+}
+
+/**
+ * Calculate hand roll (wrist pronation/supination) from landmarks
+ *
+ * The roll is computed by measuring the angle of the line from pinky MCP to index MCP
+ * relative to the horizontal axis. This captures the twist of the palm surface.
+ *
+ * When the palm faces the camera flat, the knuckle line is roughly horizontal (roll ≈ 0).
+ * As the user twists their wrist (pronating/supinating), this line tilts.
+ *
+ * @param indexMCP - Index finger MCP landmark (landmark 5)
+ * @param pinkyMCP - Pinky MCP landmark (landmark 17)
+ * @returns Roll angle in radians (-π to π), positive = counter-clockwise twist
+ */
+export function calculateHandRoll(
+  indexMCP,
+  pinkyMCP
+) {
+  // Vector from pinky MCP to index MCP represents palm width axis
+  const dx = indexMCP.x - pinkyMCP.x;
+  const dy = indexMCP.y - pinkyMCP.y;
+
+  // atan2 gives angle from horizontal axis
+  return Math.atan2(dy, dx);
+}
+
+/**
+ * Calculate hand pitch (forward/backward tilt) from landmarks
+ *
+ * The pitch is computed by measuring the angle of the line from wrist to middle MCP
+ * relative to the vertical axis. This captures the forward/backward tilt of the palm.
+ *
+ * When the palm faces the camera flat, this line is roughly vertical (pitch ≈ 0).
+ * As the user tilts their hand forward/backward, this line tilts.
+ *
+ * @param wrist - Wrist landmark (landmark 0)
+ * @param middleMCP - Middle finger MCP landmark (landmark 9)
+ * @returns Pitch angle in radians, positive = tilted forward (fingers pointing down)
+ */
+export function calculateHandPitch(
+  wrist,
+  middleMCP
+) {
+  // Vector from wrist to middle MCP represents palm length axis
+  const dx = middleMCP.x - wrist.x;
+  const dy = middleMCP.y - wrist.y;
+
+  // atan2 gives angle from vertical axis (we measure from Y axis)
+  // Subtract PI/2 to make 0 = hand pointing up, positive = tilted forward
+  return Math.atan2(dx, -dy);
+}
