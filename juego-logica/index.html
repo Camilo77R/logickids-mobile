@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+
+    <!-- Primary Meta Tags -->
+    <title>Juego de Lógica - Experiencias Interactivas con Seguimiento de Manos</title>
+    <meta
+      name="description"
+      content="Controla mundos en 3D con tus manos. Juego de Lógica ofrece 2 fascinantes experimentos interactivos basados en navegador: Taller de Iron Man y Corte Cósmico. Sin descargas."
+    />
+    <meta name="author" content="Logan (@quiet_node)" />
+    <meta name="creator" content="Logan" />
+    <meta
+      name="keywords"
+      content="seguimiento de manos, control de gestos, MediaPipe, Three.js, juego de navegador, arte interactivo, control de movimiento, experimento web, taller iron man, corte cosmico"
+    />
+    <meta name="theme-color" content="#0a0a0a" />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://gesturelab.icu/" />
+
+    <!-- Favicon: SVG for modern browsers with dark mode, fallbacks for legacy -->
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://gesturelab.icu/" />
+    <meta property="og:site_name" content="Juego de Lógica" />
+    <meta property="og:title" content="Juego de Lógica - Experiencias Interactivas con Seguimiento de Manos" />
+    <meta
+      property="og:description"
+      content="Controla mundos en 3D con tus manos. 2 experimentos en tu navegador: Taller de Iron Man y Corte Cósmico."
+    />
+    <meta property="og:image" content="https://gesturelab.icu/thumbnail.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="es_ES" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://gesturelab.icu/" />
+    <meta name="twitter:site" content="@quiet_node" />
+    <meta name="twitter:creator" content="@quiet_node" />
+    <meta name="twitter:title" content="Juego de Lógica - Experiencias Interactivas con Seguimiento de Manos" />
+    <meta
+      name="twitter:description"
+      content="Controla mundos en 3D con tus manos. 2 experimentos en tu navegador: Taller de Iron Man y Corte Cósmico."
+    />
+    <meta name="twitter:image" content="https://gesturelab.icu/thumbnail.png" />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Juego de Lógica",
+        "description": "Experimentos interactivos de seguimiento de movimiento en tu navegador. Controla mundos 3D con gestos de las manos usando los modos Taller de Iron Man y Corte Cósmico.",
+        "url": "https://gesturelab.icu",
+        "applicationCategory": "Entertainment",
+        "operatingSystem": "Cualquiera (Navegador Web)",
+        "browserRequirements": "Requiere un navegador moderno con acceso a la cámara (Chrome, Firefox, Edge, Safari)",
+        "author": {
+          "@type": "Person",
+          "name": "Logan",
+          "url": "https://x.com/quiet_node"
+        },
+        "creator": {
+          "@type": "Person",
+          "name": "Logan",
+          "url": "https://x.com/quiet_node"
+        },
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "screenshot": "https://gesturelab.icu/thumbnail.png",
+        "featureList": [
+          "Taller de Iron Man - Inspecciona y ensambla la armadura de Iron Man en un entorno holográfico",
+          "Corte Cósmico - Corta objetos cósmicos usando sables de luz con tus manos"
+        ],
+        "softwareVersion": "1.0",
+        "inLanguage": "es",
+        "isAccessibleForFree": true,
+        "license": "https://opensource.org/licenses/MIT"
+      }
+    </script>
+
+    <!-- Preconnect to CDN for faster loading -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="preconnect" href="https://storage.googleapis.com" crossorigin />
+
+    <style>
+      /* Critical CSS for initial load */
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0a0a0a;
+      }
+
+      #app {
+        width: 100%;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+      }
+
+      .initial-loading {
+        text-align: center;
+      }
+
+      .initial-loading h1 {
+        font-size: 24px;
+        font-weight: 300;
+        letter-spacing: 2px;
+        margin-bottom: 20px;
+        background: linear-gradient(135deg, #ffa575 0%, #311599 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid rgba(255, 255, 255, 0.1);
+        border-top-color: #ffa575;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <!-- Initial loading state (replaced by JS) -->
+      <div class="initial-loading">
+        <h1>✦ Juego de Lógica ✦</h1>
+        <div class="spinner"></div>
+        <p style="margin-top: 20px; opacity: 0.6; font-size: 14px">Cargando interfaz táctil sin contacto...</p>
+      </div>
+    </div>
+
+    <!-- Main application script -->
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

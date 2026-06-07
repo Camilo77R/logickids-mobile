@@ -87,8 +87,21 @@ Authorization: Bearer <student_jwt>
 - QR valido pero sin grupo activo: no ve dashboard normal; ve pantalla bloqueada.
 - QR valido pero grupo archivado: no ve dashboard normal; ve pantalla bloqueada.
 - Grupo activo sin sesion de clase: ve dashboard, pero no puede jugar.
-- Sesion de clase activa para otro juego: Camino AR queda bloqueado.
+- Sesion de clase activa para otro juego: Camino AR y Taller del Robot
+  quedan bloqueados para ese estudiante.
 - Participante completado/cerrado/abandonado: no puede repetir esa actividad.
+
+## Juegos infantiles y sus slugs de backend
+
+- `camino-ar` → Camino AR → habilidad `Memoria` (no tocar, ver seccion
+  "Regla critica de propiedad").
+- `robot-taller` → Taller del Robot → habilidad `Lógica` (modulo aislado en
+  `src/features/games/robot-taller/**`, protegido por
+  `tests/juegos/robotTaller.nucleo.test.cjs`).
+
+Los slugs anteriores deben venir tal cual de la tabla `minijuegos` del
+backend. Si el backend no tiene el slug del juego, la app no debe mostrar la
+card como activa.
 
 ## Reglas de datos
 
