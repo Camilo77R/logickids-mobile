@@ -36,3 +36,6 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# juego-logica (orphaned web project - not part of the mobile app)
+juego-logica/

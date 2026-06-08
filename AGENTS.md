@@ -87,7 +87,7 @@ Authorization: Bearer <student_jwt>
 - QR valido pero sin grupo activo: no ve dashboard normal; ve pantalla bloqueada.
 - QR valido pero grupo archivado: no ve dashboard normal; ve pantalla bloqueada.
 - Grupo activo sin sesion de clase: ve dashboard, pero no puede jugar.
-- Sesion de clase activa para otro juego: Camino AR y Taller del Robot
+- Sesion de clase activa para otro juego: Camino AR y Robot Lógico
   quedan bloqueados para ese estudiante.
 - Participante completado/cerrado/abandonado: no puede repetir esa actividad.
 
@@ -95,7 +95,7 @@ Authorization: Bearer <student_jwt>
 
 - `camino-ar` → Camino AR → habilidad `Memoria` (no tocar, ver seccion
   "Regla critica de propiedad").
-- `robot-taller` → Taller del Robot → habilidad `Lógica` (modulo aislado en
+- `robot-logico` → Robot Lógico → habilidad `Lógica` (modulo aislado en
   `src/features/games/robot-taller/**`, protegido por
   `tests/juegos/robotTaller.nucleo.test.cjs`).
 

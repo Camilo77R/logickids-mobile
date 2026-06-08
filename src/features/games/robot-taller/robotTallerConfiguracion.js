@@ -1,8 +1,8 @@
 import { MODO_PRESENTACION_ROBOT_TALLER } from './robotTaller.constants';
 
 const CONFIGURACION_BASE = Object.freeze({
-  slug: 'robot-taller',
-  titulo: 'Taller del Robot',
+  slug: 'robot-logico',
+  titulo: 'Robot Lógico',
   dificultad: 2,
   fuenteAdaptacion: 'base',
   versionAdaptacion: 'v1-base',

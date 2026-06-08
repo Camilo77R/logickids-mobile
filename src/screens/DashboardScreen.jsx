@@ -30,7 +30,7 @@ const DASHBOARD_BACKGROUND = '#FAF3FF';
 const OFFICIAL_SKILLS = Object.freeze([
   { name: 'Memoria', icon: 'bulb', gameSlug: 'camino-ar' },
   { name: 'Patrones', icon: 'extension-puzzle' },
-  { name: 'Logica', icon: 'scale', gameSlug: 'robot-taller' },
+  { name: 'Logica', icon: 'scale', gameSlug: 'robot-logico' },
   { name: 'Razonar', icon: 'cube' },
   { name: 'Atencion', icon: 'search' },
 ]);
@@ -161,7 +161,7 @@ const buildActivityCopy = ({ profile, access, robotTallerAccess, playState }) =>
     return {
       title: profile.sesion_minijuego_titulo ?? 'Camino AR',
       text:
-        accesoEfectivo.juegoHabilitadoSlug === 'robot-taller'
+        accesoEfectivo.juegoHabilitadoSlug === 'robot-logico'
           ? 'Tu clase esta activa. Entra, observa el orden de las piezas y arma el robot.'
           : 'Tu clase esta activa. Entra, observa el patron y completa el camino.',
       buttonLabel: 'Comenzar',
@@ -195,7 +195,7 @@ const buildSkillCards = ({ access, robotTallerAccess, skillStatsView }) => {
   return OFFICIAL_SKILLS.map((skill, index) => {
     const stat = statsBySkill.get(normalizeSkillKey(skill.name));
     const isCaminoArCard = skill.gameSlug === 'camino-ar';
-    const isRobotTallerCard = skill.gameSlug === 'robot-taller';
+    const isRobotTallerCard = skill.gameSlug === 'robot-logico';
     const isAvailable =
       (isCaminoArCard && access.estado === ESTADOS_ACCESO_JUEGO.disponible) ||
       (isRobotTallerCard && robotTallerAccess.estado === ESTADOS_ACCESO_JUEGO.disponible);
@@ -306,7 +306,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       return;
     }
     if (canPlayRobotTaller) {
-      setActiveGame('robot-taller');
+      setActiveGame('robot-logico');
       setShowGamePath(false);
       return;
     }
@@ -315,7 +315,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   };
 
   const handlePathSkillPress = (skill) => {
-    if (skill.gameSlug === 'camino-ar' || skill.gameSlug === 'robot-taller') {
+    if (skill.gameSlug === 'camino-ar' || skill.gameSlug === 'robot-logico') {
       startOrRefresh();
     }
   };
@@ -359,7 +359,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     );
   }
 
-  if (activeGame === 'robot-taller') {
+  if (activeGame === 'robot-logico') {
     return (
       <RobotTallerScreen
         onSalir={exitRobotTaller}
@@ -468,7 +468,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
                       label={skill.name}
                       number={skill.actionLabel}
                       onPress={
-                        skill.gameSlug === 'camino-ar' || skill.gameSlug === 'robot-taller'
+                        skill.gameSlug === 'camino-ar' || skill.gameSlug === 'robot-logico'
                           ? startOrRefresh
                           : undefined
                       }
@@ -496,7 +496,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
                     onPress={startOrRefresh}
                   />
                   <GameCard
-                    title={robotTallerAccess.juegoHabilitadoTitulo ?? 'Taller del Robot'}
+                    title={robotTallerAccess.juegoHabilitadoTitulo ?? 'Robot Lógico'}
                     status={canPlayRobotTaller ? 'Actividad' : 'Bloqueado'}
                     locked={!canPlayRobotTaller}
                     onPress={canPlayRobotTaller ? startOrRefresh : undefined}

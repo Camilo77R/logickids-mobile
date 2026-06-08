@@ -160,7 +160,7 @@ const resolverMensajeProgreso = ({ cierreSesion }) => {
     return 'Tus resultados ya quedaron guardados. Sigue con el siguiente nivel cuando quieras.';
   }
   if (cierreSesion.haySiguientePaso && !cierreSesion.siguienteEsMismoJuego) {
-    return 'Taller del Robot ya termino por ahora. Vuelve al tablero para continuar con el siguiente juego.';
+    return 'Robot Lógico ya termino por ahora. Vuelve al tablero para continuar con el siguiente juego.';
   }
   if (cierreSesion.participanteEstado === 'completado') {
     return 'Actividad completada. Al volver al tablero veras tus logros y tu progreso actualizado.';
@@ -290,7 +290,7 @@ export const construirEscenaRobotTaller = ({
   },
   encabezado: {
     ceja: 'Reto de logica',
-    titulo: 'Taller del Robot',
+    titulo: 'Robot Lógico',
     subtitulo:
       'Mira el orden en que brillan las piezas y luego armalo en el mismo orden.',
   },

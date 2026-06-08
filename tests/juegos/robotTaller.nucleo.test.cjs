@@ -41,7 +41,7 @@ test('normalizarConfiguracionRobotTaller usa defaults seguros y valida modo de p
   assert.equal(configuracion.configuracion.cantidadPiezas, 6);
   assert.equal(configuracion.configuracion.longitudPatron, 4);
   assert.equal(configuracion.habilidad, 'Lógica');
-  assert.equal(configuracion.slug, 'robot-taller');
+  assert.equal(configuracion.slug, 'robot-logico');
 });
 
 test('crearEventoRobotTaller reporta habilidad Logica y tipos de evento soportados', () => {
@@ -116,7 +116,7 @@ test('construirResumenPartidaRobotTaller devuelve contrato comun con estadistica
   });
 
   assert.equal(resultado.contrato, 'resultado-juego-v1');
-  assert.equal(resultado.juego.slug, 'robot-taller');
+  assert.equal(resultado.juego.slug, 'robot-logico');
   assert.equal(resultado.juego.habilidad, 'Lógica');
   assert.equal(resultado.finalizacionSesion.estado, ESTADOS_FINALIZACION_SESION.completado);
   assert.equal(resultado.estadisticas.puntaje, 48);
@@ -185,7 +185,7 @@ test('construirEscenaRobotTaller traduce el estado a una escena reusable para cu
     seleccionarPieza: (indice) => accionesInvocadas.push(`pieza:${indice}`),
   });
 
-  assert.equal(escena.encabezado.titulo, 'Taller del Robot');
+  assert.equal(escena.encabezado.titulo, 'Robot Lógico');
   assert.equal(escena.sesion.metricas[3].valor, 'Lógica');
   assert.equal(escena.estadoActual.metricas[0].valor, '12 s');
   assert.equal(escena.tablero.piezas.length, 4);
