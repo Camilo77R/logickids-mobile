@@ -1,12 +1,15 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { TIPOS_EVENTO_SESION } from '../core/contratoSesionJuego';
 import { useSesionTren3D } from './aplicacion/useSesionTren3D';
 import {
@@ -22,6 +25,7 @@ import {
 } from './tren3dMotor';
 import { ESTADOS_TREN_3D } from './tren3d.constants';
 import Tren3DVistaWebView from './presentacion/Tren3DVistaWebView';
+import { useTren3DAudio } from './useTren3DAudio';
 import { colores, espaciado, radios, tipografia } from '../../../theme/tokens';
 
 const construirParametrosNivel = ({ dificultad, configuracion }) => {
@@ -43,6 +47,123 @@ const inyectarNuevoNivel = ({ webViewRef, parametros }) => {
   webViewRef.current?.injectJavaScript(script);
 };
 
+const calcularPrecision = ({ aciertos = 0, errores = 0 }) => {
+  const totalIntentos = aciertos + errores;
+
+  if (totalIntentos <= 0) {
+    return 0;
+  }
+
+  return Number(((aciertos / totalIntentos) * 100).toFixed(2));
+};
+
+const calcularEstrellasResultado = (resultado) => {
+  const estrellasOficiales =
+    resultado?.finalizacionSesion?.estrellas_obtenidas ??
+    resultado?.resumen_oficial?.estrellas_obtenidas ??
+    resultado?.estrellas_obtenidas;
+
+  if (Number.isFinite(Number(estrellasOficiales))) {
+    return Math.max(0, Math.min(3, Math.round(Number(estrellasOficiales))));
+  }
+
+  if (resultado?.finalizacionSesion?.estado === 'abandonado') {
+    return 0;
+  }
+
+  const precision = resultado?.estadisticas?.precisionPct ?? calcularPrecision({
+    aciertos: resultado?.estadisticas?.aciertos ?? 0,
+    errores: resultado?.estadisticas?.errores ?? 0,
+  });
+
+  if (precision >= 90) return 3;
+  if (precision >= 70) return 2;
+  if (precision > 0) return 1;
+  return 0;
+};
+
+const ConfettiCelebracionTren = () => {
+  const piezas = [
+    { id: 'aqua-1', left: '8%', top: 18, color: colores.acento, rotate: '18deg' },
+    { id: 'sol-1', left: '19%', top: 54, color: colores.alerta, rotate: '-12deg' },
+    { id: 'verde-1', left: '34%', top: 24, color: colores.exito, rotate: '31deg' },
+    { id: 'rosa-1', left: '56%', top: 16, color: colores.error, rotate: '-28deg' },
+    { id: 'aqua-2', left: '72%', top: 52, color: colores.acento, rotate: '9deg' },
+    { id: 'sol-2', left: '88%', top: 28, color: colores.alerta, rotate: '-18deg' },
+    { id: 'verde-2', left: '13%', top: 132, color: colores.exito, rotate: '-38deg' },
+    { id: 'rosa-2', left: '29%', top: 152, color: colores.error, rotate: '42deg' },
+    { id: 'aqua-3', left: '47%', top: 118, color: colores.acento, rotate: '-8deg' },
+    { id: 'sol-3', left: '64%', top: 142, color: colores.alerta, rotate: '35deg' },
+    { id: 'verde-3', left: '82%', top: 118, color: colores.exito, rotate: '-44deg' },
+  ];
+  const animacionesRef = useRef(piezas.map(() => new Animated.Value(0)));
+
+  useEffect(() => {
+    const animaciones = animacionesRef.current.map((animacion, indice) => (
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(indice * 90),
+          Animated.timing(animacion, {
+            toValue: 1,
+            duration: 1450,
+            useNativeDriver: true,
+          }),
+          Animated.timing(animacion, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ]),
+      )
+    ));
+
+    animaciones.forEach((animacion) => animacion.start());
+
+    return () => {
+      animaciones.forEach((animacion) => animacion.stop());
+    };
+  }, []);
+
+  return (
+    <View pointerEvents="none" style={styles.confettiCapa}>
+      {piezas.map((pieza, indice) => {
+        const animacion = animacionesRef.current[indice];
+        const caida = animacion.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-32, 150],
+        });
+        const opacidad = animacion.interpolate({
+          inputRange: [0, 0.16, 0.84, 1],
+          outputRange: [0, 0.95, 0.95, 0],
+        });
+        const giro = animacion.interpolate({
+          inputRange: [0, 1],
+          outputRange: [pieza.rotate, '220deg'],
+        });
+
+        return (
+          <Animated.View
+          key={pieza.id}
+          style={[
+            styles.confettiPieza,
+            {
+              backgroundColor: pieza.color,
+              left: pieza.left,
+              top: pieza.top,
+              opacity: opacidad,
+              transform: [
+                { translateY: caida },
+                { rotate: giro },
+              ],
+            },
+          ]}
+          />
+        );
+      })}
+    </View>
+  );
+};
+
 const FiguraPatron = ({ paso, completado }) => {
   const figuraStyle = [
     styles.figuraPatron,
@@ -62,11 +183,273 @@ const FiguraPatron = ({ paso, completado }) => {
   );
 };
 
+const TarjetaResultadoTren = ({
+  tarjeta,
+  sincronizando,
+  onContinuar,
+  onVolver,
+  viewport,
+}) => {
+  if (!tarjeta) {
+    return null;
+  }
+
+  const esTarjetaNivel = tarjeta.tipo === 'nivel';
+  const esTarjetaFinal = tarjeta.tipo === 'final';
+  const esPortraitFinal = esTarjetaFinal && (viewport?.height ?? 0) >= (viewport?.width ?? 999);
+  const esCompacta = !esPortraitFinal && (
+    (viewport?.height ?? 999) <= 430 || (viewport?.width ?? 999) <= 780
+  );
+  const esFinalCompacta = esTarjetaFinal && esCompacta;
+  const estrellas = Array.from(
+    { length: 3 },
+    (_, indice) => indice < tarjeta.estrellas,
+  );
+  const metricasVisibles = esTarjetaNivel
+    ? tarjeta.metricas.slice(0, 4)
+    : tarjeta.metricas.filter((metrica) => (
+      ['Aciertos', 'Precision', 'Puntos', 'Nivel'].includes(metrica.etiqueta)
+    ));
+  const logrosVisibles = tarjeta.logros;
+
+  return (
+    <View style={styles.resultadoOverlay}>
+      {tarjeta.mostrarCelebracion ? <ConfettiCelebracionTren /> : null}
+
+      <View pointerEvents="none" style={styles.resultadoDecoracion}>
+        <View style={[styles.resultadoBurbujaFondo, styles.resultadoBurbujaAqua]} />
+        <View style={[styles.resultadoBurbujaFondo, styles.resultadoBurbujaSol]} />
+        <View style={[styles.resultadoBurbujaFondo, styles.resultadoBurbujaRosa]} />
+        <Text style={[styles.resultadoIconoFondo, styles.resultadoIconoUno]}>*</Text>
+        <Text style={[styles.resultadoIconoFondo, styles.resultadoIconoDos]}>+</Text>
+        <Text style={[styles.resultadoIconoFondo, styles.resultadoIconoTres]}>o</Text>
+      </View>
+
+      <ScrollView
+        bounces={false}
+        showsVerticalScrollIndicator={esPortraitFinal}
+        contentContainerStyle={[
+          styles.panelResultadoContenido,
+          esTarjetaNivel && styles.panelResultadoContenidoNivel,
+          esTarjetaFinal && styles.panelResultadoContenidoFinal,
+          esPortraitFinal && styles.panelResultadoContenidoFinalPortrait,
+          esCompacta && styles.panelResultadoContenidoCompacto,
+          esFinalCompacta && styles.panelResultadoContenidoFinalCompacto,
+        ]}
+      >
+        <View
+          style={[
+            styles.panelResultado,
+            esTarjetaNivel && styles.panelResultadoNivel,
+            esTarjetaFinal && styles.panelResultadoFinal,
+            esPortraitFinal && styles.panelResultadoFinalPortrait,
+            esCompacta && styles.panelResultadoCompacto,
+            esFinalCompacta && styles.panelResultadoFinalCompacto,
+          ]}
+        >
+          <View
+            style={[
+              styles.resultadoCinta,
+              esTarjetaNivel && styles.resultadoCintaNivel,
+              esTarjetaFinal && styles.resultadoCintaFinal,
+              esCompacta && styles.resultadoCintaCompacta,
+            ]}
+          >
+            <Text style={[styles.resultadoCintaTexto, esCompacta && styles.resultadoCintaTextoCompacto]}>
+              {tarjeta.cinta}
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.resultadoHero,
+              esTarjetaNivel && styles.resultadoHeroNivel,
+              esTarjetaFinal && styles.resultadoHeroFinal,
+              esPortraitFinal && styles.resultadoHeroFinalPortrait,
+              esCompacta && styles.resultadoHeroCompacto,
+              esFinalCompacta && styles.resultadoHeroFinalCompacto,
+            ]}
+          >
+            <View style={styles.resultadoAura} />
+            <View style={styles.resultadoNivelPill}>
+              <Text style={[styles.resultadoNivelTexto, esCompacta && styles.resultadoNivelTextoCompacto]}>
+                {tarjeta.insignia}
+              </Text>
+            </View>
+
+            <Text style={[
+              styles.tituloResultado,
+              esCompacta && styles.tituloResultadoCompacto,
+              esFinalCompacta && styles.tituloResultadoFinalCompacto,
+            ]}>
+              {tarjeta.titulo}
+            </Text>
+
+            <View style={[styles.estrellasResultado, esCompacta && styles.estrellasResultadoCompacta]}>
+              {estrellas.map((activa, indice) => (
+                <View
+                  key={`estrella-tren-${indice}`}
+                  style={[
+                    styles.estrellaBurbuja,
+                    !activa && styles.estrellaBurbujaInactiva,
+                    esCompacta && styles.estrellaBurbujaCompacta,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.estrellaResultado,
+                      !activa && styles.estrellaResultadoInactiva,
+                      esCompacta && styles.estrellaResultadoCompacta,
+                    ]}
+                  >
+                    *
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            {!esTarjetaNivel ? (
+              <View style={[styles.resultadoRecompensa, esCompacta && styles.resultadoRecompensaCompacta]}>
+                <Text style={styles.resultadoRecompensaLabel}>Premio del tren</Text>
+                <Text style={[styles.resultadoTexto, esCompacta && styles.resultadoTextoCompacto]}>
+                  {tarjeta.descripcion}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View
+            style={[
+              styles.gridMetricasResultado,
+              esTarjetaNivel && styles.gridMetricasResultadoNivel,
+              esCompacta && styles.gridMetricasResultadoCompacta,
+            ]}
+          >
+            {metricasVisibles.map((metrica, indice) => (
+              <View
+                key={metrica.etiqueta}
+                style={[
+                  styles.cardMetricaResultado,
+                  styles[`cardMetricaResultado${indice % 3}`],
+                  esTarjetaNivel && styles.cardMetricaResultadoNivel,
+                  esCompacta && styles.cardMetricaResultadoCompacta,
+                ]}
+              >
+                <Text style={[styles.cardMetricaEtiqueta, esCompacta && styles.cardMetricaEtiquetaCompacta]}>
+                  {metrica.etiqueta}
+                </Text>
+                <Text style={[styles.cardMetricaValor, esCompacta && styles.cardMetricaValorCompacto]}>
+                  {metrica.valor}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          <View
+            style={[
+              styles.panelResumenResultado,
+              esTarjetaNivel && styles.panelResumenResultadoNivel,
+              esCompacta && styles.panelResumenResultadoCompacto,
+            ]}
+          >
+            <Text style={[styles.resumenResultadoTitulo, esCompacta && styles.resumenResultadoTituloCompacto]}>
+              {tarjeta.resumenTitulo}
+            </Text>
+            <Text style={[styles.resultadoSecundario, esCompacta && styles.resultadoSecundarioCompacto]}>
+              {sincronizando
+                ? 'Guardando tu viaje...'
+                : tarjeta.resumenTexto}
+            </Text>
+          </View>
+
+          {logrosVisibles?.length ? (
+            <View style={[
+              styles.listaLogrosResultado,
+              esCompacta && styles.listaLogrosResultadoCompacta,
+              esFinalCompacta && styles.listaLogrosResultadoFinalCompacta,
+            ]}>
+              <Text style={[styles.resumenResultadoTitulo, esCompacta && styles.resumenResultadoTituloCompacto]}>
+                Premios ganados
+              </Text>
+              {logrosVisibles.map((logro) => (
+                <View
+                  key={logro.id ?? logro.nombre_logro ?? logro.nombre}
+                  style={[
+                    styles.logroResultadoCard,
+                    esCompacta && styles.logroResultadoCardCompacta,
+                    esFinalCompacta && styles.logroResultadoCardFinalCompacta,
+                  ]}
+                >
+                  <View style={[
+                    styles.logroIconoBurbuja,
+                    esFinalCompacta && styles.logroIconoBurbujaFinalCompacta,
+                  ]}>
+                    <Text style={[
+                      styles.logroIconoTexto,
+                      esFinalCompacta && styles.logroIconoTextoFinalCompacto,
+                    ]}>
+                      {logro.icono ?? logro.icono_logro ?? logro.emoji ?? '*'}
+                    </Text>
+                  </View>
+                  <View style={styles.logroTextoContenido}>
+                    <Text
+                      style={[styles.logroResultadoTitulo, esCompacta && styles.logroResultadoTituloCompacto]}
+                      numberOfLines={esCompacta ? 1 : undefined}
+                    >
+                      {logro.nombre_logro ?? logro.nombre}
+                    </Text>
+                    {logro.descripcion && !esCompacta ? (
+                      <Text style={styles.logroResultadoTexto}>{logro.descripcion}</Text>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          <View style={[styles.resultadoBotones, esCompacta && styles.resultadoBotonesCompacto]}>
+            {tarjeta.tipo === 'nivel' ? (
+              <TouchableOpacity
+                style={[styles.botonContinuar, esCompacta && styles.botonContinuarCompacto]}
+                onPress={onContinuar}
+              >
+                <Text style={[styles.botonContinuarTexto, esCompacta && styles.botonResultadoTextoCompacto]}>
+                  Continuar
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
+            <TouchableOpacity
+              style={[
+                tarjeta.tipo === 'nivel' ? styles.botonResultadoSalir : styles.botonContinuar,
+                esCompacta && styles.botonContinuarCompacto,
+              ]}
+              onPress={tarjeta.tipo === 'nivel' ? onVolver : onVolver}
+            >
+              <Text
+                style={[
+                  tarjeta.tipo === 'nivel'
+                    ? styles.botonResultadoSalirTexto
+                    : styles.botonContinuarTexto,
+                  esCompacta && styles.botonResultadoTextoCompacto,
+                ]}
+              >
+                {tarjeta.tipo === 'nivel' ? 'Volver' : 'Volver al tablero'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
 export default function Tren3DScreen({
   onSalir,
   configuracionInicial,
   contextoSesion,
 }) {
+  const viewport = useWindowDimensions();
   const configuracion = useMemo(
     () => normalizarConfiguracionTren3D(configuracionInicial),
     [configuracionInicial],
@@ -83,6 +466,8 @@ export default function Tren3DScreen({
   const dificultadRef = useRef(configuracion.dificultad);
   const partidaIniciadaRef = useRef(false);
   const finalizadoRef = useRef(false);
+  const siguienteNivelPendienteRef = useRef(null);
+  const audioTren = useTren3DAudio();
 
   const parametrosIniciales = useMemo(
     () =>
@@ -113,6 +498,62 @@ export default function Tren3DScreen({
     resultado: null,
     seleccionClave: null,
   });
+  const [tarjetaResultado, setTarjetaResultado] = useState(null);
+
+  const tarjetaResultadoVisible = useMemo(() => {
+    if (!tarjetaResultado || tarjetaResultado.tipo !== 'final') {
+      return tarjetaResultado;
+    }
+
+    const respuestaFinalizacion = sesionTren.respuestaFinalizacion;
+
+    if (!respuestaFinalizacion) {
+      return tarjetaResultado;
+    }
+
+    const resultadoConOficial = {
+      ...estado.resultado,
+      resumen_oficial: respuestaFinalizacion.resumen_oficial,
+      logros_desbloqueados: respuestaFinalizacion.logros_desbloqueados,
+    };
+
+    return {
+      ...tarjetaResultado,
+      estrellas: calcularEstrellasResultado(resultadoConOficial),
+      logros: Array.isArray(respuestaFinalizacion.logros_desbloqueados)
+        ? respuestaFinalizacion.logros_desbloqueados
+        : tarjetaResultado.logros,
+      resumenTexto: respuestaFinalizacion.finalizacion_idempotente
+        ? 'Tu viaje ya estaba guardado.'
+        : 'Tu viaje quedo guardado.',
+    };
+  }, [estado.resultado, sesionTren.respuestaFinalizacion, tarjetaResultado]);
+
+  useEffect(() => {
+    let componenteActivo = true;
+
+    const bloquearLandscape = async () => {
+      try {
+        await ScreenOrientation.lockAsync(
+          ScreenOrientation.OrientationLock.LANDSCAPE,
+        );
+      } catch {
+        // La orientacion no debe bloquear la partida si el dispositivo no la soporta.
+      }
+    };
+
+    bloquearLandscape();
+
+    return () => {
+      componenteActivo = false;
+      void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
+        .catch(() => {
+          if (componenteActivo) {
+            return;
+          }
+        });
+    };
+  }, []);
 
   const opcionesUnicas = useMemo(() => {
     const mapa = {};
@@ -123,6 +564,7 @@ export default function Tren3DScreen({
   }, [estado.patronActual]);
 
   const seleccionarFiguraNativa = (paso) => {
+    audioTren.reproducirSeleccion();
     const script = `
       window.establecerSeleccion && window.establecerSeleccion(${JSON.stringify(paso)});
       true;
@@ -135,12 +577,51 @@ export default function Tren3DScreen({
     }));
   };
 
+  const mostrarResultadoFinalEnPortrait = useCallback(async () => {
+    try {
+      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    } catch {
+      // El resultado final debe mostrarse aunque no se pueda cambiar orientacion.
+    }
+  }, []);
+
+  const construirTarjetaFinal = (resultado) => ({
+    tipo: 'final',
+    cinta: resultado.finalizacionSesion.estado === 'abandonado' ? 'PARTIDA PAUSADA' : 'RETO TERMINADO',
+    insignia: 'Tren Patrones',
+    titulo:
+      resultado.finalizacionSesion.estado === 'abandonado'
+        ? 'Volvemos al tablero'
+        : 'El tren llego a la meta',
+    descripcion:
+      resultado.finalizacionSesion.estado === 'abandonado'
+        ? 'Puedes volver a intentarlo cuando quieras.'
+        : 'Completaste la secuencia del tren. Buen trabajo.',
+    estrellas: calcularEstrellasResultado(resultado),
+    mostrarCelebracion: resultado.finalizacionSesion.estado === 'completado',
+    metricas: [
+      { etiqueta: 'Aciertos', valor: resultado.estadisticas.aciertos },
+      { etiqueta: 'Errores', valor: resultado.estadisticas.errores },
+      { etiqueta: 'Combo', valor: `x${resultado.estadisticas.comboMaximo}` },
+      { etiqueta: 'Precision', valor: `${resultado.estadisticas.precisionPct}%` },
+      { etiqueta: 'Puntos', valor: resultado.estadisticas.puntaje },
+      { etiqueta: 'Nivel', valor: `${resultado.estadisticas.nivelAlcanzado}/${configuracion.nivelesPorPartida}` },
+    ],
+    resumenTitulo: resultado.finalizacionSesion.estado === 'abandonado' ? 'Viaje pausado' : 'Gran trabajo',
+    resumenTexto:
+      resultado.finalizacionSesion.estado === 'abandonado'
+        ? 'Tu avance quedo listo para continuar despues.'
+        : 'Tu viaje quedo guardado.',
+    logros: resultado.logros_desbloqueados ?? [],
+  });
+
   const finalizarPartida = ({ estadoFinal = 'completado' } = {}) => {
     if (finalizadoRef.current) {
       return;
     }
 
     finalizadoRef.current = true;
+    void mostrarResultadoFinalEnPortrait();
     const acumulado = acumuladoRef.current;
     const resultado = construirResumenPartidaTren3D({
       configuracion,
@@ -161,7 +642,16 @@ export default function Tren3DScreen({
       resultado,
       mensaje: 'Partida finalizada. Buen trabajo con los patrones.',
     }));
+    setTarjetaResultado(construirTarjetaFinal(resultado));
   };
+
+  const restaurarPortrait = useCallback(async () => {
+    try {
+      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    } catch {
+      // Salir del juego tiene prioridad sobre la orientacion.
+    }
+  }, []);
 
   const registrarJugada = (mensaje) => {
     const tipoEvento =
@@ -183,6 +673,14 @@ export default function Tren3DScreen({
     });
 
     sesionTren.observadoresJuego.alRegistrarEvento(evento);
+
+    if (mensaje.nivelCompletado) {
+      // El cierre de nivel reproduce su propio sonido de premio.
+    } else if (mensaje.tipo === 'acierto') {
+      audioTren.reproducirAcierto();
+    } else {
+      audioTren.reproducirError();
+    }
 
     acumuladoRef.current = {
       ...acumuladoRef.current,
@@ -226,9 +724,12 @@ export default function Tren3DScreen({
     };
 
     if (nivelRef.current >= configuracion.nivelesPorPartida) {
+      audioTren.reproducirFinal();
       finalizarPartida();
       return;
     }
+
+    audioTren.reproducirNivel();
 
     const adaptacion = calcularAdaptacionInterNivel({
       aciertos: mensaje.aciertos,
@@ -242,8 +743,11 @@ export default function Tren3DScreen({
       patron: generarPatronNivel(adaptacion.nuevaDificultad, configuracion.vagonesPorNivel),
     };
 
-    nivelRef.current = siguienteNivel;
-    dificultadRef.current = adaptacion.nuevaDificultad;
+    siguienteNivelPendienteRef.current = {
+      siguienteNivel,
+      dificultad: adaptacion.nuevaDificultad,
+      parametros,
+    };
 
     setEstado((previo) => ({
       ...previo,
@@ -256,14 +760,51 @@ export default function Tren3DScreen({
       seleccionClave: null,
       mensaje: `${adaptacion.descripcionNivel}. Precision: ${adaptacion.precisionPct}%.`,
     }));
+    setTarjetaResultado({
+      tipo: 'nivel',
+      cinta: 'NIVEL COMPLETADO',
+      insignia: `Tren Patrones - Nivel ${nivelRef.current}`,
+      titulo: 'Buen viaje de patrones',
+      descripcion: `${adaptacion.descripcionNivel}. El siguiente tramo ajusta la dificultad con tu precision.`,
+      estrellas: calcularEstrellasResultado({
+        estadisticas: {
+          aciertos: mensaje.aciertos,
+          errores: mensaje.errores,
+          precisionPct: adaptacion.precisionPct,
+        },
+      }),
+      mostrarCelebracion: mensaje.errores === 0,
+      metricas: [
+        { etiqueta: 'Aciertos', valor: mensaje.aciertos },
+        { etiqueta: 'Errores', valor: mensaje.errores },
+        { etiqueta: 'Combo', valor: `x${mensaje.comboMaximo ?? 0}` },
+        { etiqueta: 'Precision', valor: `${adaptacion.precisionPct}%` },
+        { etiqueta: 'Sigue', valor: `${siguienteNivel}/${configuracion.nivelesPorPartida}` },
+        { etiqueta: 'Dificultad', valor: adaptacion.nuevaDificultad },
+      ],
+      resumenTitulo: 'Siguiente nivel listo',
+      resumenTexto: 'Pulsa Continuar para que el tren entre al nuevo tramo.',
+      logros: [],
+    });
+  };
 
-    setTimeout(() => {
-      inyectarNuevoNivel({ webViewRef, parametros });
-      setEstado((previo) => ({
-        ...previo,
-        fase: ESTADOS_TREN_3D.jugando,
-      }));
-    }, 2500);
+  const continuarNivel = () => {
+    const pendiente = siguienteNivelPendienteRef.current;
+
+    if (!pendiente) {
+      setTarjetaResultado(null);
+      return;
+    }
+
+    nivelRef.current = pendiente.siguienteNivel;
+    dificultadRef.current = pendiente.dificultad;
+    siguienteNivelPendienteRef.current = null;
+    setTarjetaResultado(null);
+    inyectarNuevoNivel({ webViewRef, parametros: pendiente.parametros });
+    setEstado((previo) => ({
+      ...previo,
+      fase: ESTADOS_TREN_3D.jugando,
+    }));
   };
 
   const manejarMensaje = (eventoWebView) => {
@@ -314,11 +855,12 @@ export default function Tren3DScreen({
     }
   };
 
-  const salir = () => {
+  const salir = async () => {
     if (!finalizadoRef.current && partidaIniciadaRef.current) {
       finalizarPartida({ estadoFinal: 'abandonado' });
     }
 
+    await restaurarPortrait();
     onSalir?.();
   };
 
@@ -331,9 +873,9 @@ export default function Tren3DScreen({
       />
 
       <View style={styles.barraSuperior}>
-        <View>
-          <Text style={styles.titulo}>Tren 3D de Patrones</Text>
-          <Text style={styles.subtitulo}>{estado.mensaje}</Text>
+        <View style={styles.barraSuperiorTexto}>
+          <Text style={styles.titulo}>Tren Patrones</Text>
+          <Text style={styles.subtitulo} numberOfLines={2}>{estado.mensaje}</Text>
         </View>
         <TouchableOpacity style={styles.botonSalir} onPress={salir}>
           <Text style={styles.botonSalirTexto}>Salir</Text>
@@ -343,8 +885,7 @@ export default function Tren3DScreen({
       <View style={styles.barraPatron}>
         <Text style={styles.barraPatronTitulo}>Patron del nivel</Text>
         <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
+          showsVerticalScrollIndicator
           contentContainerStyle={styles.listaPatron}
         >
           {estado.patronActual.map((paso) => (
@@ -357,33 +898,39 @@ export default function Tren3DScreen({
         </ScrollView>
       </View>
 
-      {/* Selector nativo horizontal opcional para accesibilidad */}
       <View style={styles.barraBotones}>
-        {opcionesUnicas.map((opcion) => (
-          <TouchableOpacity
-            key={opcion.clave}
-            activeOpacity={0.8}
-            disabled={estado.fase !== ESTADOS_TREN_3D.jugando}
-            style={[
-              styles.botonNativo,
-              { backgroundColor: opcion.colorHex },
-              estado.seleccionClave === opcion.clave && styles.botonNativoActivo,
-              estado.fase !== ESTADOS_TREN_3D.jugando && { opacity: 0.5 }
-            ]}
-            onPress={() => seleccionarFiguraNativa(opcion)}
-          >
-            <View
+        <ScrollView
+          showsVerticalScrollIndicator
+          contentContainerStyle={styles.listaBotones}
+        >
+          {opcionesUnicas.map((opcion) => (
+            <TouchableOpacity
+              key={opcion.clave}
+              activeOpacity={0.8}
+              disabled={estado.fase !== ESTADOS_TREN_3D.jugando}
               style={[
-                styles.figuraBoton,
-                opcion.figuraId === 'circulo' && styles.figuraBotonCirculo,
-                opcion.figuraId === 'triangulo' && styles.figuraBotonTriangulo,
-                opcion.figuraId === 'triangulo' && { borderBottomColor: opcion.colorHex },
-                opcion.figuraId === 'estrella' && styles.figuraBotonEstrella,
+                styles.botonNativo,
+                { backgroundColor: opcion.colorHex },
+                estado.seleccionClave === opcion.clave && styles.botonNativoActivo,
+                estado.fase !== ESTADOS_TREN_3D.jugando && { opacity: 0.5 },
               ]}
-            />
-            <Text style={styles.botonNativoTexto}>{opcion.figuraLabel}</Text>
-          </TouchableOpacity>
-        ))}
+              onPress={() => seleccionarFiguraNativa(opcion)}
+            >
+              <View
+                style={[
+                  styles.figuraBoton,
+                  opcion.figuraId === 'circulo' && styles.figuraBotonCirculo,
+                  opcion.figuraId === 'triangulo' && styles.figuraBotonTriangulo,
+                  opcion.figuraId === 'triangulo' && { borderBottomColor: opcion.colorHex },
+                  opcion.figuraId === 'estrella' && styles.figuraBotonEstrella,
+                ]}
+              />
+              <Text style={styles.botonNativoTexto} numberOfLines={1}>
+                {opcion.figuraLabel}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       <View style={styles.panelMetricas}>
@@ -409,14 +956,13 @@ export default function Tren3DScreen({
         </View>
       </View>
 
-      {estado.resultado ? (
-        <View style={styles.resultado}>
-          <Text style={styles.resultadoTitulo}>Resultado</Text>
-          <Text style={styles.resultadoTexto}>
-            Puntaje {estado.resultado.estadisticas.puntaje} - Precision {estado.resultado.estadisticas.precisionPct}%
-          </Text>
-        </View>
-      ) : null}
+      <TarjetaResultadoTren
+        tarjeta={tarjetaResultadoVisible}
+        sincronizando={sesionTren.persistencia.estado === 'finalizando'}
+        onContinuar={continuarNivel}
+        onVolver={salir}
+        viewport={viewport}
+      />
     </SafeAreaView>
   );
 }
@@ -428,34 +974,38 @@ const styles = StyleSheet.create({
   },
   barraSuperior: {
     position: 'absolute',
-    top: 14,
-    left: 14,
-    right: 14,
-    backgroundColor: 'rgba(7,28,43,0.86)',
+    top: 24,
+    left: 12,
+    width: 318,
+    backgroundColor: 'rgba(7,28,43,0.78)',
     borderColor: 'rgba(130,215,255,0.42)',
     borderWidth: 1,
     borderRadius: radios.md,
-    padding: 12,
+    padding: 9,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: espaciado.md,
+    gap: espaciado.sm,
+  },
+  barraSuperiorTexto: {
+    flex: 1,
+    minWidth: 0,
   },
   titulo: {
     color: colores.textoPrincipal,
-    fontSize: tipografia.subtitulo,
+    fontSize: 15,
     fontWeight: '900',
   },
   subtitulo: {
     color: colores.textoSecundario,
-    lineHeight: 19,
-    maxWidth: 238,
+    fontSize: 11,
+    lineHeight: 15,
   },
   botonSalir: {
     backgroundColor: colores.alerta,
     borderRadius: radios.md,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
   },
   botonSalirTexto: {
     color: '#06131f',
@@ -463,14 +1013,15 @@ const styles = StyleSheet.create({
   },
   barraPatron: {
     position: 'absolute',
-    top: 122,
-    left: 14,
-    right: 14,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    top: 118,
+    left: 12,
+    bottom: 82,
+    width: 88,
+    backgroundColor: 'rgba(255,255,255,0.82)',
     borderColor: 'rgba(255,216,107,0.72)',
     borderWidth: 2,
     borderRadius: radios.md,
-    padding: 10,
+    padding: 7,
   },
   barraPatronTitulo: {
     color: '#15344d',
@@ -481,11 +1032,12 @@ const styles = StyleSheet.create({
   },
   listaPatron: {
     gap: 8,
-    paddingRight: 4,
+    alignItems: 'center',
+    paddingBottom: 8,
   },
   itemPatron: {
-    width: 42,
-    height: 52,
+    width: 48,
+    height: 48,
     borderRadius: radios.md,
     backgroundColor: '#eaf7ff',
     borderColor: 'rgba(21,52,77,0.14)',
@@ -529,11 +1081,11 @@ const styles = StyleSheet.create({
   },
   panelMetricas: {
     position: 'absolute',
-    left: 14,
-    right: 14,
-    bottom: 14,
+    left: 124,
+    right: 124,
+    bottom: 10,
     flexDirection: 'row',
-    gap: 8,
+    gap: 7,
   },
   metrica: {
     flex: 1,
@@ -541,58 +1093,37 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,216,107,0.42)',
     borderWidth: 1,
     borderRadius: radios.md,
-    paddingVertical: 10,
+    paddingVertical: 7,
     alignItems: 'center',
   },
   metricaValor: {
     color: colores.alerta,
     fontWeight: '900',
-    fontSize: 17,
+    fontSize: 16,
   },
   metricaLabel: {
     color: colores.textoSecundario,
     fontSize: tipografia.etiqueta,
     fontWeight: '800',
   },
-  resultado: {
-    position: 'absolute',
-    left: 24,
-    right: 24,
-    top: '42%',
-    backgroundColor: 'rgba(6,19,31,0.94)',
-    borderColor: colores.exito,
-    borderWidth: 1,
-    borderRadius: radios.md,
-    padding: espaciado.lg,
-    alignItems: 'center',
-  },
-  resultadoTitulo: {
-    color: colores.textoPrincipal,
-    fontSize: 22,
-    fontWeight: '900',
-  },
-  resultadoTexto: {
-    color: colores.textoSecundario,
-    marginTop: 6,
-  },
   barraBotones: {
     position: 'absolute',
-    left: 14,
-    right: 14,
-    bottom: 92,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
-    padding: 10,
-    backgroundColor: 'rgba(7,28,43,0.85)',
+    right: 12,
+    top: 78,
+    bottom: 82,
+    width: 108,
+    padding: 7,
+    backgroundColor: 'rgba(7,28,43,0.82)',
     borderColor: 'rgba(130,215,255,0.3)',
     borderWidth: 1,
     borderRadius: radios.md,
   },
+  listaBotones: {
+    gap: 9,
+    paddingBottom: 9,
+  },
   botonNativo: {
-    flex: 1,
-    maxWidth: 96,
-    minHeight: 68,
+    minHeight: 58,
     borderRadius: radios.md,
     justifyContent: 'center',
     alignItems: 'center',
@@ -605,9 +1136,9 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
   },
   botonNativoActivo: {
-    transform: [{ translateY: -4 }],
+    transform: [{ scale: 0.98 }],
     borderColor: '#ffffff',
-    borderWidth: 4,
+    borderWidth: 3,
   },
   figuraBoton: {
     width: 24,
@@ -640,6 +1171,584 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '900',
     marginTop: 2,
+  },
+  resultadoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+    backgroundColor: '#10113A',
+  },
+  resultadoDecoracion: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+  },
+  resultadoBurbujaFondo: {
+    position: 'absolute',
+    borderRadius: 999,
+    opacity: 0.42,
+  },
+  resultadoBurbujaAqua: {
+    width: 260,
+    height: 260,
+    top: -90,
+    left: -100,
+    backgroundColor: colores.acento,
+  },
+  resultadoBurbujaSol: {
+    width: 220,
+    height: 220,
+    right: -86,
+    top: 72,
+    backgroundColor: colores.alerta,
+  },
+  resultadoBurbujaRosa: {
+    width: 260,
+    height: 260,
+    bottom: -120,
+    left: 38,
+    backgroundColor: colores.error,
+  },
+  resultadoIconoFondo: {
+    position: 'absolute',
+    color: 'rgba(255,255,255,0.13)',
+    fontWeight: '900',
+  },
+  resultadoIconoUno: {
+    top: 76,
+    left: 48,
+    fontSize: 42,
+    transform: [{ rotate: '-14deg' }],
+  },
+  resultadoIconoDos: {
+    top: 188,
+    right: 64,
+    fontSize: 34,
+    transform: [{ rotate: '20deg' }],
+  },
+  resultadoIconoTres: {
+    bottom: 76,
+    left: 92,
+    fontSize: 28,
+  },
+  panelResultadoContenido: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 78,
+    paddingVertical: 24,
+  },
+  panelResultadoContenidoNivel: {
+    paddingHorizontal: 96,
+    paddingVertical: 28,
+  },
+  panelResultadoContenidoFinal: {
+    paddingHorizontal: 112,
+    paddingVertical: 30,
+  },
+  panelResultadoContenidoFinalPortrait: {
+    paddingHorizontal: 18,
+    paddingVertical: 34,
+  },
+  panelResultadoContenidoCompacto: {
+    paddingHorizontal: 118,
+    paddingVertical: 18,
+  },
+  panelResultadoContenidoFinalCompacto: {
+    paddingHorizontal: 136,
+    paddingVertical: 16,
+  },
+  panelResultado: {
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
+    backgroundColor: '#FFF8DE',
+    borderRadius: 22,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    paddingTop: 30,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    shadowColor: '#000000',
+    shadowOpacity: 0.32,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 12,
+  },
+  panelResultadoFinal: {
+    maxWidth: 560,
+  },
+  panelResultadoFinalPortrait: {
+    maxWidth: 390,
+    borderRadius: 24,
+    paddingTop: 34,
+    paddingHorizontal: 12,
+    paddingBottom: 14,
+  },
+  panelResultadoCompacto: {
+    maxWidth: 520,
+    borderRadius: 16,
+    paddingTop: 22,
+    paddingHorizontal: 10,
+    paddingBottom: 8,
+  },
+  panelResultadoFinalCompacto: {
+    maxWidth: 470,
+    paddingTop: 20,
+    paddingBottom: 8,
+  },
+  panelResultadoNivel: {
+    maxWidth: 500,
+    borderRadius: 18,
+    borderWidth: 3,
+    paddingTop: 28,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+  },
+  resultadoCinta: {
+    position: 'absolute',
+    top: -22,
+    alignSelf: 'center',
+    minWidth: 214,
+    paddingVertical: 10,
+    paddingHorizontal: espaciado.lg,
+    borderRadius: radios.pill,
+    backgroundColor: '#FF3E8A',
+    borderWidth: 3,
+    borderColor: colores.alerta,
+    shadowColor: '#6D1446',
+    shadowOpacity: 0.38,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 10,
+  },
+  resultadoCintaNivel: {
+    top: -18,
+    minWidth: 190,
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+  },
+  resultadoCintaFinal: {
+    top: -18,
+    minWidth: 206,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+  },
+  resultadoCintaCompacta: {
+    top: -14,
+    minWidth: 170,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderWidth: 2,
+  },
+  resultadoCintaTexto: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: 0,
+  },
+  resultadoCintaTextoCompacto: {
+    fontSize: 13,
+  },
+  resultadoHero: {
+    overflow: 'hidden',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 3,
+    borderColor: '#8BE8FF',
+    gap: 8,
+  },
+  resultadoHeroNivel: {
+    borderRadius: 16,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    gap: 6,
+  },
+  resultadoHeroFinal: {
+    gap: 6,
+  },
+  resultadoHeroFinalPortrait: {
+    borderRadius: 18,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  resultadoHeroCompacto: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    borderWidth: 2,
+    gap: 4,
+  },
+  resultadoHeroFinalCompacto: {
+    paddingVertical: 5,
+    paddingHorizontal: 7,
+    borderRadius: 12,
+    gap: 3,
+  },
+  resultadoAura: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    top: -146,
+    backgroundColor: '#FFF1A8',
+  },
+  resultadoNivelPill: {
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: radios.pill,
+    backgroundColor: '#32236C',
+    borderWidth: 2,
+    borderColor: '#A897FF',
+  },
+  resultadoNivelTexto: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0,
+  },
+  resultadoNivelTextoCompacto: {
+    fontSize: 9,
+  },
+  tituloResultado: {
+    color: '#251B57',
+    fontSize: 22,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  tituloResultadoCompacto: {
+    fontSize: 18,
+  },
+  tituloResultadoFinalCompacto: {
+    fontSize: 16,
+  },
+  resultadoTexto: {
+    color: '#31516D',
+    lineHeight: 18,
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+  resultadoTextoCompacto: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  resultadoRecompensa: {
+    width: '100%',
+    borderRadius: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#EAFBFF',
+    borderWidth: 2,
+    borderColor: '#A9EFFF',
+    gap: 4,
+  },
+  resultadoRecompensaCompacta: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    gap: 2,
+  },
+  resultadoRecompensaLabel: {
+    color: '#FF3E8A',
+    fontSize: 11,
+    fontWeight: '900',
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0,
+  },
+  confettiCapa: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+  },
+  confettiPieza: {
+    position: 'absolute',
+    width: 12,
+    height: 20,
+    borderRadius: 5,
+  },
+  estrellasResultado: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    paddingTop: 2,
+  },
+  estrellasResultadoCompacta: {
+    gap: 6,
+    paddingTop: 0,
+  },
+  estrellaBurbuja: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF4B8',
+    borderWidth: 3,
+    borderColor: '#FF9F1C',
+    shadowColor: '#C57A00',
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 8,
+  },
+  estrellaBurbujaCompacta: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 2,
+  },
+  estrellaBurbujaInactiva: {
+    backgroundColor: '#EEF2F7',
+    borderColor: '#D4DCE8',
+  },
+  estrellaResultado: {
+    color: '#FFB703',
+    fontSize: 34,
+    fontWeight: '900',
+  },
+  estrellaResultadoCompacta: {
+    fontSize: 25,
+  },
+  estrellaResultadoInactiva: {
+    color: '#A8B3C3',
+  },
+  gridMetricasResultado: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+    marginTop: 8,
+  },
+  gridMetricasResultadoNivel: {
+    flexWrap: 'nowrap',
+    gap: 7,
+  },
+  gridMetricasResultadoCompacta: {
+    gap: 5,
+    marginTop: 6,
+    flexWrap: 'nowrap',
+  },
+  cardMetricaResultado: {
+    minWidth: '22%',
+    flexGrow: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    borderWidth: 2,
+    gap: 4,
+    alignItems: 'center',
+  },
+  cardMetricaResultadoNivel: {
+    minWidth: 0,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+  },
+  cardMetricaResultadoCompacta: {
+    paddingVertical: 5,
+    paddingHorizontal: 6,
+    borderRadius: 11,
+    borderWidth: 1,
+    gap: 1,
+  },
+  cardMetricaResultado0: {
+    backgroundColor: '#EAFBFF',
+    borderColor: '#A9EFFF',
+  },
+  cardMetricaResultado1: {
+    backgroundColor: '#FFF2C7',
+    borderColor: '#FFD166',
+  },
+  cardMetricaResultado2: {
+    backgroundColor: '#F1E9FF',
+    borderColor: '#C7B5FF',
+  },
+  cardMetricaEtiqueta: {
+    color: '#324B66',
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0,
+    fontWeight: '800',
+  },
+  cardMetricaEtiquetaCompacta: {
+    fontSize: 8,
+  },
+  cardMetricaValor: {
+    color: '#251B57',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  cardMetricaValorCompacto: {
+    fontSize: 13,
+  },
+  panelResumenResultado: {
+    marginTop: 8,
+    padding: 8,
+    borderRadius: 14,
+    backgroundColor: '#FFF2C7',
+    borderWidth: 2,
+    borderColor: '#FFD166',
+    gap: espaciado.xs,
+  },
+  panelResumenResultadoNivel: {
+    borderRadius: 14,
+    paddingVertical: 8,
+  },
+  panelResumenResultadoCompacto: {
+    marginTop: 6,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 11,
+    borderWidth: 1,
+    gap: 1,
+  },
+  resumenResultadoTitulo: {
+    color: '#251B57',
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  resumenResultadoTituloCompacto: {
+    fontSize: 12,
+  },
+  resultadoSecundario: {
+    color: '#405C78',
+    lineHeight: 17,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  resultadoSecundarioCompacto: {
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  listaLogrosResultado: {
+    marginTop: 8,
+    gap: 6,
+  },
+  listaLogrosResultadoCompacta: {
+    marginTop: 5,
+    gap: 4,
+  },
+  listaLogrosResultadoFinalCompacta: {
+    flexDirection: 'row',
+    marginTop: 5,
+    gap: 5,
+  },
+  logroResultadoCard: {
+    padding: 8,
+    borderRadius: 14,
+    backgroundColor: '#F1E9FF',
+    borderWidth: 2,
+    borderColor: '#C7B5FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espaciado.sm,
+  },
+  logroResultadoCardCompacta: {
+    paddingVertical: 5,
+    paddingHorizontal: 7,
+    borderRadius: 11,
+    borderWidth: 1,
+  },
+  logroResultadoCardFinalCompacta: {
+    flex: 1,
+    minHeight: 34,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    gap: 5,
+  },
+  logroIconoBurbuja: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colores.alerta,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  logroIconoBurbujaFinalCompacta: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  logroIconoTexto: {
+    fontSize: 22,
+  },
+  logroIconoTextoFinalCompacto: {
+    fontSize: 16,
+  },
+  logroTextoContenido: {
+    flex: 1,
+    gap: 3,
+  },
+  logroResultadoTitulo: {
+    color: '#251B57',
+    fontWeight: '900',
+  },
+  logroResultadoTituloCompacto: {
+    fontSize: 12,
+  },
+  logroResultadoTexto: {
+    color: '#405C78',
+    lineHeight: 16,
+  },
+  resultadoBotones: {
+    flexDirection: 'row',
+    gap: espaciado.sm,
+    marginTop: espaciado.sm,
+  },
+  resultadoBotonesCompacto: {
+    marginTop: 6,
+    gap: 7,
+  },
+  botonContinuar: {
+    flex: 1,
+    borderRadius: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: '#36D990',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#0B8B55',
+    shadowOpacity: 0.32,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  botonContinuarCompacto: {
+    paddingVertical: 9,
+    borderRadius: 13,
+    borderWidth: 2,
+  },
+  botonContinuarTexto: {
+    color: '#073B2A',
+    fontWeight: '900',
+    fontSize: 15,
+  },
+  botonResultadoTextoCompacto: {
+    fontSize: 13,
+  },
+  botonResultadoSalir: {
+    flex: 1,
+    borderRadius: 24,
+    paddingVertical: 15,
+    alignItems: 'center',
+    backgroundColor: '#4EC8FF',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#146D93',
+    shadowOpacity: 0.24,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  botonResultadoSalirTexto: {
+    color: '#083451',
+    fontWeight: '900',
+    fontSize: 15,
   },
 });
 
