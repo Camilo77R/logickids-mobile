@@ -10,13 +10,6 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
-  s.dependency 'MediaPipeTasksVision', '0.10.29'
-
-  s.pod_target_xcconfig = {
-    'DEFINES_MODULE' => 'YES',
-    'OTHER_LDFLAGS' => '-ObjC -lc++',
-  }
 
   s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"
-  s.resource = "Models/hand_landmarker.task"
 end
