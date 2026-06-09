@@ -42,6 +42,7 @@ const construirPersistenciaInicial = (modo) => ({
   eventosPendientes: 0,
   error: null,
   respuestaInicio: null,
+  respuestaFinalizacion: null,
 });
 
 const resolverMensajeError = (error) =>
@@ -231,15 +232,18 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
           return;
         }
 
-        await clienteSesionesJuego.finalizarSesion({
+        const respuestaFinalizacion = await clienteSesionesJuego.finalizarSesion({
           tokenEstudiante: contextoNormalizado.tokenEstudiante,
           sesionId,
           finalizacion: finalizacionSesion,
         });
 
+        sesionIdRef.current = null;
+
         setPersistencia((previo) => ({
           ...previo,
           estado: ESTADOS_PERSISTENCIA_TREN_3D.finalizada,
+          respuestaFinalizacion,
           error: null,
         }));
       } catch (error) {
@@ -280,6 +284,7 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
     persistencia,
     observadoresJuego,
     persistenciaRemotaHabilitada,
-    respuestaInicio: respuestaInicioRef.current,
+    respuestaInicio: persistencia.respuestaInicio ?? respuestaInicioRef.current,
+    respuestaFinalizacion: persistencia.respuestaFinalizacion,
   };
 };
