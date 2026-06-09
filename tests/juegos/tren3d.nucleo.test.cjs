@@ -155,6 +155,7 @@ test('motor Babylon V2 expone selector nativo y movimiento continuo del tren', (
   assert.match(html, /window\.establecerSeleccion/);
   assert.match(html, /grupoTren/);
   assert.match(html, /estadoTren === 'jugando'/);
+  assert.doesNotMatch(html, /data:image/);
   assert.match(html, /inicioRecorridoX/);
   assert.match(html, /finRecorridoX/);
   assert.match(html, /resolverJugada\(picked\.metadata\.indice\)/);
