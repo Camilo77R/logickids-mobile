@@ -38,5 +38,5 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-# standalone web prototype (not part of mobile app)
+# juego-logica (orphaned web project - not part of the mobile app)
 juego-logica/
