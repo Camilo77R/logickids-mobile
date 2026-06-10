@@ -1,6 +1,5 @@
 package expo.modules.handtracker
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -11,7 +10,7 @@ import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.framework.image.BitmapImageBuilder
-import java.io.File
+import kotlin.math.sqrt
 
 class ExpoHandTrackerModule : Module() {
   private var handLandmarker: HandLandmarker? = null
@@ -32,28 +31,22 @@ class ExpoHandTrackerModule : Module() {
       try {
         ensureLandmarker()
         val bitmap = loadBitmap(imagePath) ?: return@AsyncFunction buildEmptyResult()
-        val result = handLandmarker?.let { landmarker ->
-          val mpImage = BitmapImageBuilder(bitmap).build()
-          landmarker.detect(mpImage)
-        }
+        val mpImage = BitmapImageBuilder(bitmap).build()
+        val result = handLandmarker?.detect(mpImage)
         val hands = result?.landmarks()?.map { handLandmarks ->
-          val landmarks = handLandmarks.map { landmark ->
+          val landmarks = handLandmarks.map { lm ->
             mapOf(
-              "x" to landmark.x(),
-              "y" to landmark.y(),
-              "z" to landmark.z(),
-              "visibility" to (if (landmark.hasVisibility()) landmark.visibility().toDouble() else 0.0)
+              "x" to lm.x().toDouble(),
+              "y" to lm.y().toDouble(),
+              "z" to lm.z().toDouble()
             )
           }
-          val thumbTip = handLandmarks.getOrNull(4)
-          val indexTip = handLandmarks.getOrNull(8)
-          val isPinching = if (thumbTip != null && indexTip != null) {
-            val dx = thumbTip.x() - indexTip.x()
-            val dy = thumbTip.y() - indexTip.y()
-            val dz = if (thumbTip.hasZ() && indexTip.hasZ()) {
-              thumbTip.z() - indexTip.z()
-            } else 0.0
-            Math.sqrt(dx * dx + dy * dy + dz * dz) < 0.05
+          val isPinching = if (handLandmarks.size > 8) {
+            val thumb = handLandmarks[4]
+            val index = handLandmarks[8]
+            val dx = thumb.x() - index.x()
+            val dy = thumb.y() - index.y()
+            sqrt((dx * dx + dy * dy).toDouble()) < 0.05
           } else false
           mapOf(
             "landmarks" to landmarks,
