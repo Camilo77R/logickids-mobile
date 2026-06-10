@@ -7,7 +7,6 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
-import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import kotlin.math.sqrt
@@ -85,7 +84,7 @@ class ExpoHandTrackerModule : Module() {
     val baseOptions = BaseOptions.builder()
       .setModelAssetPath("hand_landmarker.task")
       .build()
-    val options = HandLandmarkerOptions.builder()
+    val options = HandLandmarker.HandLandmarkerOptions.builder()
       .setBaseOptions(baseOptions)
       .setRunningMode(RunningMode.IMAGE)
       .setNumHands(1)
