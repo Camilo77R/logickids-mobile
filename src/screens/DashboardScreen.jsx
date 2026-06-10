@@ -16,6 +16,9 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import CaminoARScreen from '../features/games/camino-ar/CaminoARScreen';
 import { obtenerConfiguracionBaseCaminoAr } from '../features/games/camino-ar/caminoArConfiguracion';
+import ObjetoPerdidoARScreen from '../features/games/objeto-perdido-ar/ObjetoPerdidoARScreen';
+import { obtenerConfiguracionBaseObjetoPerdidoAr } from '../features/games/objeto-perdido-ar/objetoPerdidoArConfiguracion';
+import { SLUG_OBJETO_PERDIDO_AR } from '../features/games/objeto-perdido-ar/objetoPerdidoAr.constants';
 import Tren3DScreen from '../features/games/tren-3d/Tren3DScreen';
 import { obtenerConfiguracionBaseTren3D } from '../features/games/tren-3d/tren3dConfiguracion';
 import {
@@ -37,9 +40,9 @@ const trainHeroImage = require('../../assets/branding/fondo definitivo.jpeg');
 const OFFICIAL_SKILLS = Object.freeze([
   { name: 'Memoria', icon: 'bulb', gameSlug: 'camino-ar' },
   { name: 'Patrones', icon: 'extension-puzzle', gameSlug: SLUG_TREN_3D },
+  { name: 'Atencion', icon: 'search', gameSlug: SLUG_OBJETO_PERDIDO_AR },
   { name: 'Logica', icon: 'scale' },
   { name: 'Razonar', icon: 'cube' },
-  { name: 'Atencion', icon: 'search' },
 ]);
 
 const DASHBOARD_TABS = Object.freeze({
@@ -276,6 +279,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const studentProfile = profile ?? studentSession?.studentProfile ?? null;
   const caminoArConfig = useMemo(() => obtenerConfiguracionBaseCaminoAr(), []);
   const tren3DConfig = useMemo(() => obtenerConfiguracionBaseTren3D(), []);
+  const objetoPerdidoArConfig = useMemo(() => obtenerConfiguracionBaseObjetoPerdidoAr(), []);
   const caminoArAccess = useMemo(
     () =>
       resolverAccesoJuegoDesdePerfil({
@@ -291,6 +295,14 @@ export default function DashboardScreen({ studentSession, onLogout }) {
         slugJuego: tren3DConfig.slug,
       }),
     [studentProfile, tren3DConfig.slug],
+  );
+  const objetoPerdidoArAccess = useMemo(
+    () =>
+      resolverAccesoJuegoDesdePerfil({
+        perfilEstudiante: studentProfile,
+        slugJuego: objetoPerdidoArConfig.slug,
+      }),
+    [objetoPerdidoArConfig.slug, studentProfile],
   );
   const caminoArSessionContext = useMemo(
     () => ({
@@ -308,12 +320,28 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     }),
     [studentProfile?.sesion_minijuego_id, studentSession?.apiBaseUrl, studentSession?.token],
   );
+  const objetoPerdidoArSessionContext = useMemo(
+    () => ({
+      tokenEstudiante: studentSession?.token ?? null,
+      baseUrlApi: studentSession?.apiBaseUrl ?? null,
+      minijuegoId: studentProfile?.sesion_minijuego_id ?? null,
+    }),
+    [studentProfile?.sesion_minijuego_id, studentSession?.apiBaseUrl, studentSession?.token],
+  );
   const accessBySlug = useMemo(
     () => ({
       [caminoArConfig.slug]: caminoArAccess,
       [tren3DConfig.slug]: tren3DAccess,
+      [objetoPerdidoArConfig.slug]: objetoPerdidoArAccess,
     }),
-    [caminoArAccess, caminoArConfig.slug, tren3DAccess, tren3DConfig.slug],
+    [
+      caminoArAccess,
+      caminoArConfig.slug,
+      objetoPerdidoArAccess,
+      objetoPerdidoArConfig.slug,
+      tren3DAccess,
+      tren3DConfig.slug,
+    ],
   );
   const currentGameAccess = accessBySlug[studentProfile?.sesion_minijuego_slug] ?? caminoArAccess;
   const activityCopy = useMemo(
@@ -339,11 +367,14 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const avatarColor = getStudentAvatarColor(studentProfile, studentSession?.studentProfile);
   const canPlayCaminoAr = caminoArAccess.estado === ESTADOS_ACCESO_JUEGO.disponible;
   const canPlayTren3D = tren3DAccess.estado === ESTADOS_ACCESO_JUEGO.disponible;
+  const canPlayObjetoPerdidoAr = objetoPerdidoArAccess.estado === ESTADOS_ACCESO_JUEGO.disponible;
   const availableGameSlug = canPlayCaminoAr
     ? caminoArConfig.slug
     : canPlayTren3D
       ? tren3DConfig.slug
-      : null;
+      : canPlayObjetoPerdidoAr
+        ? objetoPerdidoArConfig.slug
+        : null;
   const achievementsCount = achievements.length;
   const sessionStatusLabel = buildSessionStatusLabel(studentProfile);
   const dashboardAccess = resolveStudentDashboardAccess(studentProfile);
@@ -357,12 +388,19 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     activeActivityTitle.includes('tren') ||
     activeActivityTitle.includes('figura') ||
     activeActivityTitle.includes('patron');
+  const isObjectSearchHero =
+    activeActivitySlug === SLUG_OBJETO_PERDIDO_AR ||
+    activeActivityTitle.includes('objeto') ||
+    activeActivityTitle.includes('perdido') ||
+    activeActivityTitle.includes('atencion');
   const scrollBottomPadding = activeTab === DASHBOARD_TABS.perfil ? 92 : 128;
   const heroActivityLabel = isTrainHero
     ? 'Tren de Figuras'
-    : activeActivityTitle.includes('camino')
-      ? 'Camino AR'
-      : 'Actividad de hoy';
+    : isObjectSearchHero
+      ? 'Objeto Perdido AR'
+      : activeActivityTitle.includes('camino')
+        ? 'Camino AR'
+        : 'Actividad de hoy';
   const hasProgressData = progressSummary.skillsTracked > 0 || achievementsCount > 0 || progressSummary.totalAttempts > 0;
   const progressIntro = hasProgressData
     ? 'Mira como crece tu aventura'
@@ -398,6 +436,15 @@ export default function DashboardScreen({ studentSession, onLogout }) {
         icon: 'shapes',
       },
       {
+        slug: objetoPerdidoArConfig.slug,
+        id: objetoPerdidoArConfig.slug,
+        title: 'Objeto Perdido AR',
+        status: canPlayObjetoPerdidoAr ? 'Actividad' : 'Bloqueado',
+        locked: !canPlayObjetoPerdidoAr,
+        lockedReason: buildLockedReason(objetoPerdidoArAccess, true),
+        icon: 'search',
+      },
+      {
         slug: null,
         id: 'robot-logico',
         title: 'Robot Logico',
@@ -411,7 +458,10 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       caminoArAccess,
       caminoArConfig.slug,
       canPlayCaminoAr,
+      canPlayObjetoPerdidoAr,
       canPlayTren3D,
+      objetoPerdidoArAccess,
+      objetoPerdidoArConfig.slug,
       tren3DAccess,
       tren3DConfig.slug,
     ],
@@ -509,6 +559,16 @@ export default function DashboardScreen({ studentSession, onLogout }) {
         onSalir={exitGame}
         configuracionInicial={tren3DConfig}
         contextoSesion={tren3DSessionContext}
+      />
+    );
+  }
+
+  if (activeGame === SLUG_OBJETO_PERDIDO_AR) {
+    return (
+      <ObjetoPerdidoARScreen
+        onSalir={exitGame}
+        configuracionInicial={objetoPerdidoArConfig}
+        contextoSesion={objetoPerdidoArSessionContext}
       />
     );
   }
