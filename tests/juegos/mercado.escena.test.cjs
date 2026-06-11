@@ -9,10 +9,16 @@ const {
   generarRondaMercado,
 } = require('../../src/features/games/mercado-inteligente/mercadoMotor.js');
 const {
-  generarHtmlMercado3D,
-} = require('../../src/features/games/mercado-inteligente/presentacion/mercado3dMotorBabylon.js');
+  crearModeloVisualNivelMercado,
+} = require('../../src/features/games/mercado-inteligente/aplicacion/mercadoPremiumPresentacion.js');
+const {
+  generarDocumentoMercadoPremium,
+} = require('../../src/features/games/mercado-inteligente/presentacion/premium/mercadoPremiumDocumento.js');
+const {
+  crearEstadoUiMercadoPremium,
+} = require('../../src/features/games/mercado-inteligente/presentacion/premium/mercadoPremiumEstadoUi.js');
 
-test('generarHtmlMercado3D crea una escena Babylon con bridge explicito', () => {
+test('generarDocumentoMercadoPremium crea la Pantalla 1 premium con UI y bridge explicitos', () => {
   const configuracion = normalizarConfiguracionMercado({
     configuracion: {
       cantidadProductosVisibles: 3,
@@ -20,28 +26,43 @@ test('generarHtmlMercado3D crea una escena Babylon con bridge explicito', () => 
     },
   });
   const ronda = generarRondaMercado({ configuracion, indiceRonda: 0 });
-  const html = generarHtmlMercado3D({
+  const modeloVisual = crearModeloVisualNivelMercado({
     ronda,
-    assetsPorProducto: {
-      [ronda.oferta[0].id]: 'file:///producto.glb',
-    },
-    assetsDecoracion: {
-      canasta: 'file:///canasta.glb',
-      carrito: 'file:///carrito.glb',
-      caja: 'file:///caja.glb',
+    nivel: 1,
+    totalNiveles: 3,
+    seleccionadosIds: [],
+    mensaje: ronda.objetivo.textoGuia,
+    estrellas: 0,
+    combo: 0,
+  });
+  const estadoUi = crearEstadoUiMercadoPremium({
+    modeloVisual,
+    nombreJugador: 'Estudiante',
+  });
+  const html = generarDocumentoMercadoPremium({
+    modeloVisual,
+    estadoUi,
+    assets: {
+      productos: {
+        [ronda.oferta[0].id]: ['file:///producto.glb'],
+      },
+      escena: {
+        escenario: ['file:///escenario-mercado-premium.png'],
+      },
     },
   });
 
-  assert.match(html, /cdn\.babylonjs\.com\/babylon\.js/);
-  assert.match(html, /babylonjs\.loaders\.min\.js/);
-  assert.match(html, /new BABYLON\.ArcRotateCamera/);
-  assert.match(html, /BABYLON\.SceneLoader\.ImportMesh/);
-  assert.match(html, /SCENE_READY/);
+  assert.doesNotMatch(html, /cdn\.babylonjs\.com/);
+  assert.doesNotMatch(html, /BABYLON/);
+  assert.match(html, /escenario-mercado-premium\.png/);
+  assert.match(html, /MERCADO_READY/);
   assert.match(html, /PRODUCT_TOGGLED/);
-  assert.match(html, /SET_CART/);
-  assert.match(html, /SHOW_RESULT/);
-  assert.match(html, /carrito-deco/);
-  assert.match(html, /caja-deco/);
+  assert.match(html, /UPDATE_GAME_STATE/);
+  assert.match(html, /PURCHASE_REQUESTED/);
+  assert.match(html, /HINT_REQUESTED/);
+  assert.match(html, /mercado-mision/);
+  assert.match(html, /mercado-mochila/);
+  assert.match(html, /mercado-escaparate/);
   assert.match(html, new RegExp(ronda.oferta[0].nombre));
 });
 
