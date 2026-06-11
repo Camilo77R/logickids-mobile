@@ -15,11 +15,16 @@ export default function MercadoMisionCard({ ronda }) {
   const cantidad = normalizarEnteroPositivo(ronda?.objetivo?.cantidadObjetivos, 2);
 
   return (
-    <View style={styles.wrapper}>
-      <Text style={styles.eyebrow}>Pedido</Text>
-      <Text style={styles.title} numberOfLines={1}>
-        Elige {cantidad} · Hasta {presupuesto} monedas
-      </Text>
+    <View style={styles.wrapper} pointerEvents="none">
+      <View style={styles.sideWingLeft} />
+      <View style={styles.sideWingRight} />
+      <View style={styles.bannerShadow}>
+        <View style={styles.bannerBody}>
+          <Text style={styles.title} numberOfLines={2}>
+            MISION: ¡COMPRA {cantidad} OBJETOS SIN PASARTE DE {presupuesto} MONEDAS!
+          </Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -27,39 +32,66 @@ export default function MercadoMisionCard({ ronda }) {
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    zIndex: 26,
-    top: 58,
-    left: spacing.md,
-    width: 300,
-    minHeight: 44,
-    borderRadius: 22,
-    backgroundColor: colors.card,
-    borderWidth: 2,
-    borderColor: colors.gold,
-    paddingLeft: spacing.md,
-    paddingRight: spacing.md,
-    paddingVertical: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    shadowColor: colors.gold,
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    elevation: 7,
+    top: 4,
+    left: 190,
+    right: 190,
+    zIndex: 32,
+    alignItems: 'stretch',
   },
-  eyebrow: {
-    color: colors.amberDark,
-    fontFamily: fonts.black,
-    fontSize: 10,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
+  sideWingLeft: {
+    position: 'absolute',
+    left: -40,
+    top: 16,
+    width: 74,
+    height: 54,
+    borderRadius: 20,
+    backgroundColor: '#A76534',
+    borderWidth: 3,
+    borderColor: colors.borderDark,
+    transform: [{ rotate: '-16deg' }],
+  },
+  sideWingRight: {
+    position: 'absolute',
+    right: -40,
+    top: 16,
+    width: 74,
+    height: 54,
+    borderRadius: 20,
+    backgroundColor: '#A76534',
+    borderWidth: 3,
+    borderColor: colors.borderDark,
+    transform: [{ rotate: '16deg' }],
+  },
+  bannerShadow: {
+    minHeight: 96,
+    borderRadius: 34,
+    backgroundColor: colors.greenPrimaryDark,
+    paddingBottom: 5,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  bannerBody: {
+    minHeight: 90,
+    borderRadius: 31,
+    borderWidth: 4,
+    borderColor: colors.greenPrimaryBorder,
+    backgroundColor: colors.greenPrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
   },
   title: {
-    flex: 1,
-    color: colors.ink,
+    color: colors.whiteSoft,
     fontFamily: fonts.black,
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 24,
+    lineHeight: 28,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    textShadowColor: 'rgba(76,45,6,0.28)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 2,
   },
 });

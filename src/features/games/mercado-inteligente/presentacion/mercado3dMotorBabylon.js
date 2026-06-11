@@ -1,4 +1,31 @@
 const serializar = (valor) => JSON.stringify(valor).replace(/</g, '\\u003c');
+const escaparHtml = (valor) =>
+  String(valor ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const construirEtiquetasProductoHtml = (productos = []) => {
+  const claseCantidad = productos.length > 3 ? 'labels-4' : 'labels-3';
+
+  const tarjetas = productos
+    .map(
+      (producto) => `
+        <div class="product-label-card" id="label-${escaparHtml(producto.id)}">
+          <div class="product-label-name">${escaparHtml(producto.nombre.toUpperCase())}</div>
+          <div class="product-label-price">
+            <span class="coin-dot"></span>
+            ${escaparHtml(producto.precio)} monedas
+          </div>
+        </div>
+      `,
+    )
+    .join('');
+
+  return `<div id="productLabels" class="${claseCantidad}">${tarjetas}</div>`;
+};
 
 export const generarHtmlMercado3D = ({
   ronda,
@@ -16,6 +43,7 @@ export const generarHtmlMercado3D = ({
     assetsPorProducto,
     assetsDecoracion,
   });
+  const etiquetasProductoHtml = construirEtiquetasProductoHtml(ronda.oferta);
 
   return `<!doctype html>
 <html>
@@ -54,19 +82,261 @@ export const generarHtmlMercado3D = ({
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
 
     <style>
-      html, body, #renderCanvas {
+      html, body {
         width: 100%;
         height: 100%;
         margin: 0;
         overflow: hidden;
         touch-action: none;
-        background: linear-gradient(180deg, #8EE6FF 0%, #D9F9FF 42%, #EAFCEB 100%);
+        background: #efc188;
+      }
+
+      body {
+        position: relative;
+        font-family: Arial, sans-serif;
+      }
+
+      #sceneRoot {
+        position: fixed;
+        inset: 0;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 50% 18%, rgba(255,244,195,0.85), transparent 26%),
+          linear-gradient(180deg, #df9d5f 0%, #efc188 24%, #f3cfac 55%, #b96e38 56%, #9b5828 100%);
+      }
+
+      #roomBackdrop {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+      }
+
+      .back-wall {
+        position: absolute;
+        left: 8%;
+        right: 8%;
+        top: 11%;
+        bottom: 22%;
+        border-radius: 28px;
+        background: linear-gradient(180deg, #f8e8cf 0%, #f6ddba 100%);
+        box-shadow: inset 0 0 0 6px rgba(140, 77, 29, 0.08);
+      }
+
+      .window-frame {
+        position: absolute;
+        left: 4%;
+        top: 24%;
+        width: 11%;
+        height: 32%;
+        border-radius: 28px;
+        background: linear-gradient(180deg, #f7c785 0%, #f4b15f 100%);
+        box-shadow: inset 0 0 0 5px #8a4a1f;
+      }
+
+      .window-glass {
+        position: absolute;
+        inset: 10px;
+        border-radius: 20px;
+        background: linear-gradient(180deg, #fff9d9 0%, #d4ffd8 100%);
+      }
+
+      .shelf {
+        position: absolute;
+        width: 17%;
+        height: 22%;
+        border-radius: 20px;
+        background: linear-gradient(180deg, #a8632b 0%, #8a4d20 100%);
+        box-shadow: inset 0 0 0 4px rgba(92, 46, 15, 0.45);
+      }
+
+      .shelf-left {
+        left: 17%;
+        top: 29%;
+      }
+
+      .shelf-right {
+        right: 19%;
+        top: 26%;
+      }
+
+      .shelf-row {
+        position: absolute;
+        left: 10%;
+        right: 10%;
+        height: 16px;
+        border-radius: 10px;
+        background: #76411d;
+      }
+
+      .shelf-row.top {
+        top: 38%;
+      }
+
+      .shelf-row.bottom {
+        top: 70%;
+      }
+
+      .shelf-item {
+        position: absolute;
+        bottom: 22%;
+        width: 18%;
+        aspect-ratio: 1 / 1;
+        border-radius: 999px;
+        box-shadow: inset 0 -6px 0 rgba(0,0,0,0.08);
+      }
+
+      .shelf-item.apple {
+        left: 15%;
+        background: #d95447;
+      }
+
+      .shelf-item.pear {
+        left: 41%;
+        background: #c3d84e;
+      }
+
+      .shelf-item.tomato {
+        left: 67%;
+        background: #f06e57;
+      }
+
+      .shelf-box {
+        position: absolute;
+        bottom: 18%;
+        width: 20%;
+        height: 20%;
+        border-radius: 10px;
+        background: #d8b36b;
+      }
+
+      .shelf-box.one { left: 16%; }
+      .shelf-box.two { left: 40%; }
+      .shelf-box.three { left: 64%; }
+
+      .cash-register {
+        position: absolute;
+        left: 28%;
+        bottom: 28%;
+        width: 8%;
+        height: 12%;
+        border-radius: 14px;
+        background: linear-gradient(180deg, #b9b6bf 0%, #8a8892 100%);
+        box-shadow: inset 0 0 0 4px rgba(88, 78, 78, 0.32);
+      }
+
+      .monitor {
+        position: absolute;
+        right: 14%;
+        bottom: 27%;
+        width: 14%;
+        height: 16%;
+        border-radius: 18px;
+        background: #6a84a6;
+      }
+
+      .monitor::after {
+        content: '';
+        position: absolute;
+        left: 14%;
+        right: 14%;
+        top: 16%;
+        bottom: 24%;
+        border-radius: 10px;
+        background: #83c99f;
+      }
+
+      .crate {
+        position: absolute;
+        right: 9%;
+        bottom: 14%;
+        width: 13%;
+        height: 16%;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #7193a4 0%, #517687 100%);
+      }
+
+      .floor-rug {
+        position: absolute;
+        left: 34%;
+        right: 34%;
+        bottom: 4%;
+        height: 16%;
+        border-radius: 999px;
+        background: radial-gradient(circle at 50% 50%, #a7d76e 0%, #80b84d 65%, rgba(0,0,0,0) 68%);
+        opacity: 0.92;
       }
 
       #renderCanvas {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
         display: block;
         width: 100%;
         height: 100%;
+        background: transparent;
+      }
+
+      #productLabels {
+        position: absolute;
+        left: 20%;
+        right: 20%;
+        bottom: 30%;
+        z-index: 3;
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+        gap: 18px;
+        pointer-events: none;
+      }
+
+      #productLabels.labels-4 {
+        left: 16%;
+        right: 16%;
+        gap: 12px;
+      }
+
+      .product-label-card {
+        min-width: 136px;
+        padding: 10px 12px;
+        border-radius: 18px;
+        background: #fff8eb;
+        box-shadow:
+          0 5px 0 #8a4a1f,
+          inset 0 0 0 3px rgba(138, 74, 31, 0.24);
+        text-align: center;
+        transform: translateY(0);
+        transition: transform 120ms ease, filter 120ms ease;
+      }
+
+      #productLabels.labels-4 .product-label-card {
+        min-width: 120px;
+        padding: 10px 8px;
+      }
+
+      .product-label-card.selected {
+        transform: translateY(-5px) scale(1.03);
+        filter: drop-shadow(0 0 10px rgba(96, 213, 102, 0.36));
+      }
+
+      .product-label-name {
+        color: #4a2504;
+        font: 900 14px/1.05 Arial, sans-serif;
+      }
+
+      .product-label-price {
+        margin-top: 6px;
+        color: #7b542b;
+        font: 900 12px/1 Arial, sans-serif;
+      }
+
+      .coin-dot {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        margin-right: 6px;
+        vertical-align: -1px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #ffd34d 0%, #e28a11 100%);
       }
 
       #fallback {
@@ -85,7 +355,30 @@ export const generarHtmlMercado3D = ({
   </head>
 
   <body>
-    <canvas id="renderCanvas"></canvas>
+    <div id="sceneRoot">
+      <div id="roomBackdrop">
+        <div class="back-wall"></div>
+        <div class="window-frame"><div class="window-glass"></div></div>
+        <div class="shelf shelf-left">
+          <div class="shelf-row top"></div>
+          <div class="shelf-item pear"></div>
+          <div class="shelf-item apple"></div>
+          <div class="shelf-item tomato"></div>
+        </div>
+        <div class="shelf shelf-right">
+          <div class="shelf-row top"></div>
+          <div class="shelf-box one"></div>
+          <div class="shelf-box two"></div>
+          <div class="shelf-box three"></div>
+        </div>
+        <div class="cash-register"></div>
+        <div class="monitor"></div>
+        <div class="crate"></div>
+        <div class="floor-rug"></div>
+      </div>
+      <canvas id="renderCanvas"></canvas>
+      ${etiquetasProductoHtml}
+    </div>
     <div id="fallback">Preparando el mercadito.</div>
 
     <script>
@@ -135,6 +428,20 @@ export const generarHtmlMercado3D = ({
         function enviar(payload) {
           if (!window.ReactNativeWebView) return;
           window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+        }
+
+        function actualizarEtiquetasSeleccion() {
+          parametros.productos.forEach(function (producto) {
+            var etiqueta = document.getElementById('label-' + producto.id);
+
+            if (!etiqueta) return;
+
+            if (seleccionados[producto.id]) {
+              etiqueta.classList.add('selected');
+            } else {
+              etiqueta.classList.remove('selected');
+            }
+          });
         }
 
         function color(hex) {
@@ -575,6 +882,8 @@ export const generarHtmlMercado3D = ({
               ? new BABYLON.Vector3(1.04, 1.04, 1.04)
               : new BABYLON.Vector3(1, 1, 1);
           });
+
+          actualizarEtiquetasSeleccion();
         }
 
         function mostrarResultado(payload) {
@@ -794,24 +1103,24 @@ export const generarHtmlMercado3D = ({
           });
 
           scene = new BABYLON.Scene(engine);
-          scene.clearColor = new BABYLON.Color4(0.56, 0.90, 1, 1);
+          scene.clearColor = new BABYLON.Color4(0, 0, 0, 0);
 
           var camera = new BABYLON.ArcRotateCamera(
             'camara',
             Math.PI / 2,
-            Math.PI / 3.20,
-            3.95,
-            new BABYLON.Vector3(0, 0.86, -0.04),
+            Math.PI / 3.26,
+            4.08,
+            new BABYLON.Vector3(0, 0.84, -0.06),
             scene
           );
 
           camera.attachControl(canvas, true);
-          camera.lowerRadiusLimit = 3.75;
-          camera.upperRadiusLimit = 4.15;
-          camera.lowerBetaLimit = Math.PI / 3.35;
-          camera.upperBetaLimit = Math.PI / 3.02;
-          camera.lowerAlphaLimit = Math.PI / 2 - 0.04;
-          camera.upperAlphaLimit = Math.PI / 2 + 0.04;
+          camera.lowerRadiusLimit = 3.98;
+          camera.upperRadiusLimit = 4.18;
+          camera.lowerBetaLimit = Math.PI / 3.34;
+          camera.upperBetaLimit = Math.PI / 3.16;
+          camera.lowerAlphaLimit = Math.PI / 2 - 0.03;
+          camera.upperAlphaLimit = Math.PI / 2 + 0.03;
           camera.wheelPrecision = 120;
           camera.pinchPrecision = 140;
 

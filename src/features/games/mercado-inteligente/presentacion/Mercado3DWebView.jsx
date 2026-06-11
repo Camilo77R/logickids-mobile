@@ -373,28 +373,28 @@ export default function Mercado3DWebView({
 const styles = StyleSheet.create({
   contenedor: {
     flex: 1,
-    backgroundColor: '#8ee6ff',
+    backgroundColor: '#D38A4A',
   },
   webview: {
     flex: 1,
-    backgroundColor: '#8ee6ff',
+    backgroundColor: '#D38A4A',
   },
   cargando: {
     position: 'absolute',
     left: spacing.lg,
     right: spacing.lg,
     top: '38%',
-    borderRadius: radii.lg,
-    backgroundColor: 'rgba(255, 248, 237, 0.96)',
-    borderWidth: 2,
-    borderColor: '#f4c66d',
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 248, 237, 0.98)',
+    borderWidth: 4,
+    borderColor: '#8CD83A',
     padding: spacing.md,
     alignItems: 'center',
     gap: spacing.sm,
   },
   cargandoTexto: {
-    color: colors.purpleDark,
+    color: '#4A2504',
     fontFamily: fonts.black,
-    fontSize: 14,
+    fontSize: 16,
   },
 });

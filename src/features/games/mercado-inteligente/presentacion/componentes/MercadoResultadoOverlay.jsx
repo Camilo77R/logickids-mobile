@@ -3,13 +3,38 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { mercadoTheme } from '../mercadoUiTokens';
 
-const { colors, fonts, radii, spacing } = mercadoTheme;
+const { colors, fonts, spacing } = mercadoTheme;
 
-function Metric({ label, value }) {
+function StarDisplay({ estrellas }) {
   return (
-    <View style={styles.metric}>
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
+    <View style={styles.starDisplay}>
+      {[0, 1, 2].map((indice) => (
+        <View key={indice} style={[styles.starBubble, indice >= estrellas && styles.starBubbleOff]}>
+          <Text style={[styles.starBubbleText, indice >= estrellas && styles.starBubbleTextOff]}>
+            {'\u2605'}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function FinalSummaryColumn({ title, value, helper, noDivider = false }) {
+  return (
+    <View style={[styles.finalSummaryColumn, noDivider && styles.finalSummaryColumnNoDivider]}>
+      <Text style={styles.finalSummaryTitle}>{title}</Text>
+      <Text style={styles.finalSummaryValue}>{value}</Text>
+      <Text style={styles.finalSummaryHelper}>{helper}</Text>
+    </View>
+  );
+}
+
+function LevelMetric({ title, value, helper }) {
+  return (
+    <View style={styles.levelMetric}>
+      <Text style={styles.levelMetricTitle}>{title}</Text>
+      <Text style={styles.levelMetricValue}>{value}</Text>
+      <Text style={styles.levelMetricHelper}>{helper}</Text>
     </View>
   );
 }
@@ -22,76 +47,140 @@ export default function MercadoResultadoOverlay({
   etiquetaPrimaria,
   etiquetaSecundaria,
   esperandoBackend,
+  presupuesto,
+  monedasUsadas,
+  nivel,
   onContinuar,
   onSalir,
 }) {
+  const esCierreFinal = !etiquetaPrimaria;
   const aciertos = resultado.estadisticas.aciertos;
   const errores = resultado.estadisticas.errores;
-  const titulo = aciertos > 0 ? 'Gran compra' : 'Buen intento';
+  const combo = resultado.estadisticas.comboMaximo;
+  const puntaje = resultado.estadisticas.puntaje;
+  const rondasCompletadas = resultado.detalles?.rondasCompletadas ?? 1;
+  const rondasTotales = resultado.detalles?.rondasPorPartida ?? rondasCompletadas;
 
   return (
     <View style={styles.backdrop}>
-      <View style={styles.card}>
-        <View style={styles.topRow}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>M</Text>
+      <View style={styles.topRow}>
+        <View style={styles.playerCard}>
+          <View style={styles.avatarFrame}>
+            <Text style={styles.avatarFace}>{'\u263A'}</Text>
           </View>
+          <View style={styles.playerBadge}>
+            <Text style={styles.playerBadgeText}>{'\u2605'}</Text>
+          </View>
+          <Text style={styles.playerLevel}>NIVEL {nivel}</Text>
+        </View>
 
-          <View style={styles.titleBlock}>
-            <Text style={styles.ribbon}>Pedido revisado</Text>
-            <Text style={styles.title}>{titulo}</Text>
-            <View style={styles.starsRow}>
-              {[0, 1, 2].map((starIndex) => (
-                <Text
-                  key={starIndex}
-                  style={[
-                    styles.star,
-                    starIndex >= estrellas && styles.starEmpty,
-                  ]}
-                >
-                  {'\u2605'}
-                </Text>
-              ))}
+        <View style={styles.bannerShell}>
+          <View style={styles.bannerBody}>
+            <Text style={styles.bannerText}>
+              {esCierreFinal ? 'SESION DE CLASE FINALIZADA' : 'MISION DE NIVEL COMPLETADA'}
+            </Text>
+          </View>
+        </View>
+
+        {esCierreFinal ? (
+          <View style={styles.topStarCluster}>
+            <Text style={styles.topStarClusterText}>{'\u2605 \u2605 \u2605'}</Text>
+          </View>
+        ) : (
+          <View style={styles.coinBag}>
+            <Text style={styles.coinBagValue}>{presupuesto}</Text>
+            <Text style={styles.coinBagLabel}>MONEDAS</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.centerWrap}>
+        {esCierreFinal ? (
+          <View style={styles.trophySection}>
+            <Text style={styles.trophyIcon}>{'\u2302'}</Text>
+            <View style={styles.trophyCup}>
+              <Text style={styles.trophyCupText}>{'\u2605'}</Text>
+            </View>
+            <View style={styles.diplomaCard}>
+              <Text style={styles.diplomaTitle}>DIPLOMA DE</Text>
+              <Text style={styles.diplomaTitle}>COMPRADOR</Text>
+              <Text style={styles.diplomaTitle}>INTELIGENTE</Text>
             </View>
           </View>
+        ) : (
+          <View style={styles.parchmentCard}>
+            <Text style={styles.parchmentTitle}>GENIAL! HAS GANADO {estrellas} ESTRELLAS</Text>
+          </View>
+        )}
 
-          <Text style={styles.saveState} numberOfLines={2}>
-            {estadoGuardado}
+        <StarDisplay estrellas={estrellas} />
+
+        {esCierreFinal ? (
+          <View style={styles.finalSummaryCard}>
+            <FinalSummaryColumn
+              title="MISIONES TOTALES"
+              value={`${rondasCompletadas}/${rondasTotales}`}
+              helper="COMPLETADAS"
+            />
+            <FinalSummaryColumn
+              title="TOTAL ESTRELLAS"
+              value={`${estrellas}/3`}
+              helper="EN ESTA SESION"
+            />
+            <FinalSummaryColumn
+              title="ESTADISTICAS GLOBALES"
+              value={`ACIERTOS: ${aciertos}`}
+              helper={`FALLOS: ${errores}  COMBO MAX: x${combo}`}
+              noDivider
+            />
+          </View>
+        ) : (
+          <View style={styles.levelSummaryCard}>
+            <LevelMetric title="ACIERTOS" value={`${aciertos} Objetos`} helper="COMPRA LOGRADA" />
+            <LevelMetric title="INTENTOS FALLIDOS" value={`${errores} Intento`} helper="SIGUE AJUSTANDO" />
+            <LevelMetric title="COMBO ACTUAL" value={`x${combo}`} helper={estadoGuardado} />
+            <LevelMetric title="MONEDAS TOTALES" value={`${monedasUsadas}`} helper="MONEDAS USADAS" />
+          </View>
+        )}
+
+        <View style={styles.messageBubble}>
+          <Text style={styles.messageText}>
+            {esCierreFinal
+              ? 'SUPER TRABAJO! ERES UN EXPERTO DEL MERCADO INTELIGENTE.'
+              : 'EXCELENTE! LOGRASTE LA MISION SIN PASARTE DEL PRESUPUESTO.'}
           </Text>
+          <Text style={styles.messageSubtext}>{mensaje}</Text>
         </View>
+      </View>
 
-        <View style={styles.messageBox}>
-          <Text style={styles.resultMessage} numberOfLines={2}>
-            {mensaje}
+      <View style={styles.bottomRow}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={onSalir}
+          style={[
+            styles.bottomButton,
+            esCierreFinal ? styles.leftButtonFinal : styles.leftButtonLevel,
+          ]}
+        >
+          <Text style={styles.leftButtonText}>
+            {esCierreFinal ? 'VER HISTORIAL DE SESIONES' : 'VER INVENTARIO'}
           </Text>
-        </View>
+        </TouchableOpacity>
 
-        <View style={styles.metrics}>
-          <Metric label="Puntos" value={resultado.estadisticas.puntaje} />
-          <Metric label="Aciertos" value={aciertos} />
-          <Metric label="Combo" value={`x${resultado.estadisticas.comboMaximo}`} />
-          <Metric label="Errores" value={errores} />
-        </View>
-
-        <View style={styles.actions}>
-          {etiquetaPrimaria ? (
-            <TouchableOpacity
-              activeOpacity={0.9}
-              disabled={esperandoBackend}
-              onPress={onContinuar}
-              style={[
-                styles.primary,
-                esperandoBackend && styles.primaryDisabled,
-              ]}
-            >
-              <Text style={styles.primaryText}>{etiquetaPrimaria}</Text>
-            </TouchableOpacity>
-          ) : null}
-
-          <TouchableOpacity activeOpacity={0.9} onPress={onSalir} style={styles.secondary}>
-            <Text style={styles.secondaryText}>{etiquetaSecundaria}</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          disabled={esperandoBackend}
+          onPress={etiquetaPrimaria ? onContinuar : onSalir}
+          style={[
+            styles.bottomButton,
+            esCierreFinal ? styles.rightButtonFinal : styles.rightButtonLevel,
+            esperandoBackend && styles.rightButtonDisabled,
+          ]}
+        >
+          <Text style={styles.rightButtonText}>
+            {etiquetaPrimaria ? 'SIGUIENTE NIVEL' : (etiquetaSecundaria ?? `PUNTAJE ${puntaje}`).toUpperCase()}
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -100,158 +189,369 @@ export default function MercadoResultadoOverlay({
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(5, 46, 66, 0.96)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.md,
+    backgroundColor: colors.overlay,
     zIndex: 100,
-  },
-  card: {
-    width: '96%',
-    height: '90%',
-    borderRadius: 34,
-    backgroundColor: colors.cardSolid,
-    borderWidth: 3,
-    borderColor: colors.gold,
-    padding: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
     justifyContent: 'space-between',
-    shadowColor: colors.gold,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.28,
-    shadowRadius: 22,
-    elevation: 16,
   },
   topRow: {
-    minHeight: 82,
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.amber,
+  playerCard: {
+    width: 126,
+    borderRadius: 24,
+    backgroundColor: colors.panelCream,
+    borderWidth: 3,
+    borderColor: colors.borderDark,
+    padding: 8,
+    alignItems: 'center',
+  },
+  avatarFrame: {
+    width: 86,
+    height: 86,
+    borderRadius: 24,
+    backgroundColor: colors.badgeBlue,
+    borderWidth: 3,
+    borderColor: colors.badgeBlueBorder,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 4,
-    borderColor: colors.creamStrong,
   },
-  avatarText: {
+  avatarFace: {
     color: colors.ink,
-    fontFamily: fonts.black,
-    fontSize: 28,
+    fontSize: 40,
   },
-  titleBlock: {
+  playerBadge: {
+    position: 'absolute',
+    left: -7,
+    bottom: 24,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.coin,
+    borderWidth: 3,
+    borderColor: colors.borderDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playerBadgeText: {
+    color: colors.coinDeep,
+    fontSize: 20,
+  },
+  playerLevel: {
+    marginTop: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: colors.woodDark,
+    color: colors.whiteSoft,
+    fontFamily: fonts.black,
+    fontSize: 13,
+  },
+  bannerShell: {
     flex: 1,
+    marginHorizontal: 18,
+    borderRadius: 32,
+    backgroundColor: colors.greenPrimaryDark,
+    paddingBottom: 5,
   },
-  ribbon: {
-    color: colors.amberDark,
+  bannerBody: {
+    minHeight: 86,
+    borderRadius: 29,
+    backgroundColor: colors.greenPrimary,
+    borderWidth: 4,
+    borderColor: colors.greenPrimaryBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  bannerText: {
+    color: colors.whiteSoft,
     fontFamily: fonts.black,
-    fontSize: 11,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
+    fontSize: 22,
+    textAlign: 'center',
   },
-  title: {
+  topStarCluster: {
+    width: 126,
+    minHeight: 110,
+    borderRadius: 28,
+    backgroundColor: colors.panelCream,
+    borderWidth: 3,
+    borderColor: colors.borderDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  topStarClusterText: {
+    color: colors.starBorder,
+    fontSize: 26,
+    textAlign: 'center',
+  },
+  coinBag: {
+    width: 126,
+    minHeight: 110,
+    borderRadius: 28,
+    backgroundColor: '#B97A47',
+    borderWidth: 3,
+    borderColor: colors.borderDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  coinBagValue: {
+    color: colors.panelCreamStrong,
+    fontFamily: fonts.black,
+    fontSize: 32,
+  },
+  coinBagLabel: {
+    color: colors.panelCream,
+    fontFamily: fonts.black,
+    fontSize: 14,
+  },
+  centerWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 82,
+  },
+  trophySection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 18,
+    marginBottom: 10,
+  },
+  trophyIcon: {
+    display: 'none',
+  },
+  trophyCup: {
+    width: 150,
+    height: 150,
+    borderRadius: 36,
+    backgroundColor: '#FFCE53',
+    borderWidth: 5,
+    borderColor: '#D68B1D',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trophyCupText: {
+    color: '#B46811',
+    fontSize: 76,
+  },
+  diplomaCard: {
+    borderRadius: 22,
+    backgroundColor: colors.panelCream,
+    borderWidth: 3,
+    borderColor: colors.borderDark,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    transform: [{ rotate: '-8deg' }],
+  },
+  diplomaTitle: {
     color: colors.ink,
     fontFamily: fonts.black,
-    fontSize: 31,
-    lineHeight: 35,
+    fontSize: 18,
+    textAlign: 'center',
   },
-  starsRow: {
+  parchmentCard: {
+    minWidth: 450,
+    borderRadius: 26,
+    backgroundColor: colors.parchment,
+    borderWidth: 3,
+    borderColor: colors.borderDark,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    marginBottom: 8,
+  },
+  parchmentTitle: {
+    color: colors.ink,
+    fontFamily: fonts.black,
+    fontSize: 20,
+    textAlign: 'center',
+  },
+  starDisplay: {
     flexDirection: 'row',
-    gap: 2,
-    marginTop: 2,
+    justifyContent: 'center',
+    gap: 14,
+    marginBottom: 14,
   },
-  star: {
-    color: colors.amber,
-    fontFamily: fonts.black,
-    fontSize: 26,
-    lineHeight: 29,
+  starBubble: {
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    backgroundColor: '#FFE78A',
+    borderWidth: 5,
+    borderColor: colors.starBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  starEmpty: {
-    color: '#E3D8BD',
+  starBubbleOff: {
+    backgroundColor: '#D7D2CA',
+    borderColor: '#99908B',
   },
-  saveState: {
-    width: 190,
-    color: colors.amberDark,
-    fontFamily: fonts.black,
-    fontSize: 12,
-    textAlign: 'right',
+  starBubbleText: {
+    color: colors.starBorder,
+    fontSize: 60,
   },
-  messageBox: {
-    borderRadius: 22,
-    backgroundColor: '#E9FFF4',
-    borderWidth: 2,
-    borderColor: '#B6F2CF',
+  starBubbleTextOff: {
+    color: '#7B7772',
+  },
+  finalSummaryCard: {
+    width: '100%',
+    borderRadius: 28,
+    backgroundColor: colors.panelCream,
+    borderWidth: 4,
+    borderColor: colors.borderDark,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
-  resultMessage: {
+  finalSummaryColumn: {
+    flex: 1,
+    minHeight: 146,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+    borderRightWidth: 2,
+    borderRightColor: '#D7B07A',
+  },
+  finalSummaryColumnNoDivider: {
+    borderRightWidth: 0,
+  },
+  finalSummaryTitle: {
     color: colors.ink,
     fontFamily: fonts.black,
     fontSize: 17,
-    lineHeight: 22,
     textAlign: 'center',
   },
-  metrics: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  metric: {
-    flex: 1,
-    minHeight: 72,
-    borderRadius: 22,
-    backgroundColor: colors.creamStrong,
-    borderWidth: 1,
-    borderColor: '#FFE2A1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  metricValue: {
+  finalSummaryValue: {
     color: colors.ink,
     fontFamily: fonts.black,
-    fontSize: 25,
+    fontSize: 28,
+    textAlign: 'center',
+    marginTop: 10,
   },
-  metricLabel: {
+  finalSummaryHelper: {
     color: colors.inkSoft,
-    fontFamily: fonts.black,
-    fontSize: 9,
-    textTransform: 'uppercase',
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 6,
   },
-  actions: {
+  levelSummaryCard: {
+    width: '100%',
+    borderRadius: 28,
+    backgroundColor: colors.panelCream,
+    borderWidth: 4,
+    borderColor: colors.borderDark,
+    padding: spacing.md,
     flexDirection: 'row',
-    gap: spacing.sm,
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 12,
   },
-  primary: {
-    flex: 1,
-    minHeight: 50,
-    borderRadius: radii.pill,
-    backgroundColor: colors.amber,
+  levelMetric: {
+    width: '48.5%',
+    minHeight: 110,
+    borderRadius: 20,
+    backgroundColor: colors.panelCreamSoft,
+    borderWidth: 2,
+    borderColor: '#E2C190',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
   },
-  primaryDisabled: {
-    opacity: 0.62,
-  },
-  primaryText: {
+  levelMetricTitle: {
     color: colors.ink,
     fontFamily: fonts.black,
     fontSize: 16,
+    textAlign: 'center',
   },
-  secondary: {
+  levelMetricValue: {
+    color: colors.ink,
+    fontFamily: fonts.black,
+    fontSize: 24,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  levelMetricHelper: {
+    color: colors.inkSoft,
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  messageBubble: {
+    width: '88%',
+    borderRadius: 32,
+    backgroundColor: colors.whiteSoft,
+    borderWidth: 4,
+    borderColor: colors.borderDark,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    marginTop: spacing.md,
+  },
+  messageText: {
+    color: colors.ink,
+    fontFamily: fonts.black,
+    fontSize: 22,
+    lineHeight: 26,
+    textAlign: 'center',
+  },
+  messageSubtext: {
+    color: colors.inkSoft,
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  bottomButton: {
     flex: 1,
-    minHeight: 50,
-    borderRadius: radii.pill,
-    backgroundColor: colors.cardSolid,
-    borderWidth: 2,
-    borderColor: colors.gold,
+    minHeight: 88,
+    borderRadius: 26,
+    borderWidth: 4,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: spacing.md,
   },
-  secondaryText: {
-    color: colors.amberDark,
+  leftButtonFinal: {
+    backgroundColor: colors.greenPrimary,
+    borderColor: colors.greenPrimaryDark,
+  },
+  leftButtonLevel: {
+    backgroundColor: colors.brownAction,
+    borderColor: colors.brownActionDark,
+  },
+  rightButtonFinal: {
+    backgroundColor: colors.blueAction,
+    borderColor: colors.blueActionDark,
+  },
+  rightButtonLevel: {
+    backgroundColor: colors.greenPrimary,
+    borderColor: colors.greenPrimaryDark,
+  },
+  rightButtonDisabled: {
+    opacity: 0.6,
+  },
+  leftButtonText: {
+    color: colors.whiteSoft,
     fontFamily: fonts.black,
-    fontSize: 16,
+    fontSize: 20,
+    textAlign: 'center',
+  },
+  rightButtonText: {
+    color: colors.whiteSoft,
+    fontFamily: fonts.black,
+    fontSize: 22,
+    textAlign: 'center',
   },
 });

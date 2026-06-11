@@ -699,6 +699,13 @@ export default function MercadoInteligenteScreen({
   const presupuesto = estado.ronda.objetivo.presupuestoObjetivo;
   const cantidadObjetivo = obtenerCantidadObjetivo(estado.ronda);
   const monedasRestantes = Math.max(0, presupuesto - totalSeleccionado);
+  const productosSeleccionados = useMemo(
+    () =>
+      estado.seleccionadosIds
+        .map((productoId) => estado.ronda.oferta.find((producto) => producto.id === productoId))
+        .filter(Boolean),
+    [estado.ronda.oferta, estado.seleccionadosIds],
+  );
 
   const cierreSesion = useMemo(
     () =>
@@ -781,25 +788,19 @@ export default function MercadoInteligenteScreen({
           presupuesto={`${presupuesto}`}
           estrellas={estrellasVisuales}
           combo={estado.comboActual}
+          cantidadSeleccionada={estado.seleccionadosIds.length}
+          cantidadObjetivo={cantidadObjetivo}
           onSalir={salir}
         />
 
         <MercadoMisionCard ronda={estado.ronda} />
 
         <MercadoPanelInferior
-          mensaje={estado.mensaje}
           total={totalSeleccionado}
-          presupuesto={presupuesto}
-          monedasRestantes={monedasRestantes}
-          combo={estado.comboActual}
-          canastaResumen={crearResumenCanasta({
-            ronda: estado.ronda,
-            seleccionadosIds: estado.seleccionadosIds,
-          })}
-          canastaCantidad={estado.seleccionadosIds.length}
-          canastaObjetivo={cantidadObjetivo}
-          onPista={gastarAyuda}
+          productosSeleccionados={productosSeleccionados}
           onConfirmar={confirmarSeleccion}
+          onReiniciar={reintentarPreparacion}
+          onSalir={salir}
           confirmarDeshabilitado={confirmarDeshabilitado}
         />
       </View>
@@ -820,6 +821,9 @@ export default function MercadoInteligenteScreen({
           etiquetaPrimaria={copyResultado.etiquetaPrimaria}
           etiquetaSecundaria={copyResultado.etiquetaSecundaria}
           esperandoBackend={copyResultado.esperandoBackend}
+          presupuesto={presupuesto}
+          monedasUsadas={totalSeleccionado}
+          nivel={etiquetaNivelActual}
           onContinuar={continuarNivel}
           onSalir={salir}
         />
@@ -851,7 +855,7 @@ function PantallaSesionBloqueada({ mensaje, onReintentar, onSalir }) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#8ee6ff',
+    backgroundColor: '#D38A4A',
   },
   escena: {
     ...StyleSheet.absoluteFillObject,
@@ -865,19 +869,20 @@ const styles = StyleSheet.create({
     zIndex: 90,
     left: spacing.lg,
     right: spacing.lg,
-    top: '42%',
-    borderRadius: radii.lg,
-    backgroundColor: 'rgba(255, 250, 241, 0.96)',
-    borderWidth: 2,
-    borderColor: '#ffd166',
-    padding: spacing.md,
+    top: '38%',
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 247, 230, 0.98)',
+    borderWidth: 4,
+    borderColor: '#8CD83A',
+    padding: spacing.lg,
     alignItems: 'center',
     gap: spacing.sm,
   },
   loadingText: {
-    color: '#2D1903',
+    color: '#4A2504',
     fontFamily: fonts.black,
-    fontSize: 14,
+    fontSize: 18,
+    textAlign: 'center',
   },
   blockedWrapper: {
     flex: 1,
@@ -885,58 +890,60 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   blockedCard: {
-    borderRadius: radii.lg,
-    backgroundColor: '#FFFAF1',
-    padding: spacing.lg,
-    borderWidth: 2,
-    borderColor: '#FFD166',
+    borderRadius: 34,
+    backgroundColor: '#FFF7E8',
+    padding: spacing.xl,
+    borderWidth: 4,
+    borderColor: '#8CD83A',
   },
   blockedEyebrow: {
-    color: '#B66500',
+    color: '#B96B1E',
     fontFamily: fonts.black,
     fontSize: 12,
     textTransform: 'uppercase',
   },
   blockedTitle: {
-    color: '#2D1903',
+    color: '#4A2504',
     fontFamily: fonts.black,
-    fontSize: 25,
-    lineHeight: 31,
+    fontSize: 31,
+    lineHeight: 36,
     marginTop: spacing.xs,
   },
   blockedText: {
-    color: '#74502B',
+    color: '#7B542B',
     fontFamily: fonts.bold,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 16,
+    lineHeight: 24,
     marginTop: spacing.sm,
   },
   blockedPrimaryButton: {
-    minHeight: 54,
+    minHeight: 64,
     borderRadius: radii.pill,
-    backgroundColor: '#FFB000',
+    backgroundColor: '#8CD83A',
+    borderWidth: 4,
+    borderColor: '#3B8E18',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: spacing.lg,
   },
   blockedPrimaryText: {
-    color: '#2D1903',
+    color: '#FFFDF7',
     fontFamily: fonts.black,
-    fontSize: 14,
+    fontSize: 20,
   },
   blockedSecondaryButton: {
-    minHeight: 52,
+    minHeight: 62,
     borderRadius: radii.pill,
-    backgroundColor: '#FFFAF1',
-    borderWidth: 2,
-    borderColor: '#FFD166',
+    backgroundColor: '#49B5FF',
+    borderWidth: 4,
+    borderColor: '#1C71BF',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: spacing.sm,
   },
   blockedSecondaryText: {
-    color: '#B66500',
+    color: '#FFFDF7',
     fontFamily: fonts.black,
-    fontSize: 14,
+    fontSize: 19,
   },
 });
