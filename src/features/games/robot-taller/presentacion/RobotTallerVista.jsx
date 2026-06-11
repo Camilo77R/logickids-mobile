@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, spacing } from '../../../../constants/theme';
+import { colors, fonts } from '../../../../constants/theme';
 import { useHandTracker } from '../aplicacion/useHandTracker';
 import EscenaEnsamblaje from './EscenaEnsamblaje';
 
@@ -30,7 +30,9 @@ export default function RobotTallerVista({
   }, [handTracker.isAvailable]);
 
   useEffect(() => {
+    if (!handTracker.isTracking && !handTracker.isAvailable) return;
     const interval = setInterval(() => {
+      if (!handTracker.isTracking) return;
       const rawPos = handTracker.getHandPosition();
       if (!rawPos) {
         setCursorPos(null);
@@ -54,9 +56,8 @@ export default function RobotTallerVista({
         }
       }
     }, 300);
-
     return () => clearInterval(interval);
-  }, [handTracker.hands, estado.parteAgarrada, estado.partes]);
+  }, [handTracker.isTracking, handTracker.isAvailable, estado.parteAgarrada, estado.partes]);
 
   return (
     <View style={styles.root}>
@@ -69,12 +70,8 @@ export default function RobotTallerVista({
       />
       <SafeAreaView style={styles.safeAreaTop} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity
-            activeOpacity={0.85}
-            disabled={!escena.salida.permitida}
-            onPress={onSalir}
-            style={[styles.exitButton, !escena.salida.permitida && styles.exitButtonDisabled]}
-          >
+          <TouchableOpacity activeOpacity={0.85} disabled={!escena.salida.permitida} onPress={onSalir}
+            style={[styles.exitButton, !escena.salida.permitida && styles.exitButtonDisabled]}>
             <Ionicons name="arrow-back" size={20} color={escena.salida.permitida ? colors.white : colors.muted} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
@@ -86,6 +83,12 @@ export default function RobotTallerVista({
             <Text style={styles.skillBadgeText}>{configuracion.habilidad}</Text>
           </View>
         </View>
+        {handTracker.error ? (
+          <View style={styles.errorBanner}>
+            <Ionicons name="warning" size={14} color="#FF6B35" />
+            <Text style={styles.errorText}>{handTracker.error}</Text>
+          </View>
+        ) : null}
       </SafeAreaView>
 
       <View style={styles.sceneContainer}>
@@ -102,12 +105,14 @@ export default function RobotTallerVista({
       <SafeAreaView style={styles.safeAreaBottom} edges={['bottom']}>
         <View style={styles.footer}>
           <Text style={styles.hint}>{escena.estadoActual.mensaje}</Text>
-          {!handTracker.isAvailable ? (
-            <Text style={styles.hintSub}>Usa tus manos frente a la camara. Toca la pantalla como alternativa.</Text>
-          ) : !handTracker.isTracking ? (
+          {handTracker.isTracking ? (
+            <Text style={styles.hintSub}>
+              Mano detectada{isPinching ? ' — pellizcando' : ''}. Mueve tu mano para agarrar piezas.
+            </Text>
+          ) : handTracker.isAvailable ? (
             <Text style={styles.hintSub}>Iniciando camara...</Text>
           ) : (
-            <Text style={styles.hintSub}>Mueve tu mano para controlar el cursor. Pellizca para agarrar.</Text>
+            <Text style={styles.hintSub}>Toca las piezas en pantalla para colocarlas.</Text>
           )}
           {estado.parteAgarrada ? (
             <TouchableOpacity activeOpacity={0.88} onPress={soltarParte} style={styles.dropButton}>
@@ -132,10 +137,11 @@ function encontrarParteCercana(pos, partes) {
   let masCercana = null;
   for (const p of partes) {
     if (p.ensamblada) continue;
-    const dx = pos.x - p.posicion[0];
-    const dy = pos.y - p.posicion[1];
-    const dz = pos.z - p.posicion[2];
-    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    const dist = Math.sqrt(
+      (pos.x - p.posicion[0]) ** 2 +
+      (pos.y - p.posicion[1]) ** 2 +
+      ((pos.z ?? 0) - (p.posicion[2] ?? 0)) ** 2,
+    );
     if (dist < minimaDistancia && dist < 1.5) {
       minimaDistancia = dist;
       masCercana = p.id;
@@ -149,11 +155,7 @@ const styles = StyleSheet.create({
   safeAreaTop: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
   safeAreaBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 10,
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, gap: 10,
   },
   exitButton: {
     width: 40, height: 40, borderRadius: 20,
@@ -171,10 +173,13 @@ const styles = StyleSheet.create({
   },
   skillBadgeText: { color: colors.white, fontFamily: fonts.black, fontSize: 10 },
   sceneContainer: { flex: 1 },
-  footer: {
-    paddingHorizontal: 16, paddingVertical: 12,
-    alignItems: 'center', gap: 8,
+  errorBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.7)', marginHorizontal: 16, paddingHorizontal: 12,
+    paddingVertical: 6, borderRadius: 8,
   },
+  errorText: { color: '#FF6B35', fontFamily: fonts.semiBold, fontSize: 11, flex: 1 },
+  footer: { paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center', gap: 8 },
   hint: { color: colors.white, fontFamily: fonts.semiBold, fontSize: 13, textAlign: 'center' },
   hintSub: { color: 'rgba(255,255,255,0.6)', fontFamily: fonts.semiBold, fontSize: 11, textAlign: 'center' },
   dropButton: {
