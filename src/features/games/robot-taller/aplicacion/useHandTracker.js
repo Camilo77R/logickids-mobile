@@ -22,9 +22,11 @@ export function useHandTracker(cameraRef) {
   const [hands, setHands] = useState(null);
   const [isTracking, setIsTracking] = useState(false);
   const [error, setError] = useState(null);
+  const [isAvailable, setIsAvailable] = useState(false);
   const intervalRef = useRef(null);
   const moduleRef = useRef(null);
   const trackingRef = useRef(false);
+  const triedRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -32,9 +34,10 @@ export function useHandTracker(cameraRef) {
       const mod = m?.default?.processFrame ? m.default : m?.processFrame ? m : null;
       if (mod) {
         moduleRef.current = mod;
+        setIsAvailable(true);
       }
     } catch (e) {
-      setError('Modulo de camara no disponible');
+      setIsAvailable(false);
     }
   }, []);
 
@@ -55,6 +58,9 @@ export function useHandTracker(cameraRef) {
   }, [cameraRef]);
 
   const startTracking = useCallback(async () => {
+    if (triedRef.current) return;
+    triedRef.current = true;
+
     if (!permission?.granted) {
       const r = await requestPermission();
       if (!r.granted) {
@@ -62,7 +68,7 @@ export function useHandTracker(cameraRef) {
         return;
       }
     }
-    if (!moduleRef.current) {
+    if (!moduleRef.current || !moduleRef.current.initialize) {
       setError('Modulo de mano no disponible en esta build');
       return;
     }
@@ -111,7 +117,7 @@ export function useHandTracker(cameraRef) {
   return {
     hands,
     isTracking,
-    isAvailable: !!moduleRef.current,
+    isAvailable,
     error,
     startTracking,
     stopTracking,
