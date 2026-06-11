@@ -6,11 +6,12 @@ import { PARTES_ROBOT } from '../robotTaller.constants';
 function ParteMesh({ parteDef, estadoParte, seleccionada, onPress }) {
   const meshRef = useRef();
   const color = seleccionada ? '#FFD166' : estadoParte.ensamblada ? '#00E676' : parteDef.color;
+  const interactivo = !estadoParte.ensamblada;
 
   const posicion = useMemo(() => {
-    if (estadoParte.ensamblada) return new THREE.Vector3(...parteDef.posicionObjetivo);
-    if (estadoParte.agarrada) return new THREE.Vector3(...estadoParte.posicion);
-    return new THREE.Vector3(...parteDef.posicionExplotada);
+    if (estadoParte.ensamblada) return parteDef.posicionObjetivo;
+    if (estadoParte.agarrada) return estadoParte.posicion;
+    return parteDef.posicionExplotada;
   }, [estadoParte.ensamblada, estadoParte.agarrada, estadoParte.posicion]);
 
   useFrame(() => {
@@ -40,7 +41,7 @@ function ParteMesh({ parteDef, estadoParte, seleccionada, onPress }) {
           <mesh
             ref={meshRef}
             position={posicion}
-            onClick={!estadoParte.ensamblada ? onPress : undefined}
+            onPointerDown={interactivo ? onPress : undefined}
           >
             <sphereGeometry args={[parteDef.tamanio[0], 24, 24]} />
             <meshStandardMaterial color={colorHex} metalness={0.3} roughness={0.4} />
@@ -52,7 +53,7 @@ function ParteMesh({ parteDef, estadoParte, seleccionada, onPress }) {
             ref={meshRef}
             position={posicion}
             rotation={estadoParte.ensamblada ? parteDef.rotacionObjetivo : [0, 0, Math.PI / 2]}
-            onClick={!estadoParte.ensamblada ? onPress : undefined}
+            onPointerDown={interactivo ? onPress : undefined}
           >
             <cylinderGeometry args={[parteDef.tamanio[0], parteDef.tamanio[0], parteDef.tamanio[1], 16]} />
             <meshStandardMaterial color={colorHex} metalness={0.3} roughness={0.4} />
@@ -63,7 +64,7 @@ function ParteMesh({ parteDef, estadoParte, seleccionada, onPress }) {
           <mesh
             ref={meshRef}
             position={posicion}
-            onClick={!estadoParte.ensamblada ? onPress : undefined}
+            onPointerDown={interactivo ? onPress : undefined}
           >
             <coneGeometry args={[parteDef.tamanio[0], parteDef.tamanio[1], 16]} />
             <meshStandardMaterial color={colorHex} metalness={0.3} roughness={0.4} />
@@ -75,7 +76,7 @@ function ParteMesh({ parteDef, estadoParte, seleccionada, onPress }) {
             ref={meshRef}
             position={posicion}
             rotation={estadoParte.ensamblada ? parteDef.rotacionObjetivo : [0, 0, 0]}
-            onClick={!estadoParte.ensamblada ? onPress : undefined}
+            onPointerDown={interactivo ? onPress : undefined}
           >
             <boxGeometry args={parteDef.tamanio} />
             <meshStandardMaterial color={colorHex} metalness={0.3} roughness={0.4} />
@@ -91,7 +92,7 @@ function SiluetaEnsamblada() {
   return (
     <group>
       {PARTES_ROBOT.map((parteDef) => (
-        <mesh key={`ghost-${parteDef.id}`} position={new THREE.Vector3(...parteDef.posicionObjetivo)}>
+        <mesh key={`ghost-${parteDef.id}`} position={parteDef.posicionObjetivo}>
           {parteDef.forma === 'sphere' ? (
             <sphereGeometry args={[parteDef.tamanio[0] * 1.15, 16, 16]} />
           ) : parteDef.forma === 'cylinder' ? (
@@ -112,9 +113,9 @@ function Escena3D({ estado, onAgarrarParte, onSoltarParte, parteAgarradaId }) {
   const { camera } = useThree();
 
   useFrame(() => {
-    camera.position.x = 5 * Math.sin(Date.now() * 0.0002);
-    camera.position.z = 5 * Math.cos(Date.now() * 0.0002);
-    camera.lookAt(0, 0, 0);
+    camera.position.x = 10 * Math.sin(Date.now() * 0.00015);
+    camera.position.z = 10 * Math.cos(Date.now() * 0.00015);
+    camera.lookAt(0, 0.2, 0);
   });
 
   const handlePress = (idParte) => {
@@ -151,7 +152,7 @@ function Escena3D({ estado, onAgarrarParte, onSoltarParte, parteAgarradaId }) {
 export default function EscenaEnsamblaje({ estado, onAgarrarParte, onMoverParte, onSoltarParte, cursorPosition, isPinching }) {
   return (
     <Canvas
-      camera={{ position: [0, 0, 6], fov: 45 }}
+      camera={{ position: [0, 1, 10], fov: 45 }}
       style={{ backgroundColor: '#1A1A2E' }}
       gl={{ alpha: false }}
     >

@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
-import * as THREE from 'three';
 import { colors, fonts, spacing } from '../../../../constants/theme';
 import { useHandTracker } from '../aplicacion/useHandTracker';
 import EscenaEnsamblaje from './EscenaEnsamblaje';
@@ -38,7 +37,7 @@ export default function RobotTallerVista({
         setIsPinching(false);
         return;
       }
-      setCursorPos(new THREE.Vector3(rawPos.x, rawPos.y, rawPos.z));
+      setCursorPos([rawPos.x, rawPos.y, rawPos.z]);
 
       const pinchDist = handTracker.getPinchDistance();
       const pinching = pinchDist != null && pinchDist < 0.04;

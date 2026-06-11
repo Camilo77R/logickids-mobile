@@ -9,9 +9,11 @@ import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.framework.image.BitmapImageBuilder
+import android.util.Log
 import kotlin.math.sqrt
 
 class ExpoHandTrackerModule : Module() {
+  private val TAG = "ExpoHandTracker"
   private var handLandmarker: HandLandmarker? = null
   private var isInit = false
 
@@ -31,7 +33,7 @@ class ExpoHandTrackerModule : Module() {
         ensureLandmarker()
         val bitmap = loadBitmap(imagePath) ?: return@AsyncFunction buildEmptyResult()
         val mpImage = BitmapImageBuilder(bitmap).build()
-        val result = handLandmarker?.detect(mpImage)
+        val result = handLandmarker?.detectForVideo(mpImage, System.currentTimeMillis())
         val hands = result?.landmarks()?.map { handLandmarks ->
           val landmarks = handLandmarks.map { lm ->
             mapOf(
@@ -57,6 +59,7 @@ class ExpoHandTrackerModule : Module() {
           "timestamp" to System.currentTimeMillis()
         )
       } catch (e: Exception) {
+        Log.e(TAG, "processFrame error", e)
         mapOf(
           "hands" to emptyList<Map<String, Any>>(),
           "timestamp" to System.currentTimeMillis(),
@@ -86,7 +89,7 @@ class ExpoHandTrackerModule : Module() {
       .build()
     val options = HandLandmarker.HandLandmarkerOptions.builder()
       .setBaseOptions(baseOptions)
-      .setRunningMode(RunningMode.IMAGE)
+      .setRunningMode(RunningMode.VIDEO)
       .setNumHands(1)
       .build()
     handLandmarker = HandLandmarker.createFromOptions(context, options)
@@ -94,14 +97,19 @@ class ExpoHandTrackerModule : Module() {
 
   private fun loadBitmap(imagePath: String): Bitmap? {
     return try {
-      if (imagePath.startsWith("content://")) {
+      val path = if (imagePath.startsWith("file://")) {
+        Uri.parse(imagePath).path ?: imagePath
+      } else {
+        imagePath
+      }
+      if (path.startsWith("content://")) {
         val context = appContext.reactContext ?: return null
-        val uri = Uri.parse(imagePath)
+        val uri = Uri.parse(path)
         context.contentResolver.openInputStream(uri)?.use { stream ->
           BitmapFactory.decodeStream(stream)
         }
       } else {
-        BitmapFactory.decodeFile(imagePath)
+        BitmapFactory.decodeFile(path)
       }
     } catch (_: Exception) {
       null
