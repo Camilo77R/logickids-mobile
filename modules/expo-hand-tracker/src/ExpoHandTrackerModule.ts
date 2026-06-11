@@ -1,16 +1,24 @@
-import { NativeModule, requireNativeModule } from 'expo';
+import { requireNativeModule } from 'expo';
 import type { HandTrackerResult } from './ExpoHandTracker.types';
 
 export type LandmarkCallback = (result: HandTrackerResult) => void;
 
-declare class ExpoHandTrackerModule extends NativeModule<{
-  onLandmarks: (result: HandTrackerResult) => void;
-}> {
-  initialize(): Promise<void>;
-  processFrame(imagePath: string): Promise<HandTrackerResult | null>;
-  startTracking(fps?: number): Promise<void>;
-  stopTracking(): Promise<void>;
-  isTracking(): boolean;
+let nativeModule: any = null;
+
+try {
+  nativeModule = requireNativeModule('ExpoHandTracker');
+} catch {}
+
+function stub() {
+  return Promise.reject(new Error('Hand tracker native module not available'));
 }
 
-export default requireNativeModule<ExpoHandTrackerModule>('ExpoHandTracker');
+const fallback = {
+  initialize: stub,
+  processFrame: stub,
+  startTracking: stub,
+  stopTracking: stub,
+  isTracking: () => false,
+};
+
+export default nativeModule ?? fallback;
