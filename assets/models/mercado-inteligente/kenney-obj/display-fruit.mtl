@@ -1,0 +1,6 @@
+# Created by Kenney (www.kenney.nl)
+# Runtime asset: display-fruit.mtl
+
+newmtl colormap
+Kd 1 1 1
+

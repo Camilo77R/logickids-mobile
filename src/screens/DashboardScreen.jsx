@@ -16,8 +16,8 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import CaminoARScreen from '../features/games/camino-ar/CaminoARScreen';
 import { obtenerConfiguracionBaseCaminoAr } from '../features/games/camino-ar/caminoArConfiguracion';
-import MercadoARScreen from '../features/games/mercado-ar/MercadoARScreen';
-import { obtenerConfiguracionBaseMercadoAr } from '../features/games/mercado-ar/mercadoArConfiguracion';
+import MercadoInteligenteScreen from '../features/games/mercado-inteligente/MercadoInteligenteScreen';
+import { obtenerConfiguracionBaseMercado } from '../features/games/mercado-inteligente/mercadoConfiguracion';
 import Tren3DScreen from '../features/games/tren-3d/Tren3DScreen';
 import { obtenerConfiguracionBaseTren3D } from '../features/games/tren-3d/tren3dConfiguracion';
 import {
@@ -278,7 +278,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
 
   const studentProfile = profile ?? studentSession?.studentProfile ?? null;
   const caminoArConfig = useMemo(() => obtenerConfiguracionBaseCaminoAr(), []);
-  const mercadoConfig = useMemo(() => obtenerConfiguracionBaseMercadoAr(), []);
+  const mercadoConfig = useMemo(() => obtenerConfiguracionBaseMercado(), []);
   const tren3DConfig = useMemo(() => obtenerConfiguracionBaseTren3D(), []);
   const caminoArAccess = useMemo(
     () =>
@@ -325,8 +325,20 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       tokenEstudiante: studentSession?.token ?? null,
       baseUrlApi: studentSession?.apiBaseUrl ?? null,
       minijuegoId: studentProfile?.sesion_minijuego_id ?? null,
+      sesionModo: studentProfile?.sesion_modo ?? null,
+      sesionPasoActual: studentProfile?.sesion_paso_actual ?? null,
+      sesionTotalPasos: studentProfile?.sesion_total_pasos ?? null,
+      sesionNivelEnBloque: studentProfile?.sesion_nivel_en_bloque ?? null,
     }),
-    [studentProfile?.sesion_minijuego_id, studentSession?.apiBaseUrl, studentSession?.token],
+    [
+      studentProfile?.sesion_minijuego_id,
+      studentProfile?.sesion_modo,
+      studentProfile?.sesion_nivel_en_bloque,
+      studentProfile?.sesion_paso_actual,
+      studentProfile?.sesion_total_pasos,
+      studentSession?.apiBaseUrl,
+      studentSession?.token,
+    ],
   );
   const accessBySlug = useMemo(
     () => ({
@@ -549,7 +561,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
 
   if (activeGame === mercadoConfig.slug) {
     return (
-      <MercadoARScreen
+      <MercadoInteligenteScreen
         onSalir={exitGame}
         configuracionInicial={mercadoConfig}
         contextoSesion={mercadoSessionContext}

@@ -1,5 +1,5 @@
 import { SLUG_CAMINO_AR } from '../camino-ar/caminoAr.constants';
-import { SLUG_MERCADO_AR, TITULO_MERCADO_AR } from '../mercado-ar/mercadoAr.constants';
+import { SLUG_MERCADO, TITULO_MERCADO } from '../mercado-inteligente/mercado.constants';
 import { SLUG_TREN_3D, TITULO_TREN_3D } from '../tren-3d/tren3d.constants';
 
 export const CATALOGO_JUEGOS = Object.freeze({
@@ -16,8 +16,8 @@ export const CATALOGO_JUEGOS = Object.freeze({
     icono: 'shapes',
   }),
   mercadoInteligente: Object.freeze({
-    slug: SLUG_MERCADO_AR,
-    titulo: TITULO_MERCADO_AR,
+    slug: SLUG_MERCADO,
+    titulo: TITULO_MERCADO,
     habilidad: 'Razonamiento',
     icono: 'basket',
   }),
