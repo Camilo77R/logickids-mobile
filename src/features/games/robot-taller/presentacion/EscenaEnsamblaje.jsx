@@ -1,4 +1,5 @@
 import React, { useRef, useMemo } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { PARTES_ROBOT } from '../robotTaller.constants';
@@ -149,30 +150,67 @@ function Escena3D({ estado, onAgarrarParte, onSoltarParte, parteAgarradaId }) {
   );
 }
 
+function Cursor3D({ position, pinching }) {
+  const ref = useRef();
+  useFrame(() => {
+    if (!ref.current) return;
+    ref.current.scale.lerp(
+      pinching ? new THREE.Vector3(1.8, 1.8, 1.8) : new THREE.Vector3(1, 1, 1),
+      0.1,
+    );
+  });
+  return (
+    <group position={position}>
+      <mesh ref={ref}>
+        <sphereGeometry args={[0.3, 16, 16]} />
+        <meshBasicMaterial
+          color={pinching ? '#FF6B35' : '#00E676'}
+          transparent
+          opacity={0.85}
+        />
+      </mesh>
+      <mesh>
+        <ringGeometry args={[0.35, 0.5, 24]} />
+        <meshBasicMaterial
+          color={pinching ? '#FF6B35' : '#00E676'}
+          transparent
+          opacity={0.3}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+function OverlayOscuro() {
+  return (
+    <mesh position={[0, 0, -5]}>
+      <planeGeometry args={[30, 30]} />
+      <meshBasicMaterial color="#000" transparent opacity={0.35} />
+    </mesh>
+  );
+}
+
 export default function EscenaEnsamblaje({ estado, onAgarrarParte, onMoverParte, onSoltarParte, cursorPosition, isPinching }) {
   return (
-    <Canvas
-      camera={{ position: [0, 1, 10], fov: 45 }}
-      style={{ backgroundColor: '#1A1A2E' }}
-      gl={{ alpha: false }}
-    >
-      <Escena3D
-        estado={estado}
-        onAgarrarParte={onAgarrarParte}
-        onMoverParte={onMoverParte}
-        onSoltarParte={onSoltarParte}
-        parteAgarradaId={estado.parteAgarrada}
-      />
-      {cursorPosition && (
-        <mesh position={cursorPosition}>
-          <sphereGeometry args={[0.12, 12, 12]} />
-          <meshBasicMaterial
-            color={isPinching ? '#FF6B35' : '#00E676'}
-            transparent
-            opacity={0.9}
-          />
-        </mesh>
-      )}
-    </Canvas>
+    <View style={StyleSheet.absoluteFill}>
+      <Canvas
+        camera={{ position: [0, 1, 10], fov: 45 }}
+        style={{ backgroundColor: 'transparent' }}
+        gl={{ alpha: true }}
+      >
+        <OverlayOscuro />
+        <Escena3D
+          estado={estado}
+          onAgarrarParte={onAgarrarParte}
+          onMoverParte={onMoverParte}
+          onSoltarParte={onSoltarParte}
+          parteAgarradaId={estado.parteAgarrada}
+        />
+        {cursorPosition && (
+          <Cursor3D position={cursorPosition} pinching={isPinching} />
+        )}
+      </Canvas>
+    </View>
   );
 }
