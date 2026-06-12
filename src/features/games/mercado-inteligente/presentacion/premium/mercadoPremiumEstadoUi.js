@@ -1,3 +1,5 @@
+import { crearResultadoUiMercadoPremium } from '../../aplicacion/mercadoPremiumResultado.mapper';
+
 const ETIQUETAS_PRODUCTO = Object.freeze({
   manzana: '🍎',
   banano: '🍌',
@@ -46,57 +48,68 @@ export const crearEstadoUiMercadoPremium = ({
   bloqueado = false,
   completado = false,
   tieneSiguienteNivel = false,
+  resultado = null,
   sincronizandoResultado = false,
-}) => ({
-  level: {
-    current: modeloVisual.nivel,
-    total: modeloVisual.totalNiveles,
-  },
-  missionText: modeloVisual.mision.texto,
-  task: {
-    title: 'Tarea',
-    completedCount: modeloVisual.mochila.length,
-    requiredCount: modeloVisual.mision.cantidadObjetivo,
-    budget: modeloVisual.mision.presupuesto,
-    statusText: modeloVisual.feedback.mensaje,
-  },
-  products: modeloVisual.productos.map(crearProductoEscaparate),
-  selectedProducts: modeloVisual.mochila.map(crearProductoMochila),
-  backpack: {
-    title: 'Mochila',
-    emptyText: 'Toca productos del mercado.',
-  },
-  player: {
-    name: nombreJugador,
-    levelLabel: `Nivel ${modeloVisual.nivel}`,
-    coins: modeloVisual.mision.presupuesto,
-    avatarLabel: nombreJugador.slice(0, 1).toUpperCase(),
-  },
-  reward: {
-    stars: modeloVisual.feedback.estrellas,
-    combo: modeloVisual.feedback.combo,
-  },
-  actions: {
-    buyDisabled:
-      bloqueado ||
-      sincronizandoResultado ||
-      (!completado && !modeloVisual.compra.puedeComprar),
-    buyLabel: sincronizandoResultado
-      ? 'Guardando...'
-      : completado
-      ? tieneSiguienteNivel
-        ? 'Siguiente nivel'
-        : 'Volver al tablero'
-      : 'Comprar',
-    resetDisabled: bloqueado || completado || modeloVisual.mochila.length === 0,
-    resetLabel: 'Reiniciar',
-    menuDisabled: false,
-    menuLabel: 'Menú',
-  },
-  total: {
-    label: 'Total',
-    amount: modeloVisual.compra.total,
-    status: resolverEstadoTotal(modeloVisual.compra),
-    helperText: `${modeloVisual.compra.monedasRestantes} monedas disponibles`,
-  },
-});
+  errorSincronizacionResultado = null,
+}) => {
+  const result = completado
+    ? crearResultadoUiMercadoPremium({
+        modeloVisual,
+        resultado,
+        nombreJugador,
+        tieneSiguienteNivel,
+        sincronizandoResultado,
+        errorSincronizacionResultado,
+      })
+    : null;
+
+  return {
+    screen: completado ? 'result' : 'game',
+    level: {
+      current: modeloVisual.nivel,
+      total: modeloVisual.totalNiveles,
+    },
+    missionText: modeloVisual.mision.texto,
+    task: {
+      title: 'Tarea',
+      completedCount: modeloVisual.mochila.length,
+      requiredCount: modeloVisual.mision.cantidadObjetivo,
+      budget: modeloVisual.mision.presupuesto,
+      statusText: modeloVisual.feedback.mensaje,
+    },
+    products: modeloVisual.productos.map(crearProductoEscaparate),
+    selectedProducts: modeloVisual.mochila.map(crearProductoMochila),
+    backpack: {
+      title: 'Mochila',
+      emptyText: 'Toca productos del mercado.',
+    },
+    player: {
+      name: nombreJugador,
+      levelLabel: `Nivel ${modeloVisual.nivel}`,
+      coins: modeloVisual.mision.presupuesto,
+      avatarLabel: nombreJugador.slice(0, 1).toUpperCase(),
+    },
+    reward: {
+      stars: modeloVisual.feedback.estrellas,
+      combo: modeloVisual.feedback.combo,
+    },
+    result,
+    actions: {
+      buyDisabled:
+        bloqueado ||
+        sincronizandoResultado ||
+        (!completado && !modeloVisual.compra.puedeComprar),
+      buyLabel: result?.primaryLabel ?? 'Comprar',
+      resetDisabled: bloqueado || completado || modeloVisual.mochila.length === 0,
+      resetLabel: 'Reiniciar',
+      menuDisabled: false,
+      menuLabel: 'Menú',
+    },
+    total: {
+      label: 'Total',
+      amount: modeloVisual.compra.total,
+      status: resolverEstadoTotal(modeloVisual.compra),
+      helperText: `${modeloVisual.compra.monedasRestantes} monedas disponibles`,
+    },
+  };
+};

@@ -1,5 +1,6 @@
 import { crearHtmlInterfazMercado } from './interfaz/crearInterfazMercado';
 import { crearEstilosMercado } from './interfaz/crearEstilosMercado';
+import { crearScriptSincronizarCelebracionResultado } from './escena/mercadoResultadoBabylon';
 
 const cssUrl = (valor) => JSON.stringify(String(valor ?? ''));
 
@@ -23,7 +24,9 @@ const crearScriptBridgePremium = () => `
 
     const acciones = {
       buy: 'PURCHASE_REQUESTED',
+      continue: 'CONTINUE_REQUESTED',
       hint: 'HINT_REQUESTED',
+      'retry-save': 'RETRY_SAVE_REQUESTED',
       reset: 'RESET_REQUESTED',
       menu: 'EXIT_REQUESTED',
       'remove-product': 'PRODUCT_TOGGLED',
@@ -100,6 +103,7 @@ export const generarDocumentoMercadoPremium = ({
       <body>
         <div id="mercado-ui">${crearHtmlInterfazMercado(estadoUi)}</div>
         <script>${crearScriptBridgePremium()}</script>
+        <script>${crearScriptSincronizarCelebracionResultado(estadoUi)}</script>
       </body>
     </html>`;
 };
@@ -107,4 +111,6 @@ export const generarDocumentoMercadoPremium = ({
 export const crearScriptActualizarUiMercadoPremium = (estadoUi) =>
   `window.MercadoPremium && window.MercadoPremium.updateUi(${JSON.stringify(
     crearHtmlInterfazMercado(estadoUi),
-  )}); true;`;
+  )});
+  ${crearScriptSincronizarCelebracionResultado(estadoUi)}
+  true;`;

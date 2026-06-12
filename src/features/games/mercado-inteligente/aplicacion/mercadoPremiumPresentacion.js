@@ -114,6 +114,8 @@ export const crearModeloVisualNivelMercado = ({
   mensaje,
   estrellas,
   combo,
+  aciertos = 0,
+  errores = 0,
 }) => {
   const presupuesto = ronda.objetivo.presupuestoObjetivo;
   const total = calcularTotalSeleccionMercado({ ronda, seleccionadosIds });
@@ -145,6 +147,11 @@ export const crearModeloVisualNivelMercado = ({
       mensaje,
       estrellas,
       combo,
+    },
+    metricas: {
+      aciertos,
+      errores,
+      productosElegidos: seleccionadosIds.length,
     },
   };
 };

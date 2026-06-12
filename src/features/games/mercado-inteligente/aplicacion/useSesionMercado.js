@@ -78,11 +78,13 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
 
   const sesionIdRef = useRef(null);
   const respuestaInicioRef = useRef(null);
+  const finalizacionPendienteRef = useRef(null);
   const colaOperacionesRef = useRef(Promise.resolve());
 
   useEffect(() => {
     sesionIdRef.current = null;
     respuestaInicioRef.current = null;
+    finalizacionPendienteRef.current = null;
     colaOperacionesRef.current = Promise.resolve();
     setPersistencia(construirPersistenciaInicial(modoPersistencia));
   }, [
@@ -205,6 +207,8 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
       return Promise.resolve();
     }
 
+    finalizacionPendienteRef.current = finalizacionSesion;
+
     return encadenarOperacion(async () => {
       setPersistencia((previo) => ({
         ...previo,
@@ -227,6 +231,7 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
         });
 
         sesionIdRef.current = null;
+        finalizacionPendienteRef.current = null;
 
         setPersistencia((previo) => ({
           ...previo,
@@ -242,6 +247,16 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
         }));
       }
     });
+  };
+
+  const reintentarFinalizacion = () => {
+    const finalizacionPendiente = finalizacionPendienteRef.current;
+
+    if (!finalizacionPendiente) {
+      return Promise.resolve();
+    }
+
+    return finalizarSesionRemota(finalizacionPendiente);
   };
 
   const observadoresJuego = {
@@ -279,6 +294,7 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
   const prepararNuevaRonda = useCallback(() => {
     sesionIdRef.current = null;
     respuestaInicioRef.current = null;
+    finalizacionPendienteRef.current = null;
     setPersistencia((previo) => ({
       ...previo,
       estado: ESTADOS_PERSISTENCIA_MERCADO.inactiva,
@@ -298,5 +314,6 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
     respuestaFinalizacion: persistencia.respuestaFinalizacion,
     prepararRonda,
     prepararNuevaRonda,
+    reintentarFinalizacion,
   };
 };

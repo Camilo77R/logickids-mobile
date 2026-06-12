@@ -88,6 +88,7 @@ export const useMercadoPremiumController = ({
     persistenciaRemotaHabilitada,
     prepararNuevaRonda,
     prepararRonda,
+    reintentarFinalizacion,
     respuestaFinalizacion,
     respuestaInicio,
   } = sesionMercado;
@@ -361,8 +362,21 @@ export const useMercadoPremiumController = ({
 
   const resultadoSincronizado =
     !persistenciaRemotaHabilitada ||
-    persistencia.estado === ESTADOS_PERSISTENCIA_MERCADO.finalizada ||
+    persistencia.estado === ESTADOS_PERSISTENCIA_MERCADO.finalizada;
+  const resultadoConError =
+    persistenciaRemotaHabilitada &&
     persistencia.estado === ESTADOS_PERSISTENCIA_MERCADO.error;
+
+  const reintentarGuardado = useCallback(() => {
+    if (
+      estado.fase !== FASES_MERCADO_PREMIUM.completado ||
+      !resultadoConError
+    ) {
+      return;
+    }
+
+    void reintentarFinalizacion();
+  }, [estado.fase, reintentarFinalizacion, resultadoConError]);
 
   const continuarNivel = useCallback(() => {
     if (
@@ -398,6 +412,8 @@ export const useMercadoPremiumController = ({
         mensaje: estado.mensaje,
         estrellas,
         combo: estado.comboActual,
+        aciertos: estado.aciertos,
+        errores: estado.errores,
       }),
     [estado, estrellas, nivel, totalNiveles],
   );
@@ -405,7 +421,12 @@ export const useMercadoPremiumController = ({
   return {
     fase: estado.fase,
     sincronizandoResultado:
-      estado.fase === FASES_MERCADO_PREMIUM.completado && !resultadoSincronizado,
+      estado.fase === FASES_MERCADO_PREMIUM.completado &&
+      !resultadoSincronizado &&
+      !resultadoConError,
+    errorSincronizacionResultado: resultadoConError
+      ? persistencia.error ?? 'No pudimos guardar tu progreso.'
+      : null,
     modeloVisual,
     feedbackEscena: estado.feedbackEscena,
     resultado: estado.resultado,
@@ -415,6 +436,7 @@ export const useMercadoPremiumController = ({
       reiniciarNivel,
       solicitarPista,
       continuarNivel,
+      reintentarGuardado,
       reintentarPreparacion: () => setRevisionPreparacion((revision) => revision + 1),
       salir,
     },

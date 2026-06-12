@@ -2,6 +2,8 @@ export const EVENTOS_DESDE_MERCADO_PREMIUM = Object.freeze({
   listo: 'MERCADO_READY',
   productoAlternado: 'PRODUCT_TOGGLED',
   comprar: 'PURCHASE_REQUESTED',
+  continuar: 'CONTINUE_REQUESTED',
+  reintentarGuardado: 'RETRY_SAVE_REQUESTED',
   reiniciar: 'RESET_REQUESTED',
   pista: 'HINT_REQUESTED',
   salir: 'EXIT_REQUESTED',

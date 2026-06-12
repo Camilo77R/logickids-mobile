@@ -5,16 +5,20 @@ import { crearPanelJugador } from './crearPanelJugador';
 import { crearPanelMision } from './crearPanelMision';
 import { crearPanelMochila } from './crearPanelMochila';
 import { crearPanelTarea } from './crearPanelTarea';
+import { crearPantallaResultado } from './crearPantallaResultado';
 import { atributoSeguro, textoSeguro } from './mercadoInterfazUtils';
 
 export const ACCIONES_INTERFAZ_MERCADO = Object.freeze({
   BUY: 'buy',
+  CONTINUE: 'continue',
   MENU: 'menu',
   REMOVE_PRODUCT: 'remove-product',
   RESET: 'reset',
+  RETRY_SAVE: 'retry-save',
 });
 
 const normalizarEstado = (estado = {}) => ({
+  screen: estado.screen ?? 'game',
   missionText: estado.missionText,
   level: estado.level ?? {},
   task: estado.task ?? {},
@@ -23,6 +27,7 @@ const normalizarEstado = (estado = {}) => ({
   backpack: estado.backpack ?? {},
   player: estado.player ?? {},
   reward: estado.reward ?? {},
+  result: estado.result ?? null,
   actions: estado.actions ?? {},
   total: estado.total ?? {},
 });
@@ -35,6 +40,10 @@ const combinarEstado = (actual, cambio = {}) => ({
   backpack: { ...actual.backpack, ...cambio.backpack },
   player: { ...actual.player, ...cambio.player },
   reward: { ...actual.reward, ...cambio.reward },
+  result:
+    cambio.result === null
+      ? null
+      : { ...(actual.result ?? {}), ...(cambio.result ?? {}) },
   actions: { ...actual.actions, ...cambio.actions },
   total: { ...actual.total, ...cambio.total },
   products: cambio.products ?? actual.products,
@@ -43,6 +52,10 @@ const combinarEstado = (actual, cambio = {}) => ({
 
 export function crearHtmlInterfazMercado(estado) {
   const datos = normalizarEstado(estado);
+
+  if (datos.screen === 'result' && datos.result) {
+    return crearPantallaResultado(datos);
+  }
 
   return `
     <main class="mercado-hud" data-mercado-hud>

@@ -36,9 +36,11 @@ export default function MercadoInteligenteScreen({
   });
   const {
     acciones,
+    errorSincronizacionResultado,
     fase,
     feedbackEscena,
     modeloVisual,
+    resultado,
     sincronizandoResultado,
   } = controlador;
   const completado = fase === FASES_MERCADO_PREMIUM.completado;
@@ -70,14 +72,18 @@ export default function MercadoInteligenteScreen({
         bloqueado: fase === FASES_MERCADO_PREMIUM.bloqueado,
         completado,
         tieneSiguienteNivel,
+        resultado,
         sincronizandoResultado,
+        errorSincronizacionResultado,
       }),
     [
       completado,
       contextoSesion,
       fase,
       modeloVisual,
+      resultado,
       sincronizandoResultado,
+      errorSincronizacionResultado,
       tieneSiguienteNivel,
     ],
   );
@@ -88,15 +94,17 @@ export default function MercadoInteligenteScreen({
         acciones.alternarProducto(evento.productId);
         break;
       case EVENTOS_DESDE_MERCADO_PREMIUM.comprar:
-        if (completado) {
-          if (tieneSiguienteNivel) {
-            acciones.continuarNivel();
-          } else {
-            acciones.salir();
-          }
+        acciones.comprar();
+        break;
+      case EVENTOS_DESDE_MERCADO_PREMIUM.continuar:
+        if (tieneSiguienteNivel) {
+          acciones.continuarNivel();
         } else {
-          acciones.comprar();
+          acciones.salir();
         }
+        break;
+      case EVENTOS_DESDE_MERCADO_PREMIUM.reintentarGuardado:
+        acciones.reintentarGuardado();
         break;
       case EVENTOS_DESDE_MERCADO_PREMIUM.reiniciar:
         acciones.reiniciarNivel();
@@ -110,7 +118,7 @@ export default function MercadoInteligenteScreen({
       default:
         break;
     }
-  }, [acciones, completado, tieneSiguienteNivel]);
+  }, [acciones, tieneSiguienteNivel]);
 
   if (fase === FASES_MERCADO_PREMIUM.bloqueado) {
     return (
