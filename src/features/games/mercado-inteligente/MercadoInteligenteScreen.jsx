@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   StatusBar,
@@ -14,6 +14,7 @@ import {
   FASES_MERCADO_PREMIUM,
   useMercadoPremiumController,
 } from './aplicacion/useMercadoPremiumController';
+import MercadoGuiaInicial from './presentacion/MercadoGuiaInicial';
 import MercadoPremiumWebView from './presentacion/premium/MercadoPremiumWebView';
 import { EVENTOS_DESDE_MERCADO_PREMIUM } from './presentacion/premium/mercadoPremiumBridge';
 import { crearEstadoUiMercadoPremium } from './presentacion/premium/mercadoPremiumEstadoUi';
@@ -29,6 +30,8 @@ export default function MercadoInteligenteScreen({
   configuracionInicial,
   contextoSesion,
 }) {
+  const [guiaVisible, setGuiaVisible] = useState(true);
+
   const controlador = useMercadoPremiumController({
     configuracionInicial,
     contextoSesion,
@@ -40,11 +43,14 @@ export default function MercadoInteligenteScreen({
     fase,
     feedbackEscena,
     modeloVisual,
+    resumenActividad,
     resultado,
     sincronizandoResultado,
   } = controlador;
   const completado = fase === FASES_MERCADO_PREMIUM.completado;
   const tieneSiguienteNivel = modeloVisual.nivel < modeloVisual.totalNiveles;
+  const nombreJugador = resolverNombreJugador(contextoSesion);
+  const mostrarGuiaInicial = guiaVisible && fase === FASES_MERCADO_PREMIUM.jugando;
 
   useEffect(() => {
     const prepararPantalla = async () => {
@@ -68,25 +74,31 @@ export default function MercadoInteligenteScreen({
     () =>
       crearEstadoUiMercadoPremium({
         modeloVisual,
-        nombreJugador: resolverNombreJugador(contextoSesion),
+        nombreJugador,
         bloqueado: fase === FASES_MERCADO_PREMIUM.bloqueado,
         completado,
         tieneSiguienteNivel,
         resultado,
+        resumenActividad,
         sincronizandoResultado,
         errorSincronizacionResultado,
       }),
     [
       completado,
-      contextoSesion,
+      nombreJugador,
       fase,
       modeloVisual,
       resultado,
+      resumenActividad,
       sincronizandoResultado,
       errorSincronizacionResultado,
       tieneSiguienteNivel,
     ],
   );
+
+  const ocultarGuiaInicial = useCallback(() => {
+    setGuiaVisible(false);
+  }, []);
 
   const manejarEvento = useCallback((evento) => {
     switch (evento.type) {
@@ -141,6 +153,12 @@ export default function MercadoInteligenteScreen({
         feedbackEscena={feedbackEscena}
         onEvento={manejarEvento}
       />
+      {mostrarGuiaInicial ? (
+        <MercadoGuiaInicial
+          nombreJugador={nombreJugador}
+          onComenzar={ocultarGuiaInicial}
+        />
+      ) : null}
     </View>
   );
 }
@@ -225,3 +243,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
 });
+
+

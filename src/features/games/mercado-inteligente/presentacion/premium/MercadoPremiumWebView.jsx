@@ -15,6 +15,7 @@ import {
 import {
   MODELOS_ESCENA_MERCADO_PREMIUM,
 } from './mercadoPremiumModelos';
+import { MERCADO_SESION_FINAL_RASTER_MANIFEST } from './mercadoSesionFinalRasterManifest';
 import {
   crearScriptActualizarUiMercadoPremium,
   generarDocumentoMercadoPremium,
@@ -45,6 +46,7 @@ export default function MercadoPremiumWebView({
     prepararAssetsMercadoPremium({
       productos: modeloVisual.productos,
       modelosEscena: MODELOS_ESCENA_MERCADO_PREMIUM,
+      sesionFinalManifest: MERCADO_SESION_FINAL_RASTER_MANIFEST,
     })
       .then((resultado) => {
         if (vigente) {
@@ -77,11 +79,9 @@ export default function MercadoPremiumWebView({
     }
 
     webViewRef.current?.injectJavaScript(
-      serializarComandoMercadoPremium(
-        crearComandoEstadoMercadoPremium({ modeloVisual, feedbackEscena }),
-      ),
+      serializarComandoMercadoPremium(crearComandoEstadoMercadoPremium({ modeloVisual, feedbackEscena })),
     );
-    webViewRef.current?.injectJavaScript(crearScriptActualizarUiMercadoPremium(estadoUi));
+    webViewRef.current?.injectJavaScript(crearScriptActualizarUiMercadoPremium(estadoUi, assets));
   }, [escenaLista, estadoUi, feedbackEscena, modeloVisual]);
 
   const manejarMensaje = useCallback((evento) => {

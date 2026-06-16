@@ -23,6 +23,11 @@ import {
   resolverMensajeSeleccionMercado,
 } from './mercadoPremiumPresentacion';
 import {
+  acumularNivelEnResumenMercado,
+  crearResumenActividadMercado,
+  resolverResultadoNivelParaResumenMercado,
+} from './mercadoPremiumSesion.mapper';
+import {
   ESTADOS_PERSISTENCIA_MERCADO,
   useSesionMercado,
 } from './useSesionMercado';
@@ -76,6 +81,7 @@ export const useMercadoPremiumController = ({
   );
   const [configuracionActiva, setConfiguracionActiva] = useState(configuracionBase);
   const [estado, setEstado] = useState(() => construirEstadoInicial(configuracionBase));
+  const [resumenActividad, setResumenActividad] = useState(crearResumenActividadMercado);
   const [revisionPreparacion, setRevisionPreparacion] = useState(0);
 
   const sesionMercado = useSesionMercado({
@@ -96,12 +102,19 @@ export const useMercadoPremiumController = ({
   const inicioPartidaRef = useRef(Date.now());
   const inicioRondaRef = useRef(Date.now());
   const finalizadoRef = useRef(false);
+  const continuandoNivelRef = useRef(false);
   const preparacionIdRef = useRef(0);
 
   const prepararNivel = useCallback(async () => {
+    // Protege el resultado visible frente a refrescos de persistencia o re-render de sesión.
+    if (finalizadoRef.current && !continuandoNivelRef.current) {
+      return;
+    }
+
     const preparacionId = preparacionIdRef.current + 1;
     preparacionIdRef.current = preparacionId;
     finalizadoRef.current = false;
+    continuandoNivelRef.current = false;
     inicioPartidaRef.current = Date.now();
 
     setEstado((previo) => ({
@@ -378,18 +391,6 @@ export const useMercadoPremiumController = ({
     void reintentarFinalizacion();
   }, [estado.fase, reintentarFinalizacion, resultadoConError]);
 
-  const continuarNivel = useCallback(() => {
-    if (
-      estado.fase !== FASES_MERCADO_PREMIUM.completado ||
-      !resultadoSincronizado
-    ) {
-      return;
-    }
-
-    prepararNuevaRonda();
-    setRevisionPreparacion((revision) => revision + 1);
-  }, [estado.fase, prepararNuevaRonda, resultadoSincronizado]);
-
   const nivel = resolverNivelSesion({
     respuestaInicio,
     contextoSesion,
@@ -401,6 +402,41 @@ export const useMercadoPremiumController = ({
   const estrellas = Number.isFinite(estrellasOficiales)
     ? Math.max(0, Math.min(3, estrellasOficiales))
     : calcularEstrellasVisualesMercado(estado);
+  const resultadoNivelParaResumen = useMemo(
+    () =>
+      resolverResultadoNivelParaResumenMercado({
+        resultadoLocal: estado.resultado,
+        respuestaFinalizacion,
+      }),
+    [estado.resultado, respuestaFinalizacion],
+  );
+
+  const continuarNivel = useCallback(() => {
+    if (
+      estado.fase !== FASES_MERCADO_PREMIUM.completado ||
+      !resultadoSincronizado ||
+      continuandoNivelRef.current
+    ) {
+      return;
+    }
+
+    continuandoNivelRef.current = true;
+    setResumenActividad((resumenPrevio) =>
+      acumularNivelEnResumenMercado({
+        resumen: resumenPrevio,
+        resultado: resultadoNivelParaResumen,
+        estrellas,
+      }),
+    );
+    prepararNuevaRonda();
+    setRevisionPreparacion((revision) => revision + 1);
+  }, [
+    estado.fase,
+    estrellas,
+    prepararNuevaRonda,
+    resultadoNivelParaResumen,
+    resultadoSincronizado,
+  ]);
 
   const modeloVisual = useMemo(
     () =>
@@ -417,6 +453,17 @@ export const useMercadoPremiumController = ({
       }),
     [estado, estrellas, nivel, totalNiveles],
   );
+  const resumenActividadVisible = useMemo(
+    () =>
+      estado.fase === FASES_MERCADO_PREMIUM.completado
+        ? acumularNivelEnResumenMercado({
+            resumen: resumenActividad,
+            resultado: resultadoNivelParaResumen,
+            estrellas,
+          })
+        : resumenActividad,
+    [estado.fase, estrellas, resultadoNivelParaResumen, resumenActividad],
+  );
 
   return {
     fase: estado.fase,
@@ -430,6 +477,7 @@ export const useMercadoPremiumController = ({
     modeloVisual,
     feedbackEscena: estado.feedbackEscena,
     resultado: estado.resultado,
+    resumenActividad: resumenActividadVisible,
     acciones: {
       alternarProducto,
       comprar,
@@ -444,3 +492,6 @@ export const useMercadoPremiumController = ({
 };
 
 export { FASES_MERCADO_PREMIUM };
+
+
+

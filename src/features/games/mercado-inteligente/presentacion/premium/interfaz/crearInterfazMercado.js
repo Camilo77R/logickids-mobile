@@ -6,6 +6,7 @@ import { crearPanelMision } from './crearPanelMision';
 import { crearPanelMochila } from './crearPanelMochila';
 import { crearPanelTarea } from './crearPanelTarea';
 import { crearPantallaResultado } from './crearPantallaResultado';
+import { crearPantallaSesionFinal } from './crearPantallaSesionFinal';
 import { atributoSeguro, textoSeguro } from './mercadoInterfazUtils';
 
 export const ACCIONES_INTERFAZ_MERCADO = Object.freeze({
@@ -28,6 +29,7 @@ const normalizarEstado = (estado = {}) => ({
   player: estado.player ?? {},
   reward: estado.reward ?? {},
   result: estado.result ?? null,
+  sessionResult: estado.sessionResult ?? null,
   actions: estado.actions ?? {},
   total: estado.total ?? {},
 });
@@ -44,17 +46,27 @@ const combinarEstado = (actual, cambio = {}) => ({
     cambio.result === null
       ? null
       : { ...(actual.result ?? {}), ...(cambio.result ?? {}) },
+  sessionResult:
+    cambio.sessionResult === null
+      ? null
+      : { ...(actual.sessionResult ?? {}), ...(cambio.sessionResult ?? {}) },
   actions: { ...actual.actions, ...cambio.actions },
   total: { ...actual.total, ...cambio.total },
   products: cambio.products ?? actual.products,
   selectedProducts: cambio.selectedProducts ?? actual.selectedProducts,
 });
 
-export function crearHtmlInterfazMercado(estado) {
+export function crearHtmlInterfazMercado(estado, opciones = {}) {
   const datos = normalizarEstado(estado);
 
   if (datos.screen === 'result' && datos.result) {
     return crearPantallaResultado(datos);
+  }
+
+  if (datos.screen === 'session-result' && datos.sessionResult) {
+    return crearPantallaSesionFinal(datos, {
+      assets: opciones.assets?.sesionFinal,
+    });
   }
 
   return `
@@ -88,7 +100,7 @@ export function crearDocumentoInterfazMercado(estado, opciones = {}) {
         <title>${textoSeguro(titulo, 'Mercado Inteligente')}</title>
         <style>${crearEstilosMercado()}</style>
       </head>
-      <body>${crearHtmlInterfazMercado(estado)}</body>
+      <body>${crearHtmlInterfazMercado(estado, opciones)}</body>
     </html>`;
 }
 

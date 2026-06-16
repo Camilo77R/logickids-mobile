@@ -1,6 +1,6 @@
 const BABYLON_CDN_URL = 'https://cdn.babylonjs.com/babylon.js';
 
-const PANTALLAS_RESULTADO = new Set(['result', 'resultado']);
+const PANTALLAS_RESULTADO = new Set(['result', 'resultado', 'session-result']);
 
 const esPantallaResultado = (estadoUi) =>
   PANTALLAS_RESULTADO.has(String(estadoUi?.screen ?? '').toLowerCase());
@@ -11,7 +11,7 @@ const crearScriptDestruirCelebracion = () => `
 
 const crearScriptIniciarCelebracion = () => `
   (function () {
-    if (!document.querySelector('[data-mercado-screen="result"],[data-mercado-screen="resultado"]')) {
+    if (!document.querySelector('[data-mercado-screen="result"],[data-mercado-screen="resultado"],[data-mercado-screen="session-result"]')) {
       window.MercadoResultadoCelebracion?.destroy?.();
       return;
     }
@@ -82,7 +82,7 @@ const crearScriptIniciarCelebracion = () => `
     };
 
     const iniciar = (BABYLON) => {
-      if (!BABYLON || !document.querySelector('[data-mercado-screen="result"],[data-mercado-screen="resultado"]')) {
+      if (!BABYLON || !document.querySelector('[data-mercado-screen="result"],[data-mercado-screen="resultado"],[data-mercado-screen="session-result"]')) {
         window.MercadoResultadoCelebracion = null;
         return;
       }

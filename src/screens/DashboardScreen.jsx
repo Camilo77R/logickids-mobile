@@ -325,6 +325,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       tokenEstudiante: studentSession?.token ?? null,
       baseUrlApi: studentSession?.apiBaseUrl ?? null,
       minijuegoId: studentProfile?.sesion_minijuego_id ?? null,
+      nombreEstudiante: getStudentName(studentProfile, studentSession?.studentProfile),
       sesionModo: studentProfile?.sesion_modo ?? null,
       sesionPasoActual: studentProfile?.sesion_paso_actual ?? null,
       sesionTotalPasos: studentProfile?.sesion_total_pasos ?? null,
@@ -337,6 +338,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       studentProfile?.sesion_paso_actual,
       studentProfile?.sesion_total_pasos,
       studentSession?.apiBaseUrl,
+      studentSession?.studentProfile,
       studentSession?.token,
     ],
   );
@@ -512,12 +514,9 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     openActivityBySlug(skill.gameSlug);
   };
 
-  const exitGame = async () => {
-    try {
-      await reloadDashboard();
-    } finally {
-      setActiveGame(null);
-    }
+  const exitGame = () => {
+    setActiveGame(null);
+    void reloadDashboard();
   };
 
   if (!dashboardAccess.allowed) {

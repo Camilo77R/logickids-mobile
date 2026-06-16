@@ -1,4 +1,5 @@
 import { crearResultadoUiMercadoPremium } from '../../aplicacion/mercadoPremiumResultado.mapper';
+import { crearSesionFinalUiMercadoPremium } from '../../aplicacion/mercadoPremiumSesion.mapper';
 
 const ETIQUETAS_PRODUCTO = Object.freeze({
   manzana: '🍎',
@@ -49,10 +50,11 @@ export const crearEstadoUiMercadoPremium = ({
   completado = false,
   tieneSiguienteNivel = false,
   resultado = null,
+  resumenActividad = null,
   sincronizandoResultado = false,
   errorSincronizacionResultado = null,
 }) => {
-  const result = completado
+  const result = completado && tieneSiguienteNivel
     ? crearResultadoUiMercadoPremium({
         modeloVisual,
         resultado,
@@ -62,9 +64,18 @@ export const crearEstadoUiMercadoPremium = ({
         errorSincronizacionResultado,
       })
     : null;
+  const sessionResult = completado && !tieneSiguienteNivel
+    ? crearSesionFinalUiMercadoPremium({
+        resumenActividad,
+        nombreJugador,
+        totalNiveles: modeloVisual.totalNiveles,
+        sincronizandoResultado,
+        errorSincronizacionResultado,
+      })
+    : null;
 
   return {
-    screen: completado ? 'result' : 'game',
+    screen: sessionResult ? 'session-result' : result ? 'result' : 'game',
     level: {
       current: modeloVisual.nivel,
       total: modeloVisual.totalNiveles,
@@ -94,6 +105,7 @@ export const crearEstadoUiMercadoPremium = ({
       combo: modeloVisual.feedback.combo,
     },
     result,
+    sessionResult,
     actions: {
       buyDisabled:
         bloqueado ||

@@ -70,6 +70,9 @@ export const generarDocumentoMercadoPremium = ({
   const estiloFondo = fondoEscenario
     ? `background-image:url(${cssUrl(fondoEscenario)});`
     : 'background-image:linear-gradient(180deg,#8de5f6,#f8d49a);';
+  const variableFondoEscenario = fondoEscenario
+    ? `--mercado-escenario-fondo:url(${cssUrl(fondoEscenario)});`
+    : '--mercado-escenario-fondo:none;';
 
   return `<!doctype html>
     <html lang="es">
@@ -97,20 +100,20 @@ export const generarDocumentoMercadoPremium = ({
             background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,166,40,.07));
             pointer-events:none;
           }
-          #mercado-ui{position:fixed;inset:0;z-index:20}
+          #mercado-ui{position:fixed;inset:0;z-index:20;${variableFondoEscenario}}
         </style>
       </head>
       <body>
-        <div id="mercado-ui">${crearHtmlInterfazMercado(estadoUi)}</div>
+        <div id="mercado-ui">${crearHtmlInterfazMercado(estadoUi, { assets })}</div>
         <script>${crearScriptBridgePremium()}</script>
         <script>${crearScriptSincronizarCelebracionResultado(estadoUi)}</script>
       </body>
     </html>`;
 };
 
-export const crearScriptActualizarUiMercadoPremium = (estadoUi) =>
+export const crearScriptActualizarUiMercadoPremium = (estadoUi, assets) =>
   `window.MercadoPremium && window.MercadoPremium.updateUi(${JSON.stringify(
-    crearHtmlInterfazMercado(estadoUi),
+    crearHtmlInterfazMercado(estadoUi, { assets }),
   )});
   ${crearScriptSincronizarCelebracionResultado(estadoUi)}
   true;`;

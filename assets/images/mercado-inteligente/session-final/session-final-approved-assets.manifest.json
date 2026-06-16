@@ -1,0 +1,209 @@
+{
+  "generatedAt": "2026-06-14T17:28:15.877Z",
+  "note": "Assets raster aprobados generados de forma determinista. Runtime consume PNG/WebP, no SVG incrustado.",
+  "officialReference": {
+    "original": "sources/session-final-screen3-reference-original.jpeg",
+    "png": "sources/session-final-screen3-reference-official.png",
+    "webp": "sources/session-final-screen3-reference-official.webp",
+    "meta": "sources/session-final-screen3-reference.meta.json"
+  },
+  "sourceStandard": "awards/session-final-trophy-premium.png",
+  "assets": [
+    {
+      "family": "banners",
+      "name": "session-final-banner-premium",
+      "width": 1220,
+      "height": 210,
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/banners/session-final-banner-premium.png",
+        "webp": "assets/images/mercado-inteligente/session-final/banners/session-final-banner-premium.webp"
+      },
+      "bytes": {
+        "png": 25465,
+        "webp": 12324
+      }
+    },
+    {
+      "family": "characters",
+      "name": "session-final-player-card-premium",
+      "width": 360,
+      "height": 420,
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/characters/session-final-player-card-premium.png",
+        "webp": "assets/images/mercado-inteligente/session-final/characters/session-final-player-card-premium.webp"
+      },
+      "bytes": {
+        "png": 26795,
+        "webp": 13038
+      }
+    },
+    {
+      "family": "characters",
+      "name": "session-final-diploma-premium",
+      "width": 560,
+      "height": 340,
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/characters/session-final-diploma-premium.png",
+        "webp": "assets/images/mercado-inteligente/session-final/characters/session-final-diploma-premium.webp"
+      },
+      "bytes": {
+        "png": 62391,
+        "webp": 33584
+      }
+    },
+    {
+      "family": "panels",
+      "name": "session-final-summary-card-premium",
+      "width": 1120,
+      "height": 270,
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/panels/session-final-summary-card-premium.png",
+        "webp": "assets/images/mercado-inteligente/session-final/panels/session-final-summary-card-premium.webp"
+      },
+      "bytes": {
+        "png": 10068,
+        "webp": 7544
+      }
+    },
+    {
+      "family": "panels",
+      "name": "session-final-message-bubble-premium",
+      "width": 780,
+      "height": 150,
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/panels/session-final-message-bubble-premium.png",
+        "webp": "assets/images/mercado-inteligente/session-final/panels/session-final-message-bubble-premium.webp"
+      },
+      "bytes": {
+        "png": 8161,
+        "webp": 5402
+      }
+    },
+    {
+      "family": "buttons",
+      "name": "session-final-history-button-premium",
+      "width": 440,
+      "height": 145,
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/buttons/session-final-history-button-premium.png",
+        "webp": "assets/images/mercado-inteligente/session-final/buttons/session-final-history-button-premium.webp"
+      },
+      "bytes": {
+        "png": 6802,
+        "webp": 4442
+      }
+    },
+    {
+      "family": "buttons",
+      "name": "session-final-return-button-premium",
+      "width": 540,
+      "height": 145,
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/buttons/session-final-return-button-premium.png",
+        "webp": "assets/images/mercado-inteligente/session-final/buttons/session-final-return-button-premium.webp"
+      },
+      "bytes": {
+        "png": 7022,
+        "webp": 4702
+      }
+    },
+    {
+      "family": "stars",
+      "name": "session-final-star-active-premium",
+      "width": 320,
+      "height": 320,
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/stars/session-final-star-active-premium.png",
+        "webp": "assets/images/mercado-inteligente/session-final/stars/session-final-star-active-premium.webp"
+      },
+      "bytes": {
+        "png": 48359,
+        "webp": 19334
+      }
+    },
+    {
+      "family": "stars",
+      "name": "session-final-star-inactive-premium",
+      "width": 320,
+      "height": 320,
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/stars/session-final-star-inactive-premium.png",
+        "webp": "assets/images/mercado-inteligente/session-final/stars/session-final-star-inactive-premium.webp"
+      },
+      "bytes": {
+        "png": 29197,
+        "webp": 10394
+      }
+    },
+    {
+      "family": "icons",
+      "name": "session-final-check-premium",
+      "width": 160,
+      "height": 160,
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/icons/session-final-check-premium.png",
+        "webp": "assets/images/mercado-inteligente/session-final/icons/session-final-check-premium.webp"
+      },
+      "bytes": {
+        "png": 11347,
+        "webp": 6172
+      }
+    },
+    {
+      "family": "icons",
+      "name": "session-final-home-premium",
+      "width": 160,
+      "height": 160,
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/icons/session-final-home-premium.png",
+        "webp": "assets/images/mercado-inteligente/session-final/icons/session-final-home-premium.webp"
+      },
+      "bytes": {
+        "png": 11317,
+        "webp": 7280
+      }
+    },
+    {
+      "family": "icons",
+      "name": "session-final-history-premium",
+      "width": 160,
+      "height": 160,
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/icons/session-final-history-premium.png",
+        "webp": "assets/images/mercado-inteligente/session-final/icons/session-final-history-premium.webp"
+      },
+      "bytes": {
+        "png": 10944,
+        "webp": 6494
+      }
+    },
+    {
+      "family": "icons",
+      "name": "session-final-trophy-mini-premium",
+      "width": 160,
+      "height": 160,
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/icons/session-final-trophy-mini-premium.png",
+        "webp": "assets/images/mercado-inteligente/session-final/icons/session-final-trophy-mini-premium.webp"
+      },
+      "bytes": {
+        "png": 12731,
+        "webp": 7508
+      }
+    },
+    {
+      "family": "effects",
+      "name": "session-final-confetti-premium-overlay",
+      "width": 1920,
+      "height": 1080,
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/effects/session-final-confetti-premium-overlay.png",
+        "webp": "assets/images/mercado-inteligente/session-final/effects/session-final-confetti-premium-overlay.webp"
+      },
+      "bytes": {
+        "png": 71429,
+        "webp": 42442
+      }
+    }
+  ]
+}

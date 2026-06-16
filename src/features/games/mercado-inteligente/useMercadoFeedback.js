@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { Vibration } from 'react-native';
+import { AppState, Vibration } from 'react-native';
 
 const AUDIO_SOURCES = Object.freeze({
+  musicaFondo: require('../../../../assets/audio/mercado-3d/mercado-musica-loop.wav'),
   toque: require('../../../../assets/audio/mercado-3d/mercado-toque.wav'),
   ajuste: require('../../../../assets/audio/mercado-3d/mercado-ajuste.wav'),
   exito: require('../../../../assets/audio/mercado-3d/mercado-exito.wav'),
@@ -61,6 +62,10 @@ const crearFeedbackSeguro = () => {
     }).catch(() => null);
 
     const players = {
+      musicaFondo: createAudioPlayer(AUDIO_SOURCES.musicaFondo, {
+        downloadFirst: true,
+        keepAudioSessionActive: false,
+      }),
       toque: createAudioPlayer(AUDIO_SOURCES.toque, {
         downloadFirst: true,
         keepAudioSessionActive: true,
@@ -79,6 +84,9 @@ const crearFeedbackSeguro = () => {
       }),
     };
 
+    players.musicaFondo.loop = true;
+    players.musicaFondo.volume = 0.055;
+    players.musicaFondo.play?.();
     players.toque.volume = 0.32;
     players.ajuste.volume = 0.24;
     players.exito.volume = 0.46;
@@ -108,7 +116,23 @@ export const useMercadoFeedback = () => {
   useEffect(() => {
     feedbackRef.current = crearFeedbackSeguro();
 
+    const appStateSubscription = AppState.addEventListener('change', (estadoApp) => {
+      const musicaFondo = feedbackRef.current.players.musicaFondo;
+
+      if (!musicaFondo) {
+        return;
+      }
+
+      if (estadoApp === 'active') {
+        musicaFondo.play?.();
+        return;
+      }
+
+      musicaFondo.pause?.();
+    });
+
     return () => {
+      appStateSubscription.remove?.();
       if (estrellasTimeoutRef.current) {
         clearTimeout(estrellasTimeoutRef.current);
       }
@@ -147,3 +171,5 @@ export const useMercadoFeedback = () => {
     reproducirExito,
   };
 };
+
+
