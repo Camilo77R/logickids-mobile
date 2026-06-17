@@ -7,34 +7,37 @@ import {
   crearEstadisticasJuegoComun,
   crearResultadoJuegoComun,
 } from '../core/contratoResultadoJuego';
-import { PIEZAS_ROBOT } from './robotTaller.constants';
+import { PARTES_ROBOT, UMBRAL_SNAP, RADIO_SNAP_SUAVE, DISTANCIA_MAX_ENSAMBLAR } from './robotTaller.constants';
 
-const enteroAleatorio = (minimo, maximo) =>
-  minimo + Math.floor(Math.random() * (maximo - minimo + 1));
-
-export const crearPatronPiezasAleatorio = ({ cantidadPiezas, longitudPatron }) =>
-  Array.from({ length: longitudPatron }, () => enteroAleatorio(0, cantidadPiezas - 1));
-
-export const resolverCantidadColumnas = (cantidadPiezas) => {
-  if (cantidadPiezas <= 3) {
-    return 3;
-  }
-  if (cantidadPiezas <= 6) {
-    return 3;
-  }
-  return 4;
+const calcularDistancia = (posA, posB) => {
+  const dx = posA[0] - posB[0];
+  const dy = posA[1] - posB[1];
+  const dz = posA[2] - posB[2];
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
 };
 
-export const construirResumenPartidaRobotTaller = ({
+export const detectarSnap = (posicionParte) => {
+  for (let indice = 0; indice < PARTES_ROBOT.length; indice++) {
+    const parte = PARTES_ROBOT[indice];
+    const distancia = calcularDistancia(posicionParte, parte.posicionObjetivo);
+    if (distancia <= UMBRAL_SNAP) {
+      return { ensamblada: distancia <= DISTANCIA_MAX_ENSAMBLAR, indice, distancia };
+    }
+  }
+  return null;
+};
+
+export const construirResumenPartidaEnsamblaje = ({
   exito,
   configuracion,
-  aciertos,
-  errores,
+  partesEnsambladas,
   tiempoTranscurridoMs,
-  patron,
 }) => {
-  const puntajeBase = Math.max(aciertos * 12 - errores * 4, 0);
-  const comboMaximo = exito ? aciertos : Math.max(aciertos - 1, 0);
+  const totalPartes = PARTES_ROBOT.length;
+  const aciertos = partesEnsambladas;
+  const errores = Math.max(0, totalPartes - aciertos);
+  const puntajeBase = Math.max(Math.round((aciertos / totalPartes) * 100) - errores * 5, 0);
+  const comboMaximo = exito ? totalPartes : Math.max(aciertos - 1, 0);
 
   const finalizacionSesion = crearFinalizacionSesion({
     puntaje: puntajeBase,
@@ -66,17 +69,16 @@ export const construirResumenPartidaRobotTaller = ({
       estadoSesion: finalizacionSesion.estado,
     }),
     detalles: {
-      patronLongitud: patron.length,
-      patronResuelto: exito,
-      cantidadPiezas: configuracion.configuracion.cantidadPiezas,
-      piezasUtilizadas: PIEZAS_ROBOT.map((pieza) => pieza.id),
+      totalPartes,
+      partesEnsambladas,
+      ensamblajeCompleto: exito,
+      piezasUtilizadas: PARTES_ROBOT.map((p) => p.id),
     },
   });
 };
 
-export const construirEventoRobotTaller = ({
+export const construirEventoEnsamblaje = ({
   tipoEvento,
-  tiempoReaccionMs,
   puntos = 0,
   comboEnEvento = 0,
   metadata,
@@ -84,7 +86,7 @@ export const construirEventoRobotTaller = ({
   crearEventoSesion({
     tipoEvento,
     habilidad: 'Lógica',
-    tiempoReaccionMs,
+    tiempoReaccionMs: null,
     puntos,
     comboEnEvento,
     metadata,

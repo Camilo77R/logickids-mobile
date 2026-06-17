@@ -147,7 +147,7 @@ const resolveStudentDashboardAccess = (profile) => {
   return { allowed: true };
 };
 
-const buildActivityCopy = ({ profile, access, robotTallerAccess, playState }) => {
+const buildActivityCopy = ({ profile, access, playState }) => {
   if (!profile) {
     return {
       title: 'Preparando tu aventura',
@@ -156,22 +156,10 @@ const buildActivityCopy = ({ profile, access, robotTallerAccess, playState }) =>
     };
   }
 
-  const accesoEfectivo =
-    access.estado === ESTADOS_ACCESO_JUEGO.disponible
-      ? access
-      : robotTallerAccess.estado === ESTADOS_ACCESO_JUEGO.disponible
-        ? robotTallerAccess
-        : access;
-
-  if (accesoEfectivo.estado === ESTADOS_ACCESO_JUEGO.disponible) {
+  if (access.estado === ESTADOS_ACCESO_JUEGO.disponible) {
     return {
       title: profile.sesion_minijuego_titulo ?? 'Camino AR',
-      text:
-        accesoEfectivo.juegoHabilitadoSlug === 'robot-logico'
-          ? 'Tu clase esta activa. Entra, observa el orden de las piezas y arma el robot.'
-          : accesoEfectivo.juegoHabilitadoSlug === 'tren-3d'
-            ? 'Tu clase esta activa. Entra, observa el patron y completa la actividad.'
-            : 'Tu clase esta activa. Entra, observa el patron y completa el camino.',
+      text: 'Tu clase esta activa. Entra, observa el patron y completa la actividad.',
       buttonLabel: 'Comenzar',
     };
   }
@@ -202,8 +190,8 @@ const buildSkillCards = ({ accessBySlug, skillStatsView }) => {
 
   return OFFICIAL_SKILLS.map((skill, index) => {
     const stat = statsBySkill.get(normalizeSkillKey(skill.name));
-    const skillAccess = skill.gameSlug ? accessBySlug[skill.gameSlug] : null;
-    const isAvailable = skillAccess?.estado === ESTADOS_ACCESO_JUEGO.disponible;
+    const access = skill.gameSlug ? accessBySlug[skill.gameSlug] : null;
+    const isAvailable = access?.estado === ESTADOS_ACCESO_JUEGO.disponible;
 
     return {
       ...skill,
@@ -240,6 +228,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const studentProfile = profile ?? studentSession?.studentProfile ?? null;
   const caminoArConfig = useMemo(() => obtenerConfiguracionBaseCaminoAr(), []);
   const tren3DConfig = useMemo(() => obtenerConfiguracionBaseTren3D(), []);
+  const robotTallerConfig = useMemo(() => obtenerConfiguracionBaseRobotTaller(), []);
   const caminoArAccess = useMemo(
     () =>
       resolverAccesoJuegoDesdePerfil({
@@ -256,6 +245,14 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       }),
     [studentProfile, tren3DConfig.slug],
   );
+  const robotTallerAccess = useMemo(
+    () =>
+      resolverAccesoJuegoDesdePerfil({
+        perfilEstudiante: studentProfile,
+        slugJuego: robotTallerConfig.slug,
+      }),
+    [studentProfile, robotTallerConfig.slug],
+  );
   const caminoArSessionContext = useMemo(
     () => ({
       tokenEstudiante: studentSession?.token ?? null,
@@ -271,15 +268,6 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       minijuegoId: studentProfile?.sesion_minijuego_id ?? null,
     }),
     [studentProfile?.sesion_minijuego_id, studentSession?.apiBaseUrl, studentSession?.token],
-  );
-  const robotTallerConfig = useMemo(() => obtenerConfiguracionBaseRobotTaller(), []);
-  const robotTallerAccess = useMemo(
-    () =>
-      resolverAccesoJuegoDesdePerfil({
-        perfilEstudiante: studentProfile,
-        slugJuego: robotTallerConfig.slug,
-      }),
-    [robotTallerConfig.slug, studentProfile],
   );
   const robotTallerSessionContext = useMemo(
     () => ({
@@ -303,10 +291,9 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       buildActivityCopy({
         profile: studentProfile,
         access: currentGameAccess,
-        robotTallerAccess,
         playState,
       }),
-    [currentGameAccess, robotTallerAccess, playState, studentProfile],
+    [currentGameAccess, playState, studentProfile],
   );
   const skillCards = useMemo(
     () =>
@@ -343,11 +330,6 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       setShowGamePath(false);
       return;
     }
-    if (canPlayRobotTaller) {
-      setActiveGame('robot-logico');
-      setShowGamePath(false);
-      return;
-    }
 
     reloadDashboard();
   };
@@ -359,14 +341,6 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   };
 
   const exitGame = async () => {
-    try {
-      await reloadDashboard();
-    } finally {
-      setActiveGame(null);
-    }
-  };
-
-  const exitRobotTaller = async () => {
     try {
       await reloadDashboard();
     } finally {
@@ -397,16 +371,6 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     );
   }
 
-  if (activeGame === 'robot-logico') {
-    return (
-      <RobotTallerScreen
-        onSalir={exitRobotTaller}
-        configuracionInicial={robotTallerConfig}
-        contextoSesion={robotTallerSessionContext}
-      />
-    );
-  }
-
   const selectDashboardTab = (nextTab) => {
     setActiveTab(nextTab);
     setShowGamePath(false);
@@ -418,6 +382,16 @@ export default function DashboardScreen({ studentSession, onLogout }) {
         onSalir={exitGame}
         configuracionInicial={tren3DConfig}
         contextoSesion={tren3DSessionContext}
+      />
+    );
+  }
+
+  if (activeGame === robotTallerConfig.slug) {
+    return (
+      <RobotTallerScreen
+        onSalir={exitGame}
+        configuracionInicial={robotTallerConfig}
+        contextoSesion={robotTallerSessionContext}
       />
     );
   }
@@ -480,13 +454,13 @@ export default function DashboardScreen({ studentSession, onLogout }) {
                   <TouchableOpacity
                     activeOpacity={0.9}
                     onPress={startOrRefresh}
-                    style={[styles.heroButton, !canPlayCaminoAr && !canPlayTren3D && !canPlayRobotTaller && styles.heroButtonMuted]}
+                    style={[styles.heroButton, !availableGameSlug && styles.heroButtonMuted]}
                   >
                     {isLoading || isRefreshing ? <ActivityIndicator color={colors.white} /> : null}
                     <Text style={styles.heroButtonText}>
                       {isLoading || isRefreshing ? 'Cargando' : activityCopy.buttonLabel}
                     </Text>
-                    <Ionicons name={canPlayCaminoAr || canPlayTren3D || canPlayRobotTaller ? 'play' : 'sync'} size={18} color={colors.white} />
+                    <Ionicons name={availableGameSlug ? 'play' : 'sync'} size={18} color={colors.white} />
                   </TouchableOpacity>
                 </View>
                 <View style={styles.character}>
@@ -542,7 +516,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
                     title={robotTallerAccess.juegoHabilitadoTitulo ?? 'Robot Lógico'}
                     status={canPlayRobotTaller ? 'Actividad' : 'Bloqueado'}
                     locked={!canPlayRobotTaller}
-                    onPress={canPlayRobotTaller ? startOrRefresh : undefined}
+                    onPress={canPlayRobotTaller ? () => setActiveGame(robotTallerConfig.slug) : undefined}
                   />
                   <GameCard title="Equilibra ideas" status="Proximamente" locked />
                 </View>

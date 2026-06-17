@@ -9,11 +9,7 @@ const CONFIGURACION_BASE = Object.freeze({
   modoPresentacion: MODO_PRESENTACION_ROBOT_TALLER,
   habilidad: 'Lógica',
   configuracion: Object.freeze({
-    cantidadPiezas: 6,
-    longitudPatron: 4,
-    duracionDestelloMs: 620,
-    pausaEntreDestellosMs: 220,
-    tiempoLimiteMs: 14000,
+    tiempoLimiteMs: 120000,
   }),
 });
 
@@ -48,22 +44,6 @@ export const normalizarConfiguracionRobotTaller = (entrada = {}) => {
     ),
     habilidad: entrada.habilidad ?? CONFIGURACION_BASE.habilidad,
     configuracion: {
-      cantidadPiezas: asegurarEnteroPositivo(
-        configuracionEntrada.cantidadPiezas,
-        configuracionBase.cantidadPiezas,
-      ),
-      longitudPatron: asegurarEnteroPositivo(
-        configuracionEntrada.longitudPatron,
-        configuracionBase.longitudPatron,
-      ),
-      duracionDestelloMs: asegurarEnteroPositivo(
-        configuracionEntrada.duracionDestelloMs,
-        configuracionBase.duracionDestelloMs,
-      ),
-      pausaEntreDestellosMs: asegurarEnteroPositivo(
-        configuracionEntrada.pausaEntreDestellosMs,
-        configuracionBase.pausaEntreDestellosMs,
-      ),
       tiempoLimiteMs: asegurarEnteroPositivo(
         configuracionEntrada.tiempoLimiteMs,
         configuracionBase.tiempoLimiteMs,
@@ -90,10 +70,6 @@ export const resolverConfiguracionRobotTallerDesdeBackend = ({
     dificultad: gameConfig.dificultad ?? respuestaInicioSesion?.sesion?.dificultad,
     configuracion: {
       ...configuracionLocal.configuracion,
-      cantidadPiezas: gameConfig.cantidad_piezas,
-      longitudPatron: gameConfig.longitud_patron,
-      duracionDestelloMs: gameConfig.duracion_destello_ms,
-      pausaEntreDestellosMs: gameConfig.pausa_entre_destellos_ms,
       tiempoLimiteMs: gameConfig.tiempo_limite_ms,
     },
   });

@@ -103,14 +103,12 @@ export const useSesionRobotTaller = ({ configuracion, contextoSesion }) => {
     if (sesionIdRef.current) {
       return respuestaInicioRef.current ?? { sesion: { id: sesionIdRef.current } };
     }
-
     setPersistencia((previo) => ({
       ...previo,
       estado: ESTADOS_PERSISTENCIA_ROBOT_TALLER.iniciando,
       error: null,
       respuestaFinalizacion: null,
     }));
-
     try {
       const respuestaInicio = await clienteSesionesJuego.iniciarSesion({
         tokenEstudiante: contextoNormalizado.tokenEstudiante,
@@ -120,7 +118,6 @@ export const useSesionRobotTaller = ({ configuracion, contextoSesion }) => {
       const sesionId = respuestaInicio?.sesion?.id ?? null;
       sesionIdRef.current = sesionId;
       respuestaInicioRef.current = respuestaInicio;
-
       setPersistencia((previo) => ({
         ...previo,
         estado: ESTADOS_PERSISTENCIA_ROBOT_TALLER.activa,
@@ -159,7 +156,6 @@ export const useSesionRobotTaller = ({ configuracion, contextoSesion }) => {
         eventosPendientes: previo.eventosPendientes + 1,
         error: null,
       }));
-
       try {
         const respuestaInicio = await iniciarSesionRemota(configuracion.dificultad);
         const sesionId = respuestaInicio?.sesion?.id ?? sesionIdRef.current;
