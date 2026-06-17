@@ -1,16 +1,22 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import WebView from 'react-native-webview';
 import { generarHtmlMotorBabylon } from './tren3dMotorBabylon';
+
+const fondoTrenAsset = require('../../../../../assets/images/tren-3d/fondo-tren.avif');
 
 export default function Tren3DVistaWebView({
   webViewRef,
   onMensaje,
   parametrosIniciales,
 }) {
+  const fondoTrenUri = useMemo(
+    () => Image.resolveAssetSource(fondoTrenAsset)?.uri,
+    [],
+  );
   const html = useMemo(
-    () => generarHtmlMotorBabylon(parametrosIniciales),
-    [parametrosIniciales],
+    () => generarHtmlMotorBabylon(parametrosIniciales, { fondoTrenUri }),
+    [fondoTrenUri, parametrosIniciales],
   );
 
   return (

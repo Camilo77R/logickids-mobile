@@ -32,13 +32,14 @@ export default function App() {
   const [studentSession, setStudentSession] = useState(null);
   const [scannerError, setScannerError] = useState('');
   const [apiSettingsError, setApiSettingsError] = useState('');
+  const [apiSettingsLoaded, setApiSettingsLoaded] = useState(false);
   const [processingQr, setProcessingQr] = useState(false);
   const [apiBaseUrl, setApiBaseUrl] = useState('');
   const accessService = useMemo(
     () => (apiBaseUrl ? createStudentAccessService(apiBaseUrl) : null),
     [apiBaseUrl],
   );
-  const needsApiConfiguration = isLoopbackApiBaseUrl(apiBaseUrl);
+  const needsApiConfiguration = !apiBaseUrl || isLoopbackApiBaseUrl(apiBaseUrl);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,6 +55,10 @@ export default function App() {
       } catch (error) {
         if (!cancelled) {
           setApiSettingsError(error.message || 'No pudimos cargar la URL de la API.');
+        }
+      } finally {
+        if (!cancelled) {
+          setApiSettingsLoaded(true);
         }
       }
     };
@@ -127,7 +132,7 @@ export default function App() {
     setRoute('onboarding');
   };
 
-  if (!fontsLoaded || !apiBaseUrl) {
+  if (!fontsLoaded || !apiSettingsLoaded) {
     return (
       <SafeAreaProvider>
         <View style={styles.loadingScreen}>

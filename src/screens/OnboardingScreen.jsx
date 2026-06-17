@@ -72,13 +72,13 @@ export default function OnboardingScreen({ onStart }) {
   const buttonSpace = 62 + ctaBottomPadding;
 
   const sizes = useMemo(() => {
-    const videoSize = clamp(width * 0.76, 260, 342);
+    const videoSize = clamp(width * 0.78, 268, 340);
     const copySize = clamp(width * 0.043, 15, 17);
     const contentHeight = height - insets.top - insets.bottom - buttonSpace;
-    const videoGap = clamp(height * 0.026, 18, 28);
-    const copyGap = clamp(height * 0.04, 28, 42);
+    const videoGap = clamp(height * 0.05, 34, 48);
+    const copyGap = clamp(height * 0.06, 44, 62);
     const estimated = videoSize + 72 + videoGap + copyGap;
-    const topGap = clamp((contentHeight - estimated) * 0.15, 12, 28);
+    const topGap = clamp((contentHeight - estimated) * 0.34, 34, 76);
 
     return {
       copyGap,
@@ -98,8 +98,7 @@ export default function OnboardingScreen({ onStart }) {
           style={[
             styles.content,
             {
-              minHeight: sizes.contentHeight,
-              paddingBottom: buttonSpace + 8,
+              height: sizes.contentHeight,
               paddingTop: sizes.topGap,
             },
           ]}

@@ -34,22 +34,22 @@ export default function LoginQrScreen({
   const { width, height } = Dimensions.get('window');
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [draftApiBaseUrl, setDraftApiBaseUrl] = useState(apiBaseUrl ?? '');
-  const ctaBottomPadding = insets.bottom + 16;
+  const ctaBottomPadding = insets.bottom + 14;
   const buttonSpace = 62 + ctaBottomPadding;
   const headerHeight = 60;
 
   const sizes = useMemo(() => {
-    const logoWidth = clamp(width * 0.58, 190, 236);
+    const logoWidth = clamp(width * 0.54, 178, 218);
     const logoHeight = logoWidth * (294 / 561);
-    const qrCard = clamp(Math.min(width * 0.58, height * 0.26), 196, 230);
+    const qrCard = clamp(Math.min(width * 0.7, height * 0.33), 236, 276);
     const subtitleSize = clamp(width * 0.038, 13, 15);
     const cardPadding = height < 700 ? 8 : 9;
     const contentHeight = height - insets.top - insets.bottom - headerHeight - buttonSpace - 12;
-    const estimatedContent = logoHeight + 70 + 44 + qrCard;
+    const estimatedContent = logoHeight + 70 + 52 + qrCard;
     const freeSpace = Math.max(0, contentHeight - estimatedContent);
-    const topGap = clamp(freeSpace * 0.18, 6, 18);
-    const titleGap = clamp(height * 0.014, 8, 14);
-    const qrGap = clamp(height * 0.018, 10, 18);
+    const topGap = clamp(freeSpace * 0.24, 10, 28);
+    const titleGap = clamp(height * 0.012, 7, 12);
+    const qrGap = clamp(height * 0.026, 18, 30);
 
     return {
       logoWidth,
@@ -101,9 +101,8 @@ export default function LoginQrScreen({
           style={[
             styles.content,
             {
-              minHeight: sizes.contentHeight,
+              height: sizes.contentHeight,
               paddingTop: sizes.topGap,
-              paddingBottom: buttonSpace + 8,
             },
           ]}
         >
