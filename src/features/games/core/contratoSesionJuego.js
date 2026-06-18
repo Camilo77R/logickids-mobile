@@ -13,7 +13,6 @@ export const TIPOS_EVENTO_SESION = Object.freeze({
   error: 'error',
   combo: 'combo',
   nivelCompletado: 'nivel_completado',
-  agarre: 'agarre',
 });
 
 const TIPOS_EVENTO_SESION_SOPORTADOS = new Set(Object.values(TIPOS_EVENTO_SESION));

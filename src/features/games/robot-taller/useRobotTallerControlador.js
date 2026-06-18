@@ -94,12 +94,7 @@ export const useRobotTallerControlador = (configuracionInicial, observadores = {
       mensaje: `Coloca ${PARTES_ROBOT.find((pr) => pr.id === idParte)?.nombre ?? ''} en su lugar.`,
     }));
 
-    registrarEvento(
-      construirEventoEnsamblaje({
-        tipoEvento: 'agarre',
-        metadata: { parte_id: idParte },
-      }),
-    );
+
 
     ejecutarObservadorSeguro(observadores.alIniciarPartida, {
       configuracionPartida: configuracion,
