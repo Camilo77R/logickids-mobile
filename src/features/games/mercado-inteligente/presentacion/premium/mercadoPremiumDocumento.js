@@ -4,8 +4,23 @@ import { crearScriptSincronizarCelebracionResultado } from './escena/mercadoResu
 
 const cssUrl = (valor) => JSON.stringify(String(valor ?? ''));
 
+const esFuenteValida = (fuente) => typeof fuente === 'string' && fuente.length > 0;
+
+const resolverFuentePreferida = (fuentes = []) => {
+  if (!Array.isArray(fuentes)) {
+    return '';
+  }
+
+  return fuentes.find((fuente) => esFuenteValida(fuente) && fuente.startsWith('data:')) ??
+    fuentes.find(esFuenteValida) ??
+    '';
+};
+
 const resolverFondoEscenario = (assets) =>
-  assets?.escena?.escenario?.find((fuente) => typeof fuente === 'string' && fuente.length > 0) ?? '';
+  resolverFuentePreferida(assets?.escena?.escenario);
+
+const resolverFondoSesionFinal = (assets) =>
+  resolverFuentePreferida(assets?.sesionFinal?.capas?.fondo?.fuentes);
 
 const crearScriptBridgePremium = () => `
   (function () {
@@ -67,12 +82,16 @@ export const generarDocumentoMercadoPremium = ({
   assets,
 }) => {
   const fondoEscenario = resolverFondoEscenario(assets);
+  const fondoSesionFinal = resolverFondoSesionFinal(assets);
   const estiloFondo = fondoEscenario
     ? `background-image:url(${cssUrl(fondoEscenario)});`
     : 'background-image:linear-gradient(180deg,#8de5f6,#f8d49a);';
   const variableFondoEscenario = fondoEscenario
     ? `--mercado-escenario-fondo:url(${cssUrl(fondoEscenario)});`
     : '--mercado-escenario-fondo:none;';
+  const variableFondoSesionFinal = fondoSesionFinal
+    ? `--mercado-sesion-final-fondo:url(${cssUrl(fondoSesionFinal)});`
+    : '--mercado-sesion-final-fondo:var(--mercado-escenario-fondo);';
 
   return `<!doctype html>
     <html lang="es">
@@ -100,7 +119,7 @@ export const generarDocumentoMercadoPremium = ({
             background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,166,40,.07));
             pointer-events:none;
           }
-          #mercado-ui{position:fixed;inset:0;z-index:20;${variableFondoEscenario}}
+          #mercado-ui{position:fixed;inset:0;z-index:20;${variableFondoEscenario}${variableFondoSesionFinal}}
         </style>
       </head>
       <body>
@@ -111,9 +130,16 @@ export const generarDocumentoMercadoPremium = ({
     </html>`;
 };
 
-export const crearScriptActualizarUiMercadoPremium = (estadoUi, assets) =>
-  `window.MercadoPremium && window.MercadoPremium.updateUi(${JSON.stringify(
+export const crearScriptActualizarUiMercadoPremium = (estadoUi, assets) => {
+  const fondoSesionFinal = resolverFondoSesionFinal(assets);
+  const actualizarFondoSesionFinal = fondoSesionFinal
+    ? `document.getElementById('mercado-ui')?.style.setProperty('--mercado-sesion-final-fondo', 'url(${cssUrl(fondoSesionFinal)})');`
+    : '';
+
+  return `${actualizarFondoSesionFinal}
+  window.MercadoPremium && window.MercadoPremium.updateUi(${JSON.stringify(
     crearHtmlInterfazMercado(estadoUi, { assets }),
   )});
   ${crearScriptSincronizarCelebracionResultado(estadoUi)}
   true;`;
+};

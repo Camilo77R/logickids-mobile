@@ -1,8 +1,9 @@
 export function crearEstilosSesionFinal() {
   return `
     .mercado-sesion-final{position:fixed;inset:0;z-index:35;display:block;overflow:hidden;pointer-events:none;color:#5a2f17;font-family:"Arial Rounded MT Bold","Cooper Black","Trebuchet MS",sans-serif;--safe-left:max(22px,env(safe-area-inset-left));--safe-right:max(22px,env(safe-area-inset-right));--safe-y:max(8px,env(safe-area-inset-top),env(safe-area-inset-bottom));background:#f4c46a}
-    .mercado-sesion-final__stage{position:absolute;inset:0;width:100%;height:100%;overflow:hidden;background:#f7ca72 var(--mercado-escenario-fondo) center/cover no-repeat;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
-    .mercado-sesion-final__velo{position:absolute;inset:0;z-index:0;background:linear-gradient(180deg,rgba(69,30,6,.08),rgba(58,27,8,.28));backdrop-filter:blur(2.8px);pointer-events:none}
+    .mercado-sesion-final__stage{position:absolute;inset:0;width:100%;height:100%;overflow:hidden;background:#f7ca72 var(--mercado-sesion-final-fondo,var(--mercado-escenario-fondo)) center/cover no-repeat;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+    .mercado-sesion-final__fondo-asset{position:absolute;inset:0;z-index:0;width:100%;height:100%;object-fit:cover;pointer-events:none;user-select:none;-webkit-user-drag:none}
+    .mercado-sesion-final__velo{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(69,30,6,.08),rgba(58,27,8,.28));backdrop-filter:blur(2.8px);pointer-events:none}
     .mercado-sesion-final__velo::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 25%,rgba(255,233,94,.34),transparent 34%),radial-gradient(ellipse at 50% 82%,rgba(65,154,38,.18),transparent 30%)}
     .mercado-sesion-final .mercado-resultado__confeti-capa{z-index:11;opacity:.96}
 
@@ -53,11 +54,11 @@ export function crearEstilosSesionFinal() {
     .mercado-sesion-final__mensaje small{display:none}
 
     .mercado-sesion-final__historial,.mercado-sesion-final__tablero{position:absolute;z-index:13;bottom:auto;display:flex;align-items:center;justify-content:center;gap:8px;border:5px solid rgba(65,44,18,.34);font-weight:900;text-transform:uppercase;cursor:pointer;pointer-events:auto;text-shadow:0 3px 0 rgba(29,83,30,.38)}
-    .mercado-sesion-final__historial{left:calc(var(--safe-left) + 3%);top:76.3%;width:22%;min-width:150px;height:16.5%;min-height:72px;padding:7px;color:#fff;background:linear-gradient(180deg,#8add65,#37ab46);border-radius:22px;box-shadow:0 8px 0 #1f6e35,0 12px 18px rgba(38,24,8,.24);font-size:clamp(15px,1.62vw,24px);line-height:.86;letter-spacing:-.055em;-webkit-text-stroke:.85px rgba(34,86,35,.55)}
+    .mercado-sesion-final__historial{left:calc(var(--safe-left) + 3%);top:76.3%;width:22%;min-width:150px;height:16.5%;min-height:72px;padding:7px;color:#fff;background:linear-gradient(180deg,#8add65,#37ab46);border-radius:22px;box-shadow:0 8px 0 #1f6e35,0 12px 18px rgba(38,24,8,.24);font-size:clamp(15px,1.5vw,23px);line-height:.96;letter-spacing:-.018em;-webkit-text-stroke:0 transparent}
     .mercado-sesion-final__historial span{display:grid;place-items:center;width:30px;height:30px;font-size:29px;flex:0 0 auto}
     .mercado-sesion-final__historial svg{display:block;width:100%;height:100%;filter:drop-shadow(0 2px 0 rgba(25,89,40,.28))}
     .mercado-sesion-final__historial:disabled{cursor:default;filter:saturate(.78);opacity:.92}
-    .mercado-sesion-final__tablero{right:calc(var(--safe-right) + 3%);top:76.1%;width:27%;min-width:190px;height:17%;min-height:78px;padding:8px;color:#fff;background:linear-gradient(180deg,#61dff9,#168bd6 66%,#0e6fb2);border-radius:24px;box-shadow:0 8px 0 #075785,0 12px 20px rgba(38,24,8,.28);font-size:clamp(18px,2.08vw,31px);line-height:.84;letter-spacing:-.065em;text-shadow:0 4px 0 rgba(15,78,120,.72),0 0 8px rgba(255,255,255,.45);-webkit-text-stroke:.7px rgba(7,84,130,.6);animation:mercado-tablero-respirar 1.9s ease-in-out infinite}
+    .mercado-sesion-final__tablero{right:calc(var(--safe-right) + 3%);top:76.1%;width:27%;min-width:190px;height:17%;min-height:78px;padding:8px;color:#fff;background:linear-gradient(180deg,#61dff9,#168bd6 66%,#0e6fb2);border-radius:24px;box-shadow:0 8px 0 #075785,0 12px 20px rgba(38,24,8,.28);font-size:clamp(17px,1.82vw,29px);line-height:.94;letter-spacing:-.022em;text-shadow:0 3px 0 rgba(15,78,120,.58),0 0 7px rgba(255,255,255,.38);-webkit-text-stroke:0 transparent;animation:mercado-tablero-respirar 1.9s ease-in-out infinite}
     .mercado-sesion-final__tablero span,.mercado-sesion-final__tablero i{display:grid;place-items:center;width:31px;height:31px;font-size:28px;font-style:normal;flex:0 0 auto}
     .mercado-sesion-final__tablero svg{display:block;width:100%;height:100%;filter:drop-shadow(0 2px 0 rgba(13,77,119,.32))}
     .mercado-sesion-final__tablero:disabled{animation:none;filter:grayscale(.15);opacity:.78}
@@ -76,16 +77,16 @@ export function crearEstilosSesionFinal() {
     .mercado-sesion-final__boton-asset,
     .mercado-sesion-final__confeti-premium{position:absolute;pointer-events:none;user-select:none;-webkit-user-drag:none}
     .mercado-sesion-final__jugador-asset{z-index:0;inset:-10% -10% -10%;width:120%;height:120%;object-fit:contain;filter:drop-shadow(0 8px 0 rgba(73,38,16,.28)) drop-shadow(0 12px 18px rgba(54,27,8,.2))}
-    .mercado-sesion-final__banner{background:transparent;border-color:transparent;box-shadow:none}
-    .mercado-sesion-final__banner::before,.mercado-sesion-final__banner::after{display:none}
+    .mercado-sesion-final__banner--con-asset{background:transparent;border-color:transparent;box-shadow:none}
+    .mercado-sesion-final__banner--con-asset::before,.mercado-sesion-final__banner--con-asset::after{display:none}
     .mercado-sesion-final__banner-asset{z-index:0;inset:-18% -12% -24%;width:124%;height:142%;object-fit:fill;filter:drop-shadow(0 14px 14px rgba(54,28,10,.26))}
     .mercado-sesion-final__banner h1{position:relative;z-index:1}
-    .mercado-sesion-final__resumen{background:transparent;border-color:transparent;box-shadow:none}
+    .mercado-sesion-final__resumen--con-asset{background:transparent;border-color:transparent;box-shadow:none}
     .mercado-sesion-final__resumen-asset{z-index:-1;inset:-13% -4% -16%;width:108%;height:129%;object-fit:fill;filter:drop-shadow(0 10px 0 rgba(90,45,22,.42)) drop-shadow(0 14px 18px rgba(55,28,8,.2))}
-    .mercado-sesion-final__mensaje{background:transparent;border-color:transparent;box-shadow:none}
+    .mercado-sesion-final__mensaje--con-asset{background:transparent;border-color:transparent;box-shadow:none}
     .mercado-sesion-final__mensaje-asset{z-index:-1;inset:-26% -7% -34%;width:114%;height:160%;object-fit:fill;filter:drop-shadow(0 7px 0 rgba(98,49,23,.38))}
     .mercado-sesion-final__mensaje>span{position:relative;z-index:1}
-    .mercado-sesion-final__historial,.mercado-sesion-final__tablero{background:transparent;border-color:transparent;box-shadow:none;text-shadow:0 3px 0 rgba(37,74,31,.42)}
+    .mercado-sesion-final__historial--con-asset,.mercado-sesion-final__tablero--con-asset{background:transparent;border-color:transparent;box-shadow:none;text-shadow:0 2px 0 rgba(37,74,31,.28)}
     .mercado-sesion-final__boton-asset{z-index:0;inset:-12% -7% -18%;width:114%;height:130%;object-fit:fill;filter:drop-shadow(0 8px 0 rgba(31,63,34,.35)) drop-shadow(0 13px 18px rgba(38,24,8,.22))}
     .mercado-sesion-final__historial>span,.mercado-sesion-final__historial>strong,.mercado-sesion-final__tablero>span,.mercado-sesion-final__tablero>strong,.mercado-sesion-final__tablero>i{position:relative;z-index:1}
     .mercado-sesion-final__icono-asset,.mercado-sesion-final__boton-icono-asset{display:block;width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 3px 0 rgba(63,35,12,.16))}

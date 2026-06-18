@@ -1,11 +1,22 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { AppState, Vibration } from 'react-native';
 
 const AUDIO_SOURCES = Object.freeze({
-  musicaFondo: require('../../../../assets/audio/camino-ar/playful-garden-loop.wav'),
-  baldosaBase: require('../../../../assets/audio/camino-ar/tile-tin.wav'),
-  baldosaAlta: require('../../../../assets/audio/camino-ar/tile-tin-high.wav'),
-  exito: require('../../../../assets/audio/camino-ar/success-pop.wav'),
-  estrellas: require('../../../../assets/audio/camino-ar/star-burst.wav'),
+  musicaFondo: require('../../../../assets/audio/camino-ar/camino-memoria-loop.wav'),
+  baldosa: require('../../../../assets/audio/camino-ar/camino-baldosa-chime.wav'),
+  turno: require('../../../../assets/audio/camino-ar/camino-turno-chime.wav'),
+  exito: require('../../../../assets/audio/camino-ar/camino-exito-sparkle.wav'),
+  estrellas: require('../../../../assets/audio/camino-ar/camino-estrellas-sparkle.wav'),
+});
+
+const AUDIO_CONFIG = Object.freeze({
+  volumenMusica: 0.42,
+  volumenMusicaResultado: 0.2,
+  volumenBaldosa: 0.95,
+  volumenTurno: 0.9,
+  volumenExito: 0.9,
+  volumenEstrellas: 0.86,
+  variacionTonoBaldosa: [1, 1.08, 1.16, 1.25, 1.34, 1.42],
 });
 
 const createNoopAudio = () => ({
@@ -44,6 +55,14 @@ const detenerPlayer = (player) => {
   }
 };
 
+const vibrarSeguro = (patron) => {
+  try {
+    Vibration.vibrate(patron);
+  } catch {
+    // Algunos dispositivos no permiten vibracion; el juego sigue funcionando.
+  }
+};
+
 const crearAudioSeguro = () => {
   try {
     if (!hasNativeAudioModule()) {
@@ -64,11 +83,11 @@ const crearAudioSeguro = () => {
       musicaFondo: createAudioPlayer(AUDIO_SOURCES.musicaFondo, {
         downloadFirst: true,
       }),
-      baldosaBase: createAudioPlayer(AUDIO_SOURCES.baldosaBase, {
+      baldosa: createAudioPlayer(AUDIO_SOURCES.baldosa, {
         downloadFirst: true,
         keepAudioSessionActive: true,
       }),
-      baldosaAlta: createAudioPlayer(AUDIO_SOURCES.baldosaAlta, {
+      turno: createAudioPlayer(AUDIO_SOURCES.turno, {
         downloadFirst: true,
         keepAudioSessionActive: true,
       }),
@@ -83,12 +102,12 @@ const crearAudioSeguro = () => {
     };
 
     players.musicaFondo.loop = true;
-    players.musicaFondo.volume = 0.07;
-    players.baldosaBase.volume = 0.5;
-    players.baldosaAlta.volume = 0.5;
-    players.exito.volume = 0.55;
-    players.estrellas.volume = 0.5;
-    players.musicaFondo.play();
+    players.musicaFondo.volume = AUDIO_CONFIG.volumenMusica;
+    players.baldosa.volume = AUDIO_CONFIG.volumenBaldosa;
+    players.turno.volume = AUDIO_CONFIG.volumenTurno;
+    players.exito.volume = AUDIO_CONFIG.volumenExito;
+    players.estrellas.volume = AUDIO_CONFIG.volumenEstrellas;
+    players.musicaFondo.play?.();
 
     return {
       disponible: true,
@@ -99,16 +118,34 @@ const crearAudioSeguro = () => {
   }
 };
 
-export const useCaminoArAudio = ({ escena, escenaEspacial }) => {
+export const useCaminoArAudio = ({ escena }) => {
   const audioRef = useRef(createNoopAudio());
-  const baldosaActivaAnteriorRef = useRef(null);
+  const baldosaActivaAnteriorRef = useRef(undefined);
   const resultadoVisibleAnteriorRef = useRef(false);
+  const faseAnteriorRef = useRef(null);
   const celebracionTimeoutRef = useRef(null);
 
   useEffect(() => {
     audioRef.current = crearAudioSeguro();
 
+    const appStateSubscription = AppState.addEventListener('change', (estadoApp) => {
+      const musicaFondo = audioRef.current.players.musicaFondo;
+
+      if (!musicaFondo) {
+        return;
+      }
+
+      if (estadoApp === 'active') {
+        musicaFondo.play?.();
+        return;
+      }
+
+      musicaFondo.pause?.();
+    });
+
     return () => {
+      appStateSubscription.remove?.();
+
       if (celebracionTimeoutRef.current) {
         clearTimeout(celebracionTimeoutRef.current);
       }
@@ -119,36 +156,59 @@ export const useCaminoArAudio = ({ escena, escenaEspacial }) => {
   }, []);
 
   const reproducirToque = useCallback(() => {
-    reproducirDesdeInicio(audioRef.current.players.baldosaBase);
+    vibrarSeguro(18);
+    reproducirDesdeInicio(audioRef.current.players.baldosa);
   }, []);
 
   useEffect(() => {
-    const baldosaActiva = escenaEspacial.baldosas.find(
-      (baldosa) => baldosa.estadoVisual === 'activa',
-    );
+    const baldosaActiva = escena.estadoActual.baldosaActiva;
 
-    if (!baldosaActiva || escena.estadoActual.fase !== 'mostrandoPatron') {
-      baldosaActivaAnteriorRef.current = null;
+    if (escena.estadoActual.fase !== 'mostrandoPatron') {
+      baldosaActivaAnteriorRef.current = undefined;
       return;
     }
 
-    if (baldosaActivaAnteriorRef.current === baldosaActiva.id) {
+    if (baldosaActiva == null) {
       return;
     }
 
-    baldosaActivaAnteriorRef.current = baldosaActiva.id;
-    const player =
-      baldosaActiva.indice % 2 === 0
-        ? audioRef.current.players.baldosaBase
-        : audioRef.current.players.baldosaAlta;
+    if (baldosaActivaAnteriorRef.current === baldosaActiva) {
+      return;
+    }
+
+    baldosaActivaAnteriorRef.current = baldosaActiva;
+    const player = audioRef.current.players.baldosa;
+
+    if (player) {
+      const rate =
+        AUDIO_CONFIG.variacionTonoBaldosa[
+          baldosaActiva % AUDIO_CONFIG.variacionTonoBaldosa.length
+        ];
+      player.playbackRate = rate;
+    }
+
     reproducirDesdeInicio(player);
-  }, [escena.estadoActual.fase, escenaEspacial.baldosas]);
+  }, [escena.estadoActual.baldosaActiva, escena.estadoActual.fase]);
+
+  useEffect(() => {
+    const faseActual = escena.estadoActual.fase;
+    const faseAnterior = faseAnteriorRef.current;
+
+    if (faseAnterior === 'mostrandoPatron' && faseActual === 'esperandoRespuesta') {
+      vibrarSeguro([0, 24, 28, 42]);
+      reproducirDesdeInicio(audioRef.current.players.turno);
+    }
+
+    faseAnteriorRef.current = faseActual;
+  }, [escena.estadoActual.fase]);
 
   useEffect(() => {
     const resultadoVisible = Boolean(escena.resultado.visible);
 
     if (audioRef.current.players.musicaFondo) {
-      audioRef.current.players.musicaFondo.volume = resultadoVisible ? 0.04 : 0.07;
+      audioRef.current.players.musicaFondo.volume = resultadoVisible
+        ? AUDIO_CONFIG.volumenMusicaResultado
+        : AUDIO_CONFIG.volumenMusica;
     }
 
     if (!resultadoVisibleAnteriorRef.current && resultadoVisible) {

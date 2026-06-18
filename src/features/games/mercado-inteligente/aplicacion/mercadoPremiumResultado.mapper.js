@@ -54,17 +54,15 @@ export const crearResultadoUiMercadoPremium = ({
     selectedProducts: modeloVisual?.mochila ?? [],
     primaryLabel: errorSincronizacionResultado
       ? 'Reintentar guardado'
-      : sincronizandoResultado
-        ? 'Guardando progreso...'
-        : tieneSiguienteNivel
-          ? '¡Siguiente nivel!'
-          : 'Volver al tablero',
+      : tieneSiguienteNivel
+        ? '¡Siguiente nivel!'
+        : 'Volver al tablero',
     primaryAction: errorSincronizacionResultado ? 'retry-save' : 'continue',
     primaryDisabled: sincronizandoResultado,
     syncLabel: errorSincronizacionResultado
       ? 'No pudimos guardar todavía. Revisa tu conexión e inténtalo otra vez.'
       : sincronizandoResultado
-        ? 'Guardando tu progreso sin detener la celebración...'
+        ? 'Resultado listo. Guardamos tu progreso en segundo plano.'
         : 'Tu progreso quedó guardado.',
   };
 };

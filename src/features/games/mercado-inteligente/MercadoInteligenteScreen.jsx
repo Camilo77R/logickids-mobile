@@ -109,6 +109,15 @@ export default function MercadoInteligenteScreen({
         acciones.comprar();
         break;
       case EVENTOS_DESDE_MERCADO_PREMIUM.continuar:
+        if (sincronizandoResultado) {
+          return;
+        }
+
+        if (errorSincronizacionResultado) {
+          acciones.reintentarGuardado();
+          return;
+        }
+
         if (tieneSiguienteNivel) {
           acciones.continuarNivel();
         } else {
@@ -125,12 +134,19 @@ export default function MercadoInteligenteScreen({
         acciones.solicitarPista();
         break;
       case EVENTOS_DESDE_MERCADO_PREMIUM.salir:
-        acciones.salir();
+        if (!sincronizandoResultado) {
+          acciones.salir();
+        }
         break;
       default:
         break;
     }
-  }, [acciones, tieneSiguienteNivel]);
+  }, [
+    acciones,
+    errorSincronizacionResultado,
+    sincronizandoResultado,
+    tieneSiguienteNivel,
+  ]);
 
   if (fase === FASES_MERCADO_PREMIUM.bloqueado) {
     return (
@@ -154,10 +170,12 @@ export default function MercadoInteligenteScreen({
         onEvento={manejarEvento}
       />
       {mostrarGuiaInicial ? (
-        <MercadoGuiaInicial
-          nombreJugador={nombreJugador}
-          onComenzar={ocultarGuiaInicial}
-        />
+        <View style={styles.guiaOverlay} pointerEvents="auto">
+          <MercadoGuiaInicial
+            nombreJugador={nombreJugador}
+            onComenzar={ocultarGuiaInicial}
+          />
+        </View>
       ) : null}
     </View>
   );
@@ -193,6 +211,14 @@ const styles = StyleSheet.create({
   contenedor: {
     flex: 1,
     backgroundColor: '#8DE5F6',
+  },
+  guiaOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 26,
+    backgroundColor: 'rgba(66, 39, 19, 0.38)',
   },
   estadoPantalla: {
     flex: 1,

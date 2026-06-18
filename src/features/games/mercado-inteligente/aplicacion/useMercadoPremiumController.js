@@ -104,10 +104,19 @@ export const useMercadoPremiumController = ({
   const finalizadoRef = useRef(false);
   const continuandoNivelRef = useRef(false);
   const preparacionIdRef = useRef(0);
+  const faseActualRef = useRef(FASES_MERCADO_PREMIUM.preparando);
+  const estrellasResultadoRef = useRef(null);
+
+  useEffect(() => {
+    faseActualRef.current = estado.fase;
+  }, [estado.fase]);
 
   const prepararNivel = useCallback(async () => {
     // Protege el resultado visible frente a refrescos de persistencia o re-render de sesión.
-    if (finalizadoRef.current && !continuandoNivelRef.current) {
+    if (
+      (finalizadoRef.current || faseActualRef.current === FASES_MERCADO_PREMIUM.completado) &&
+      !continuandoNivelRef.current
+    ) {
       return;
     }
 
@@ -115,6 +124,7 @@ export const useMercadoPremiumController = ({
     preparacionIdRef.current = preparacionId;
     finalizadoRef.current = false;
     continuandoNivelRef.current = false;
+    estrellasResultadoRef.current = null;
     inicioPartidaRef.current = Date.now();
 
     setEstado((previo) => ({
@@ -207,6 +217,7 @@ export const useMercadoPremiumController = ({
     }
 
     finalizadoRef.current = true;
+    estrellasResultadoRef.current = calcularEstrellasVisualesMercado(resumenEstado);
     const resultado = construirResumenPartidaMercado({
       configuracion: configuracionActiva,
       aciertos: resumenEstado.aciertos,
@@ -223,6 +234,7 @@ export const useMercadoPremiumController = ({
     if (mostrarCompletado) {
       setEstado((previo) => ({
         ...previo,
+        ...resumenEstado,
         fase: FASES_MERCADO_PREMIUM.completado,
         resultado,
       }));
@@ -294,6 +306,7 @@ export const useMercadoPremiumController = ({
 
   const comprar = useCallback(() => {
     if (
+      finalizadoRef.current ||
       estado.fase !== FASES_MERCADO_PREMIUM.jugando ||
       estado.seleccionadosIds.length === 0
     ) {
@@ -353,7 +366,6 @@ export const useMercadoPremiumController = ({
       feedbackEscena: { state: 'success' },
     };
 
-    setEstado(resumenEstado);
     finalizar({ resumenEstado });
   }, [estado, feedback, finalizar, registrarEvento]);
 
@@ -399,9 +411,15 @@ export const useMercadoPremiumController = ({
   const estrellasOficiales = Number(
     respuestaFinalizacion?.resumen_oficial?.estrellas_obtenidas,
   );
-  const estrellas = Number.isFinite(estrellasOficiales)
-    ? Math.max(0, Math.min(3, estrellasOficiales))
-    : calcularEstrellasVisualesMercado(estado);
+  const estrellasCongeladas =
+    estado.fase === FASES_MERCADO_PREMIUM.completado
+      ? estrellasResultadoRef.current
+      : null;
+  const estrellas = Number.isFinite(estrellasCongeladas)
+    ? Math.max(0, Math.min(3, estrellasCongeladas))
+    : Number.isFinite(estrellasOficiales)
+      ? Math.max(0, Math.min(3, estrellasOficiales))
+      : calcularEstrellasVisualesMercado(estado);
   const resultadoNivelParaResumen = useMemo(
     () =>
       resolverResultadoNivelParaResumenMercado({
@@ -412,8 +430,11 @@ export const useMercadoPremiumController = ({
   );
 
   const continuarNivel = useCallback(() => {
+    const esUltimoNivel = nivel >= totalNiveles;
+
     if (
       estado.fase !== FASES_MERCADO_PREMIUM.completado ||
+      esUltimoNivel ||
       !resultadoSincronizado ||
       continuandoNivelRef.current
     ) {
@@ -433,9 +454,11 @@ export const useMercadoPremiumController = ({
   }, [
     estado.fase,
     estrellas,
+    nivel,
     prepararNuevaRonda,
     resultadoNivelParaResumen,
     resultadoSincronizado,
+    totalNiveles,
   ]);
 
   const modeloVisual = useMemo(

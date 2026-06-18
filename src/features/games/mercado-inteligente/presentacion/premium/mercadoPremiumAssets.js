@@ -14,16 +14,18 @@ const resolverFuentesSinCache = async ({ source, mimeType }) => {
   await asset.downloadAsync();
 
   const fuentes = [];
-  agregarFuente(fuentes, asset.uri);
 
   if (asset.localUri) {
     try {
       const contenido = await new File(asset.localUri).base64();
       agregarFuente(fuentes, `data:${mimeType};base64,${contenido}`);
     } catch {
-      // asset.uri sigue siendo una fuente válida para Metro y builds EAS.
+      // Si el archivo local no puede leerse, mantenemos los URI nativos como respaldo.
     }
   }
+
+  agregarFuente(fuentes, asset.localUri);
+  agregarFuente(fuentes, asset.uri);
 
   return fuentes;
 };
@@ -58,14 +60,24 @@ const resolverEntradaRaster = async (entrada = {}) => {
     };
   }
 
-  return {
-    disponible: true,
-    estado: entrada.estado ?? 'aprobado',
-    fuentes: await resolverFuentesModeloPremium({
+  try {
+    const fuentes = await resolverFuentesModeloPremium({
       source: entrada.source,
       mimeType: entrada.configuracion?.formatoRecomendado?.mimeType ?? 'image/png',
-    }),
-  };
+    });
+
+    return {
+      disponible: fuentes.length > 0,
+      estado: entrada.estado ?? 'aprobado',
+      fuentes,
+    };
+  } catch (_) {
+    return {
+      disponible: false,
+      estado: 'pendiente',
+      fuentes: [],
+    };
+  }
 };
 
 const resolverGrupoRaster = async (grupo = {}) => {
@@ -85,6 +97,14 @@ const prepararSesionFinal = async (manifest = {}) => ({
   efectos: await resolverGrupoRaster(manifest.efectos),
 });
 
+const resolverEntradaEscena = async (modelo) => {
+  try {
+    return await resolverFuentesModeloPremium(modelo);
+  } catch (_) {
+    return [];
+  }
+};
+
 export const prepararAssetsMercadoPremium = async ({
   productos,
   modelosEscena,
@@ -94,7 +114,7 @@ export const prepararAssetsMercadoPremium = async ({
   const escenaPreparada = await Promise.all(
     Object.entries(modelosEscena).map(async ([id, modelo]) => [
       id,
-      await resolverFuentesModeloPremium(modelo),
+      await resolverEntradaEscena(modelo),
     ]),
   );
 

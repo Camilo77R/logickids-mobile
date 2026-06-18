@@ -79,9 +79,7 @@ export const crearSesionFinalUiMercadoPremium = ({
     maxCombo: numeroNoNegativo(resumen.comboMaximo),
     score: numeroNoNegativo(resumen.puntaje),
     trophyLevel: Math.min(nivelesTotales, numeroNoNegativo(resumen.nivelesCompletados)),
-    primaryLabel: sincronizandoResultado
-      ? 'Guardando progreso...'
-      : 'Finalizar y volver al tablero',
+    primaryLabel: 'Finalizar y volver al tablero',
     primaryAction: 'continue',
     primaryDisabled: false,
     historyDisabled: true,
@@ -89,7 +87,7 @@ export const crearSesionFinalUiMercadoPremium = ({
     syncLabel: errorSincronizacionResultado
       ? 'No pudimos guardar todavía. Revisa tu conexión e inténtalo otra vez.'
       : sincronizandoResultado
-        ? 'Guardando el último nivel...'
+        ? 'Resultado listo. Guardamos tu progreso en segundo plano.'
         : 'Tu actividad quedó guardada.',
   };
 };

@@ -270,6 +270,63 @@ test('construirEscenaCaminoAr usa resumen oficial, logros y progreso para el cie
   assert.equal(escena.resultado.etiquetaSalir, 'Volver al inicio');
 });
 
+test('construirEscenaCaminoAr congela estrellas visuales mientras sincroniza cierre', () => {
+  const configuracion = normalizarConfiguracionCaminoAr({
+    dificultad: 2,
+    configuracion: {
+      cantidadBaldosas: 4,
+      longitudPatron: 3,
+      tiempoLimiteMs: 15000,
+      ayudasDisponibles: 1,
+    },
+  });
+
+  const escena = construirEscenaCaminoAr({
+    configuracion,
+    estado: {
+      fase: 'completado',
+      mensaje: 'Actividad completada.',
+      tiempoRestanteMs: 0,
+      ayudasRestantes: 0,
+      aciertos: 3,
+      errores: 0,
+      baldosaActiva: null,
+      resultado: construirResumenPartida({
+        exito: true,
+        configuracion,
+        aciertos: 3,
+        errores: 0,
+        ayudasUsadas: 0,
+        tiempoTranscurridoMs: 6200,
+        patron: [0, 1, 2],
+      }),
+    },
+    columnasTablero: 2,
+    persistenciaSesion: {
+      modo: 'remota',
+      estado: 'finalizando',
+      error: null,
+    },
+    respuestaInicioSesion: {
+      sesion: {
+        minijuego_id: 1,
+      },
+    },
+    respuestaFinalizacionSesion: null,
+    iniciarPartida: () => {},
+    seleccionarBaldosa: () => {},
+    usarPista: () => {},
+    puedePedirPista: false,
+    salirActividad: () => {},
+  });
+
+  assert.equal(escena.resultado.visible, true);
+  assert.equal(escena.resultado.resumenInfantil.estrellas, 3);
+  assert.match(escena.resultado.descripcion, /ganaste 3 estrellas/i);
+  assert.match(escena.resultado.mensajeProgreso, /segundo plano/i);
+  assert.equal(escena.resultado.etiquetaSalir, 'Volver al tablero');
+});
+
 test('construirEscenaEspacialCaminoAr deja listo un modelo AR agnostico al renderer', () => {
   const configuracion = normalizarConfiguracionCaminoAr({
     dificultad: 2,

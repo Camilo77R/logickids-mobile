@@ -19,10 +19,21 @@ export const SESION_FINAL_ASSET_KIT = Object.freeze({
   confeti: 'sesion-final/confeti',
 });
 
-const obtenerPrimeraFuente = (entrada = {}) =>
-  Array.isArray(entrada.fuentes)
-    ? entrada.fuentes.find((fuente) => typeof fuente === 'string' && fuente.length > 0)
-    : null;
+const esFuenteValida = (fuente) => typeof fuente === 'string' && fuente.length > 0;
+
+const obtenerPrimeraFuente = (entrada = {}) => {
+  if (!Array.isArray(entrada.fuentes)) {
+    return null;
+  }
+
+  return (
+    entrada.fuentes.find((fuente) => esFuenteValida(fuente) && fuente.startsWith('data:')) ??
+    entrada.fuentes.find(esFuenteValida) ??
+    null
+  );
+};
+
+const tieneFuenteRaster = (entrada) => Boolean(obtenerPrimeraFuente(entrada));
 
 const crearImagenRasterSesionFinal = ({ className, fuente, alt = '' }) => {
   if (!fuente) {
@@ -97,11 +108,14 @@ export const crearConfetiSesionFinal = () =>
     return `<i class="mercado-resultado__confeti mercado-resultado__confeti--${variante}" aria-hidden="true"></i>`;
   }).join('');
 
+export const crearFondoSesionFinal = (assets = {}) =>
+  crearCapaAssetSesionFinal(assets?.capas?.fondo, 'mercado-sesion-final__fondo-asset', '');
+
 export const crearOverlayConfetiSesionFinal = (assets = {}) =>
   crearCapaAssetSesionFinal(assets?.efectos?.confeti, 'mercado-sesion-final__confeti-premium', '');
 
 export const crearBannerSesionFinal = ({ titulo, assets }) => `
-  <header class="mercado-sesion-final__banner">
+  <header class="mercado-sesion-final__banner ${tieneFuenteRaster(assets?.capas?.banner) ? 'mercado-sesion-final__banner--con-asset' : ''}">
     ${crearCapaAssetSesionFinal(assets?.capas?.banner, 'mercado-sesion-final__banner-asset', '')}
     <h1>${textoSeguro(titulo, '¡Sesión de clase finalizada!')}</h1>
   </header>
@@ -240,7 +254,7 @@ export const crearResumenSesionFinal = ({
   comboMaximo,
   assets,
 }) => `
-  <section class="mercado-sesion-final__resumen" aria-label="Resumen de la actividad">
+  <section class="mercado-sesion-final__resumen ${tieneFuenteRaster(assets?.capas?.panelResumen) ? 'mercado-sesion-final__resumen--con-asset' : ''}" aria-label="Resumen de la actividad">
     ${crearCapaAssetSesionFinal(assets?.capas?.panelResumen, 'mercado-sesion-final__resumen-asset', '')}
     <article>
       <span class="mercado-sesion-final__resumen-icono" aria-hidden="true">
@@ -276,7 +290,7 @@ export const crearResumenSesionFinal = ({
 `;
 
 export const crearGloboMensajeSesionFinal = ({ mensaje, syncLabel, assets }) => `
-  <p class="mercado-sesion-final__mensaje">
+  <p class="mercado-sesion-final__mensaje ${tieneFuenteRaster(assets?.capas?.globo) ? 'mercado-sesion-final__mensaje--con-asset' : ''}">
     ${crearCapaAssetSesionFinal(assets?.capas?.globo, 'mercado-sesion-final__mensaje-asset', '')}
     <span>${textoSeguro(mensaje, '¡Súper trabajo! Terminaste la actividad.')}</span>
     <small>${textoSeguro(syncLabel, 'Tu actividad quedó guardada.')}</small>
@@ -285,7 +299,7 @@ export const crearGloboMensajeSesionFinal = ({ mensaje, syncLabel, assets }) => 
 
 export const crearBotonHistorialSesionFinal = ({ etiqueta, deshabilitado, assets } = {}) => `
   <button
-    class="mercado-sesion-final__historial"
+    class="mercado-sesion-final__historial ${tieneFuenteRaster(assets?.capas?.botonHistorial) ? 'mercado-sesion-final__historial--con-asset' : ''}"
     type="button"
     ${deshabilitado ? '' : 'data-mercado-action="history"'}
     ${deshabilitado ? 'disabled' : ''}
@@ -304,7 +318,7 @@ export const crearBotonHistorialSesionFinal = ({ etiqueta, deshabilitado, assets
 
 export const crearBotonTableroSesionFinal = ({ accion, etiqueta, deshabilitado, assets } = {}) => `
   <button
-    class="mercado-sesion-final__tablero"
+    class="mercado-sesion-final__tablero ${tieneFuenteRaster(assets?.capas?.botonTablero) ? 'mercado-sesion-final__tablero--con-asset' : ''}"
     type="button"
     data-mercado-action="${atributoSeguro(accion)}"
     ${deshabilitado ? 'disabled' : ''}

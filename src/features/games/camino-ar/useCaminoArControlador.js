@@ -234,10 +234,12 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
   };
 
   const usarPista = () => {
+    const estadoActual = estadoRef.current;
+
     if (
-      estado.fase !== ESTADOS_CAMINO_AR.esperandoRespuesta ||
-      estado.ayudasRestantes <= 0 ||
-      estado.indiceRespuesta > 0
+      estadoActual.fase !== ESTADOS_CAMINO_AR.esperandoRespuesta ||
+      estadoActual.ayudasRestantes <= 0 ||
+      estadoActual.indiceRespuesta > 0
     ) {
       return;
     }
@@ -252,15 +254,17 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
       mensaje: 'Mira otra vez el recorrido antes de tocar.',
     }));
 
-    programarReproduccionPatron(estado.patron, tiempoRestante);
+    programarReproduccionPatron(estadoActual.patron, tiempoRestante);
   };
 
   const seleccionarBaldosa = (indiceBaldosa) => {
-    if (estado.fase !== ESTADOS_CAMINO_AR.esperandoRespuesta) {
+    const estadoActual = estadoRef.current;
+
+    if (estadoActual.fase !== ESTADOS_CAMINO_AR.esperandoRespuesta) {
       return;
     }
 
-    const indiceEsperado = estado.patron[estado.indiceRespuesta];
+    const indiceEsperado = estadoActual.patron[estadoActual.indiceRespuesta];
     const esCorrecta = indiceBaldosa === indiceEsperado;
     const tiempoReaccionMs = marcaUltimoIntentoRef.current
       ? Date.now() - marcaUltimoIntentoRef.current
@@ -274,12 +278,12 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
           puntos: 0,
           comboEnEvento: 0,
           metadata: {
-            pattern_length: estado.patron.length,
+            pattern_length: estadoActual.patron.length,
             step_flash_ms: configuracion.configuracion.duracionDestelloMs,
             step_gap_ms: configuracion.configuracion.pausaEntreDestellosMs,
             tile_index: indiceBaldosa,
             expected_index: indiceEsperado,
-            remaining_time_ms: Math.max(0, Math.round(estado.tiempoRestanteMs)),
+            remaining_time_ms: Math.max(0, Math.round(estadoActual.tiempoRestanteMs)),
           },
         }),
       );
@@ -296,7 +300,7 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
       return;
     }
 
-    const siguienteIndice = estado.indiceRespuesta + 1;
+    const siguienteIndice = estadoActual.indiceRespuesta + 1;
     const comboEnEvento = siguienteIndice;
 
     registrarEvento(
@@ -306,12 +310,12 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
         puntos: 10,
         comboEnEvento,
         metadata: {
-          pattern_length: estado.patron.length,
+          pattern_length: estadoActual.patron.length,
           step_flash_ms: configuracion.configuracion.duracionDestelloMs,
           step_gap_ms: configuracion.configuracion.pausaEntreDestellosMs,
           tile_index: indiceBaldosa,
           expected_index: indiceEsperado,
-          remaining_time_ms: Math.max(0, Math.round(estado.tiempoRestanteMs)),
+          remaining_time_ms: Math.max(0, Math.round(estadoActual.tiempoRestanteMs)),
         },
       }),
     );
@@ -333,7 +337,7 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
     }, 160);
     temporizadoresRef.current.push(temporizadorAcierto);
 
-    if (siguienteIndice >= estado.patron.length) {
+    if (siguienteIndice >= estadoActual.patron.length) {
       const temporizadorExito = setTimeout(() => {
         finalizarPartida(true, 'Ronda completada. Tus resultados fueron guardados.');
       }, 200);

@@ -94,6 +94,7 @@ export const construirEscenaEspacialCaminoAr = ({
         indice: baldosa.indice,
         numeroVisible: baldosa.numeroVisible,
         estadoVisual,
+        activa: estadoVisual === 'activa',
         interactiva: !baldosa.deshabilitada,
         posicion: calcularPosicionBaldosa({
           indice: baldosa.indice,

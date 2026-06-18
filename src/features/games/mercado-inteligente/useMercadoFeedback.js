@@ -63,23 +63,18 @@ const crearFeedbackSeguro = () => {
 
     const players = {
       musicaFondo: createAudioPlayer(AUDIO_SOURCES.musicaFondo, {
-        downloadFirst: true,
         keepAudioSessionActive: false,
       }),
       toque: createAudioPlayer(AUDIO_SOURCES.toque, {
-        downloadFirst: true,
         keepAudioSessionActive: true,
       }),
       ajuste: createAudioPlayer(AUDIO_SOURCES.ajuste, {
-        downloadFirst: true,
         keepAudioSessionActive: true,
       }),
       exito: createAudioPlayer(AUDIO_SOURCES.exito, {
-        downloadFirst: true,
         keepAudioSessionActive: true,
       }),
       estrellas: createAudioPlayer(AUDIO_SOURCES.estrellas, {
-        downloadFirst: true,
         keepAudioSessionActive: true,
       }),
     };

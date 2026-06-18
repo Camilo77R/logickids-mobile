@@ -55,7 +55,11 @@ export default function MercadoPremiumWebView({
       })
       .catch(() => {
         if (vigente) {
-          setAssets({ productos: {}, escena: {} });
+          setAssets({
+            productos: {},
+            escena: {},
+            sesionFinal: { capas: {}, iconos: {}, efectos: {} },
+          });
         }
       });
 
