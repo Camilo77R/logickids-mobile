@@ -11,7 +11,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ViroAmbientLight,
-  ViroARPlane,
   ViroARScene,
   ViroARSceneNavigator,
   ViroBox,
@@ -24,23 +23,28 @@ import {
 import { ESTADOS_OBJETO_PERDIDO_AR } from '../objetoPerdidoAr.constants';
 
 const FASES_ZONA_VISIBLE = new Set([
+  ESTADOS_OBJETO_PERDIDO_AR.zonaIdentificada,
+  ESTADOS_OBJETO_PERDIDO_AR.mostrandoMision,
+  ESTADOS_OBJETO_PERDIDO_AR.cuentaRegresiva,
   ESTADOS_OBJETO_PERDIDO_AR.jugando,
   ESTADOS_OBJETO_PERDIDO_AR.rondaCompletada,
   ESTADOS_OBJETO_PERDIDO_AR.completado,
 ]);
 
-const TIEMPO_FALLBACK_MANUAL_MS = 6500;
-const POSICION_ZONA_RESPALDO = [0, -0.72, 0];
-const CAIDA_VERTICAL_ZONA_MANUAL = 0.72;
+const TIEMPO_ESCANEO_MINIMO_MS = 4200;
+const MUESTRAS_DIRECCION_NECESARIAS = 9;
+const POSICION_ZONA_RESPALDO = [0, 0, 0];
 
 ViroMaterials.createMaterials({
   objetoPerdidoLinea: {
     lightingModel: 'Lambert',
-    diffuseColor: '#7DD3FC',
+    diffuseColor: 'rgba(125, 211, 252, 0.7)',
+    blendMode: 'Alpha',
+    cullMode: 'None',
   },
   objetoPerdidoLineaLejana: {
     lightingModel: 'Lambert',
-    diffuseColor: 'rgba(125, 211, 252, 0.52)',
+    diffuseColor: 'rgba(125, 211, 252, 0.28)',
     blendMode: 'Alpha',
     cullMode: 'None',
   },
@@ -53,14 +57,35 @@ ViroMaterials.createMaterials({
   objetoManzanaRoja: {
     diffuseColor: '#EF4444',
   },
+  objetoManzanaHoja: {
+    diffuseColor: '#15803D',
+  },
   objetoLibroVerde: {
     diffuseColor: '#22C55E',
+  },
+  objetoLibroAzul: {
+    diffuseColor: '#2563EB',
+  },
+  objetoLibroPaginas: {
+    diffuseColor: '#F8FAFC',
   },
   objetoCuboMorado: {
     diffuseColor: '#A855F7',
   },
+  objetoBloqueAmarillo: {
+    diffuseColor: '#FACC15',
+  },
+  objetoOsoCafe: {
+    diffuseColor: '#B45309',
+  },
+  objetoOsoClaro: {
+    diffuseColor: '#F59E0B',
+  },
   objetoLapizNaranja: {
     diffuseColor: '#FB923C',
+  },
+  objetoLapizPunta: {
+    diffuseColor: '#111827',
   },
   objetoEstrellaAmarilla: {
     diffuseColor: '#FACC15',
@@ -77,10 +102,18 @@ ViroMaterials.createMaterials({
   objetoCorazonRosado: {
     diffuseColor: '#F472B6',
   },
+  objetoGloboAzul: {
+    diffuseColor: '#38BDF8',
+  },
+  objetoGloboBase: {
+    diffuseColor: '#64748B',
+  },
   objetoTextoOscuro: {
     diffuseColor: '#102A43',
   },
 });
+
+const RADIO_TOQUE_OBJETO = 0.24;
 
 const formatearSegundos = (milisegundos) =>
   `${Math.ceil(Math.max(0, milisegundos) / 1000)} s`;
@@ -88,30 +121,32 @@ const formatearSegundos = (milisegundos) =>
 const obtenerMetricaOficial = (respuestaFinalizacionSesion, clave, respaldo) =>
   respuestaFinalizacionSesion?.resumen_oficial?.[clave] ?? respaldo;
 
-const obtenerPosicionDesdePlano = (anchor) =>
-  anchor?.position ??
-  anchor?.transform?.position ??
-  anchor?.anchorTransform?.position ??
-  null;
+const calcularYawDesdeCamara = (cameraTransform) => {
+  const forward = cameraTransform?.forward ?? cameraTransform?.cameraTransform?.forward;
 
-const calcularPosicionZonaCentrada = (cameraTransform, anchor) => {
-  const posicion = cameraTransform?.position ?? cameraTransform?.cameraTransform?.position;
-
-  if (!Array.isArray(posicion)) {
-    return POSICION_ZONA_RESPALDO;
+  if (!Array.isArray(forward)) {
+    return null;
   }
 
-  const [cameraX = 0, cameraY = 0, cameraZ = 0] = posicion;
-  const posicionPlano = obtenerPosicionDesdePlano(anchor);
-  const yZona = Array.isArray(posicionPlano)
-    ? posicionPlano[1] ?? cameraY - CAIDA_VERTICAL_ZONA_MANUAL
-    : cameraY - CAIDA_VERTICAL_ZONA_MANUAL;
+  const [x = 0, , z = -1] = forward;
+  return Math.atan2(x, -z);
+};
 
-  return [
-    Number(cameraX.toFixed(2)),
-    Number(yZona.toFixed(2)),
-    Number(cameraZ.toFixed(2)),
-  ];
+const calcularIndiceDireccion = (yaw) => {
+  if (!Number.isFinite(yaw)) {
+    return null;
+  }
+
+  const normalizado = yaw < 0 ? yaw + Math.PI * 2 : yaw;
+  return Math.floor((normalizado / (Math.PI * 2)) * 12);
+};
+
+const escaneoCompleto = (inicioEscaneo, direccionesEscaneadas) => {
+  const tiempoEscaneo = inicioEscaneo ? Date.now() - inicioEscaneo : 0;
+  return (
+    tiempoEscaneo >= TIEMPO_ESCANEO_MINIMO_MS &&
+    direccionesEscaneadas.size >= MUESTRAS_DIRECCION_NECESARIAS
+  );
 };
 
 function GuiaTemporal({ mensaje, fase }) {
@@ -141,77 +176,124 @@ function GuiaTemporal({ mensaje, fase }) {
 }
 
 const escalaObjeto = (objeto, escalaBase, activo) => {
-  const factorActivo = activo ? 1.18 : 1;
-  const base = 0.12 * escalaBase * factorActivo;
-
-  if (objeto.tipo3d === 'caja-plana') {
-    return [base * 1.2, 0.035, base * 0.82];
-  }
-
-  if (objeto.tipo3d === 'caja-larga') {
-    return [base * 1.45, 0.04, base * 0.34];
-  }
-
-  if (objeto.tipo3d === 'doble-caja') {
-    return [base * 0.62, 0.035, base * 0.42];
-  }
-
-  if (objeto.tipo3d === 'placa') {
-    return [base, 0.026, base];
-  }
-
-  return [base, base, base];
+  const factorActivo = activo ? 1.08 : 1;
+  const escalaFigura = objeto.escalaFigura ?? 1;
+  return 0.2 * escalaBase * escalaFigura * factorActivo;
 };
 
 function Objeto3D({ objeto, activo, escalaBase, onSeleccionarObjeto }) {
   const escala = escalaObjeto(objeto, escalaBase, activo);
   const material = activo ? 'objetoPerdidoPista' : objeto.material;
-  const posicionBase = [0, escala[1] / 2 + 0.012, 0];
+  const click = () => onSeleccionarObjeto?.(objeto.id);
 
-  if (objeto.tipo3d === 'esfera') {
-    return (
-      <ViroNode position={objeto.posicion}>
+  return (
+    <ViroNode position={objeto.posicion}>
+      <ViroSphere
+        position={[0, 0, 0]}
+        radius={RADIO_TOQUE_OBJETO}
+        materials={['objetoPerdidoPista']}
+        opacity={0.01}
+        onClick={click}
+      />
+      {activo ? (
         <ViroSphere
-          position={[0, escala[1] / 2 + 0.04, 0]}
-          radius={escala[0]}
-          materials={[material]}
-          onClick={() => onSeleccionarObjeto?.(objeto.id)}
+          position={[0, 0, 0]}
+          radius={RADIO_TOQUE_OBJETO * 0.72}
+          materials={['objetoPerdidoPista']}
+          opacity={0.16}
         />
-        <EtiquetaObjeto objeto={objeto} />
+      ) : null}
+      <FiguraObjeto objeto={objeto} material={material} escala={escala} onClick={click} />
+      <EtiquetaObjeto objeto={objeto} />
+    </ViroNode>
+  );
+}
+
+function FiguraObjeto({ objeto, material, escala, onClick }) {
+  if (objeto.tipo3d === 'manzana') {
+    return (
+      <ViroNode>
+        <ViroSphere radius={escala} materials={[material]} onClick={onClick} />
+        <ViroBox
+          position={[escala * 0.72, escala * 0.25, 0]}
+          scale={[escala * 0.32, escala * 0.18, escala * 0.16]}
+          materials={['objetoManzanaHoja']}
+          onClick={onClick}
+        />
       </ViroNode>
     );
   }
 
-  if (objeto.tipo3d === 'doble-caja') {
+  if (objeto.tipo3d === 'oso-simple') {
     return (
-      <ViroNode position={objeto.posicion}>
+      <ViroNode>
+        <ViroSphere position={[0, escala * 0.16, 0]} radius={escala * 0.78} materials={[material]} onClick={onClick} />
+        <ViroSphere position={[-escala * 0.46, escala * 0.86, 0]} radius={escala * 0.28} materials={[material]} onClick={onClick} />
+        <ViroSphere position={[escala * 0.46, escala * 0.86, 0]} radius={escala * 0.28} materials={[material]} onClick={onClick} />
+        <ViroSphere position={[0, escala * 0.12, -escala * 0.46]} radius={escala * 0.26} materials={['objetoOsoClaro']} onClick={onClick} />
+      </ViroNode>
+    );
+  }
+
+  if (objeto.tipo3d === 'libro') {
+    return (
+      <ViroNode>
         <ViroBox
-          position={[-escala[0] * 0.62, escala[1] / 2 + 0.04, 0]}
-          scale={escala}
+          position={[0, 0, 0]}
+          scale={[escala * 1.45, escala * 0.18, escala * 1.0]}
           materials={[material]}
-          onClick={() => onSeleccionarObjeto?.(objeto.id)}
+          onClick={onClick}
         />
         <ViroBox
-          position={[escala[0] * 0.62, escala[1] / 2 + 0.04, 0]}
-          scale={escala}
-          materials={[material]}
-          onClick={() => onSeleccionarObjeto?.(objeto.id)}
+          position={[0, escala * 0.11, -escala * 0.08]}
+          scale={[escala * 1.2, escala * 0.035, escala * 0.72]}
+          materials={['objetoLibroPaginas']}
+          onClick={onClick}
         />
-        <EtiquetaObjeto objeto={objeto} />
+      </ViroNode>
+    );
+  }
+
+  if (objeto.tipo3d === 'lapiz') {
+    return (
+      <ViroNode rotation={[0, 0, -24]}>
+        <ViroBox
+          position={[0, 0, 0]}
+          scale={[escala * 1.8, escala * 0.18, escala * 0.18]}
+          materials={[material]}
+          onClick={onClick}
+        />
+        <ViroBox
+          position={[escala * 1.02, 0, 0]}
+          scale={[escala * 0.24, escala * 0.14, escala * 0.14]}
+          materials={['objetoLapizPunta']}
+          onClick={onClick}
+        />
+      </ViroNode>
+    );
+  }
+
+  if (objeto.tipo3d === 'globo') {
+    return (
+      <ViroNode>
+        <ViroSphere position={[0, escala * 0.18, 0]} radius={escala * 0.82} materials={[material]} onClick={onClick} />
+        <ViroBox
+          position={[0, -escala * 0.58, 0]}
+          scale={[escala * 0.16, escala * 0.72, escala * 0.16]}
+          materials={['objetoGloboBase']}
+          onClick={onClick}
+        />
       </ViroNode>
     );
   }
 
   return (
-    <ViroNode position={objeto.posicion}>
-      <ViroBox
-        position={posicionBase}
-        scale={escala}
-        materials={[material]}
-        onClick={() => onSeleccionarObjeto?.(objeto.id)}
-      />
-      <EtiquetaObjeto objeto={objeto} />
-    </ViroNode>
+    <ViroBox
+      position={[0, 0, 0]}
+      scale={[escala, escala, escala]}
+      materials={[material]}
+      onClick={onClick}
+    />
   );
 }
 
@@ -219,8 +301,8 @@ function EtiquetaObjeto({ objeto }) {
   return (
     <ViroText
       text={objeto.etiqueta}
-      position={[0, 0.22, 0]}
-      scale={[0.045, 0.045, 0.045]}
+      position={[0, objeto.etiquetaOffsetY ?? 0.18, 0]}
+      scale={[0.038, 0.038, 0.038]}
       width={0.8}
       height={0.22}
       style={stylesViro.textoObjeto}
@@ -230,47 +312,54 @@ function EtiquetaObjeto({ objeto }) {
 }
 
 function LimitesZonaBusqueda({ zona }) {
-  const ancho = zona?.ancho ?? 3;
-  const profundidad = zona?.profundidad ?? 3;
-  const altura = zona?.alturaMaxima ?? 0.85;
-  const grosor = 0.018;
-  const yPiso = 0.018;
-  const yPoste = altura / 2;
+  const radio = zona?.radioMaximo ?? 3.8;
+  const alturaMinima = zona?.alturaMinima ?? -1.05;
+  const alturaMaxima = zona?.alturaMaxima ?? -0.3;
+  const grosor = 0.008;
+  const largoMarcador = 0.52;
+  const yGuia = alturaMinima + (alturaMaxima - alturaMinima) * 0.5;
+  const esquinas = [
+    [-radio, yGuia, -radio],
+    [radio, yGuia, -radio],
+    [-radio, yGuia, radio],
+    [radio, yGuia, radio],
+  ];
 
   return (
     <ViroNode>
       <ViroBox
-        position={[0, yPiso, -profundidad / 2]}
-        scale={[ancho, grosor, grosor]}
+        position={[0, yGuia, -radio]}
+        scale={[radio * 2, grosor, grosor]}
         materials={['objetoPerdidoLinea']}
       />
       <ViroBox
-        position={[0, yPiso, profundidad / 2]}
-        scale={[ancho, grosor, grosor]}
+        position={[0, yGuia, radio]}
+        scale={[radio * 2, grosor, grosor]}
         materials={['objetoPerdidoLineaLejana']}
       />
       <ViroBox
-        position={[-ancho / 2, yPiso, 0]}
-        scale={[grosor, grosor, profundidad]}
+        position={[-radio, yGuia, 0]}
+        scale={[grosor, grosor, radio * 2]}
         materials={['objetoPerdidoLinea']}
       />
       <ViroBox
-        position={[ancho / 2, yPiso, 0]}
-        scale={[grosor, grosor, profundidad]}
+        position={[radio, yGuia, 0]}
+        scale={[grosor, grosor, radio * 2]}
         materials={['objetoPerdidoLinea']}
       />
-      {[
-        [-ancho / 2, yPoste, -profundidad / 2],
-        [ancho / 2, yPoste, -profundidad / 2],
-        [-ancho / 2, yPoste, profundidad / 2],
-        [ancho / 2, yPoste, profundidad / 2],
-      ].map((posicion, indice) => (
-        <ViroBox
-          key={`poste-${indice}`}
-          position={posicion}
-          scale={[grosor, altura, grosor]}
-          materials={['objetoPerdidoLineaLejana']}
-        />
+      {esquinas.map(([x, y, z], indice) => (
+        <ViroNode key={`esquina-${indice}`} position={[x, y, z]}>
+          <ViroBox
+            position={[x < 0 ? largoMarcador / 2 : -largoMarcador / 2, 0, 0]}
+            scale={[largoMarcador, grosor, grosor]}
+            materials={['objetoPerdidoLinea']}
+          />
+          <ViroBox
+            position={[0, 0, z < 0 ? largoMarcador / 2 : -largoMarcador / 2]}
+            scale={[grosor, grosor, largoMarcador]}
+            materials={['objetoPerdidoLinea']}
+          />
+        </ViroNode>
       ))}
     </ViroNode>
   );
@@ -282,11 +371,16 @@ function ContenidoZonaBusqueda({
   configuracion,
   onSeleccionarObjeto,
 }) {
+  const objetosVisibles =
+    estado.fase === ESTADOS_OBJETO_PERDIDO_AR.jugando ||
+    estado.fase === ESTADOS_OBJETO_PERDIDO_AR.rondaCompletada ||
+    estado.fase === ESTADOS_OBJETO_PERDIDO_AR.completado;
+
   return (
     <ViroNode>
       <LimitesZonaBusqueda zona={configuracion.configuracion.zonaBusqueda} />
 
-      {objetos.map((objeto) => (
+      {objetosVisibles ? objetos.map((objeto) => (
         <Objeto3D
           key={objeto.id}
           objeto={objeto}
@@ -294,7 +388,7 @@ function ContenidoZonaBusqueda({
           escalaBase={configuracion.configuracion.escalaObjeto}
           onSeleccionarObjeto={onSeleccionarObjeto}
         />
-      ))}
+      )) : null}
     </ViroNode>
   );
 }
@@ -306,7 +400,6 @@ function EscenaObjetoPerdidoAr(props) {
     estado,
     configuracion,
     onSeleccionarObjeto,
-    onPlaneFound,
     onCameraTransformUpdate,
     mostrarZonaBusqueda,
     posicionZonaBusqueda,
@@ -316,7 +409,6 @@ function EscenaObjetoPerdidoAr(props) {
 
   return (
     <ViroARScene
-      anchorDetectionTypes={['PlanesHorizontal']}
       onCameraTransformUpdate={onCameraTransformUpdate}
     >
       <ViroAmbientLight color="#FFFFFF" intensity={520} />
@@ -325,14 +417,6 @@ function EscenaObjetoPerdidoAr(props) {
         direction={[0, -1, -0.3]}
         castsShadow={false}
         intensity={900}
-      />
-
-      <ViroARPlane
-        alignment="HorizontalUpward"
-        minHeight={0.5}
-        minWidth={0.5}
-        onAnchorFound={onPlaneFound}
-        onAnchorUpdated={onPlaneFound}
       />
 
       {mostrarZonaBusqueda ? (
@@ -355,9 +439,11 @@ export default function ObjetoPerdidoArVistaViro({
   estado,
   iniciarActividad,
   reiniciarActividad,
-  marcarBuscandoSuperficie,
+  marcarEscaneandoZona,
+  marcarZonaIdentificada,
   seleccionarObjeto,
   usarPista,
+  iniciarCuentaRegresivaRonda,
   continuarSiguienteRonda,
   puedePedirPista,
   preparandoPartida,
@@ -366,68 +452,62 @@ export default function ObjetoPerdidoArVistaViro({
 }) {
   const insets = useSafeAreaInsets();
   const [zonaDisponible, setZonaDisponible] = useState(false);
-  const [fallbackManualDisponible, setFallbackManualDisponible] = useState(false);
-  const [modoColocacion, setModoColocacion] = useState('plano');
+  const [escaneoIniciado, setEscaneoIniciado] = useState(false);
+  const [progresoEscaneo, setProgresoEscaneo] = useState(0);
+  const [modoColocacion, setModoColocacion] = useState('envolvente-360');
   const [posicionZonaBusqueda, setPosicionZonaBusqueda] = useState(POSICION_ZONA_RESPALDO);
   const zonaDisponibleRef = useRef(false);
-  const modoColocacionRef = useRef('plano');
   const ultimaCamaraRef = useRef(null);
+  const direccionesEscaneadasRef = useRef(new Set());
+  const inicioEscaneoRef = useRef(null);
   const mostrarZonaBusqueda = zonaDisponible && FASES_ZONA_VISIBLE.has(estado.fase);
-
-  const actualizarZonaDisponible = useCallback((anchor) => {
-    if (zonaDisponibleRef.current || modoColocacionRef.current === 'manual') {
-      return;
-    }
-
-    modoColocacionRef.current = 'plano';
-    setModoColocacion('plano');
-    setPosicionZonaBusqueda(calcularPosicionZonaCentrada(ultimaCamaraRef.current, anchor));
-    zonaDisponibleRef.current = true;
-    setZonaDisponible(true);
-    setFallbackManualDisponible(false);
-  }, []);
-
-  useEffect(() => {
-    if (!zonaDisponible) {
-      marcarBuscandoSuperficie();
-    }
-  }, [marcarBuscandoSuperficie, zonaDisponible]);
-
-  useEffect(() => {
-    if (zonaDisponible) {
-      setFallbackManualDisponible(false);
-      return undefined;
-    }
-
-    const esperaManual = setTimeout(() => {
-      setFallbackManualDisponible(true);
-    }, TIEMPO_FALLBACK_MANUAL_MS);
-
-    return () => clearTimeout(esperaManual);
-  }, [zonaDisponible]);
 
   const registrarTransformCamara = useCallback((cameraTransform) => {
     ultimaCamaraRef.current = cameraTransform;
-  }, []);
+
+    if (!escaneoIniciado || zonaDisponibleRef.current) {
+      return;
+    }
+
+    const indiceDireccion = calcularIndiceDireccion(calcularYawDesdeCamara(cameraTransform));
+
+    if (indiceDireccion != null) {
+      direccionesEscaneadasRef.current.add(indiceDireccion);
+    }
+
+    const tiempoEscaneo = inicioEscaneoRef.current ? Date.now() - inicioEscaneoRef.current : 0;
+    const progresoPorTiempo = Math.min(45, Math.round((tiempoEscaneo / TIEMPO_ESCANEO_MINIMO_MS) * 45));
+    const progresoPorDirecciones = Math.min(
+      55,
+      Math.round((direccionesEscaneadasRef.current.size / MUESTRAS_DIRECCION_NECESARIAS) * 55),
+    );
+    const siguienteProgreso = Math.min(100, progresoPorTiempo + progresoPorDirecciones);
+    setProgresoEscaneo((previo) => Math.max(previo, siguienteProgreso));
+
+    if (escaneoCompleto(inicioEscaneoRef.current, direccionesEscaneadasRef.current)) {
+      setPosicionZonaBusqueda(POSICION_ZONA_RESPALDO);
+      zonaDisponibleRef.current = true;
+      setZonaDisponible(true);
+      setProgresoEscaneo(100);
+      marcarZonaIdentificada();
+    }
+  }, [escaneoIniciado, marcarZonaIdentificada]);
+
+  const iniciarEscaneo = () => {
+    direccionesEscaneadasRef.current = new Set();
+    inicioEscaneoRef.current = Date.now();
+    zonaDisponibleRef.current = false;
+    setZonaDisponible(false);
+    setProgresoEscaneo(0);
+    setEscaneoIniciado(true);
+    setModoColocacion('envolvente-360');
+    marcarEscaneandoZona();
+  };
 
   const iniciar = () =>
     iniciarActividad({
       tableroDisponible: () => zonaDisponibleRef.current,
     });
-
-  const iniciarManual = () => {
-    const posicionManual = calcularPosicionZonaCentrada(ultimaCamaraRef.current);
-    modoColocacionRef.current = 'manual';
-    zonaDisponibleRef.current = true;
-    setModoColocacion('manual');
-    setPosicionZonaBusqueda(posicionManual);
-    setZonaDisponible(true);
-    setFallbackManualDisponible(false);
-
-    iniciarActividad({
-      tableroDisponible: () => true,
-    });
-  };
 
   const reiniciar = () =>
     reiniciarActividad({
@@ -467,7 +547,6 @@ export default function ObjetoPerdidoArVistaViro({
           modoColocacion,
           posicionZonaBusqueda,
           onSeleccionarObjeto: seleccionarObjeto,
-          onPlaneFound: actualizarZonaDisponible,
           onCameraTransformUpdate: registrarTransformCamara,
         }}
       />
@@ -502,9 +581,9 @@ export default function ObjetoPerdidoArVistaViro({
           mensaje={
             zonaDisponible
               ? estado.mensaje
-              : fallbackManualDisponible
-                ? 'Si el piso no aparece, centra la zona donde estas.'
-                : 'Apunta al piso y quedate en el centro de la zona.'
+              : escaneoIniciado
+                ? 'Gira despacio para reconocer el lugar donde vas a buscar.'
+                : 'Parate en un lugar seguro. Cuando estes listo, inicia el escaneo.'
           }
           fase={estado.fase}
         />
@@ -512,26 +591,28 @@ export default function ObjetoPerdidoArVistaViro({
         {!resultadoVisible && !rondaCompletadaVisible ? (
           <View style={styles.panelAccion}>
             {!zonaDisponible ? (
-              fallbackManualDisponible ? (
-                <TouchableOpacity
-                  style={[styles.botonPrincipal, preparandoPartida && styles.botonPrincipalDisabled]}
-                  onPress={iniciarManual}
-                  disabled={preparandoPartida}
-                >
-                  {preparandoPartida ? <ActivityIndicator color="#14314F" /> : null}
-                  <Ionicons name="locate" size={18} color="#14314F" />
-                  <Text style={styles.botonPrincipalTexto}>
-                    {preparandoPartida ? 'Preparando' : 'Centrar aqui'}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
+              escaneoIniciado ? (
                 <View style={styles.estadoPlano}>
                   <ActivityIndicator color="#38BDF8" />
-                  <Text style={styles.estadoPlanoTexto}>Buscando superficie AR...</Text>
+                  <Text style={styles.estadoPlanoTexto}>
+                    Escaneando zona... {progresoEscaneo}%
+                  </Text>
                 </View>
+              ) : (
+                <TouchableOpacity style={styles.botonPrincipal} onPress={iniciarEscaneo}>
+                  <Ionicons name="scan" size={18} color="#14314F" />
+                  <Text style={styles.botonPrincipalTexto}>Iniciar escaneo</Text>
+                </TouchableOpacity>
               )
             ) : estado.fase === ESTADOS_OBJETO_PERDIDO_AR.jugando ? (
               <Text style={styles.estadoPlanoTexto}>Explora la zona y toca el objeto correcto.</Text>
+            ) : estado.fase === ESTADOS_OBJETO_PERDIDO_AR.mostrandoMision ? (
+              <TouchableOpacity style={styles.botonPrincipal} onPress={iniciarCuentaRegresivaRonda}>
+                <Ionicons name="play" size={18} color="#14314F" />
+                <Text style={styles.botonPrincipalTexto}>Estoy listo</Text>
+              </TouchableOpacity>
+            ) : estado.fase === ESTADOS_OBJETO_PERDIDO_AR.cuentaRegresiva ? (
+              <Text style={styles.estadoPlanoTexto}>Los objetos apareceran cuando termine la cuenta.</Text>
             ) : (
               <TouchableOpacity
                 style={[styles.botonPrincipal, preparandoPartida && styles.botonPrincipalDisabled]}
@@ -540,13 +621,19 @@ export default function ObjetoPerdidoArVistaViro({
               >
                 {preparandoPartida ? <ActivityIndicator color="#14314F" /> : null}
                 <Text style={styles.botonPrincipalTexto}>
-                  {preparandoPartida ? 'Preparando' : 'Comenzar'}
+                  {preparandoPartida ? 'Preparando' : 'Jugar'}
                 </Text>
               </TouchableOpacity>
             )}
           </View>
         ) : null}
       </SafeAreaView>
+
+      {estado.fase === ESTADOS_OBJETO_PERDIDO_AR.cuentaRegresiva ? (
+        <View pointerEvents="none" style={styles.cuentaRegresivaCapa}>
+          <Text style={styles.cuentaRegresivaTexto}>{estado.cuentaRegresiva}</Text>
+        </View>
+      ) : null}
 
       {resultadoVisible ? (
         <View style={styles.resultadoCapa}>
@@ -800,6 +887,20 @@ const styles = StyleSheet.create({
   botonRonda: {
     marginTop: 18,
     width: '100%',
+  },
+  cuentaRegresivaCapa: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    backgroundColor: 'rgba(2, 6, 23, 0.22)',
+    justifyContent: 'center',
+  },
+  cuentaRegresivaTexto: {
+    color: '#FDE68A',
+    fontSize: 96,
+    fontWeight: '900',
+    textShadowColor: 'rgba(15, 23, 42, 0.86)',
+    textShadowOffset: { width: 0, height: 6 },
+    textShadowRadius: 18,
   },
 });
 

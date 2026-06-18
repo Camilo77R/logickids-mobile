@@ -11,12 +11,13 @@ import { HABILIDAD_OBJETO_PERDIDO_AR } from './objetoPerdidoAr.constants';
 import { obtenerObjetosDisponiblesPorDificultad } from './objetoPerdidoArObjetos';
 
 const ZONA_BUSQUEDA_RESPALDO = Object.freeze({
-  ancho: 3,
-  profundidad: 3,
-  alturaMaxima: 0.85,
-  margen: 0.28,
-  separacionMinima: 0.56,
-  distanciaMinimaCentro: 0.75,
+  modo: 'envolvente-360',
+  radioMinimo: 1.6,
+  radioMaximo: 4.2,
+  alturaMinima: -1.05,
+  alturaMaxima: -0.3,
+  separacionMinima: 1.25,
+  coberturaGrados: 360,
 });
 
 const mezclar = (elementos) => {
@@ -42,19 +43,25 @@ const distanciaHorizontal = (a, b) => {
 };
 
 const crearPosicionEnZonaBusqueda = (zona, posicionesExistentes) => {
-  const mitadAncho = zona.ancho / 2 - zona.margen;
-  const mitadProfundidad = zona.profundidad / 2 - zona.margen;
+  const radioMinimo = Math.min(zona.radioMinimo, zona.radioMaximo);
+  const radioMaximo = Math.max(zona.radioMinimo, zona.radioMaximo);
+  const alturaMinima = Math.min(zona.alturaMinima, zona.alturaMaxima);
+  const alturaMaxima = Math.max(zona.alturaMinima, zona.alturaMaxima);
+  const coberturaRadianes = Math.min(Math.max(zona.coberturaGrados, 90), 360) * (Math.PI / 180);
+  const anguloInicial = -coberturaRadianes / 2;
   const centro = [0, 0, 0];
 
   for (let intento = 0; intento < 28; intento += 1) {
+    const angulo = aleatorioEntre(anguloInicial, anguloInicial + coberturaRadianes);
+    const radio = aleatorioEntre(radioMinimo, radioMaximo);
     const posicion = [
-      Number(aleatorioEntre(-mitadAncho, mitadAncho).toFixed(2)),
-      Number(aleatorioEntre(0.02, zona.alturaMaxima).toFixed(2)),
-      Number(aleatorioEntre(-mitadProfundidad, mitadProfundidad).toFixed(2)),
+      Number((Math.sin(angulo) * radio).toFixed(2)),
+      Number(aleatorioEntre(alturaMinima, alturaMaxima).toFixed(2)),
+      Number((-Math.cos(angulo) * radio).toFixed(2)),
     ];
 
     if (
-      distanciaHorizontal(posicion, centro) >= zona.distanciaMinimaCentro &&
+      distanciaHorizontal(posicion, centro) >= radioMinimo &&
       posicionesExistentes.every(
         (posicionExistente) =>
           distanciaHorizontal(posicion, posicionExistente) >= zona.separacionMinima,
@@ -64,12 +71,13 @@ const crearPosicionEnZonaBusqueda = (zona, posicionesExistentes) => {
     }
   }
 
-  const signoX = Math.random() < 0.5 ? -1 : 1;
+  const angulo = aleatorioEntre(anguloInicial, anguloInicial + coberturaRadianes);
+  const radio = aleatorioEntre(radioMinimo, radioMaximo);
 
   return [
-    Number((signoX * aleatorioEntre(zona.distanciaMinimaCentro, mitadAncho)).toFixed(2)),
-    Number(aleatorioEntre(0.02, zona.alturaMaxima).toFixed(2)),
-    Number(aleatorioEntre(-mitadProfundidad, mitadProfundidad).toFixed(2)),
+    Number((Math.sin(angulo) * radio).toFixed(2)),
+    Number(aleatorioEntre(alturaMinima, alturaMaxima).toFixed(2)),
+    Number((-Math.cos(angulo) * radio).toFixed(2)),
   ];
 };
 

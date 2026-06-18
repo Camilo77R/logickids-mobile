@@ -29,9 +29,12 @@ test('normalizarConfiguracionObjetoPerdidoAr aplica dificultad segura y parametr
   assert.equal(configuracion.configuracion.objetosPorRonda, 6);
   assert.equal(configuracion.configuracion.tiempoLimiteMs, 12000);
   assert.equal(configuracion.configuracion.usarTableroLimitado, true);
-  assert.equal(configuracion.configuracion.zonaBusqueda.ancho, 3.6);
-  assert.equal(configuracion.configuracion.zonaBusqueda.profundidad, 3.6);
-  assert.equal(configuracion.configuracion.zonaBusqueda.distanciaMinimaCentro, 0.95);
+  assert.equal(configuracion.configuracion.zonaBusqueda.modo, 'envolvente-360');
+  assert.equal(configuracion.configuracion.zonaBusqueda.radioMinimo, 1.65);
+  assert.equal(configuracion.configuracion.zonaBusqueda.radioMaximo, 5.4);
+  assert.equal(configuracion.configuracion.zonaBusqueda.alturaMinima, -1.05);
+  assert.equal(configuracion.configuracion.zonaBusqueda.alturaMaxima, -0.25);
+  assert.equal(configuracion.configuracion.zonaBusqueda.coberturaGrados, 360);
 });
 
 test('normalizarConfiguracionObjetoPerdidoAr cae a nivel 1 ante dificultad invalida', () => {
@@ -63,10 +66,10 @@ test('crearRondaObjetoPerdidoAr genera objetivo, distractores y posiciones dentr
   ronda.objetos.forEach((objeto) => {
     const [x, y, z] = objeto.posicion;
     const zona = configuracion.configuracion.zonaBusqueda;
-    assert.ok(Math.abs(x) <= zona.ancho / 2 - zona.margen);
-    assert.ok(y >= 0.02 && y <= zona.alturaMaxima);
-    assert.ok(Math.abs(z) <= zona.profundidad / 2 - zona.margen);
-    assert.ok(Math.hypot(x, z) >= zona.distanciaMinimaCentro);
+    const distancia = Math.hypot(x, z);
+    assert.ok(distancia >= zona.radioMinimo);
+    assert.ok(distancia <= zona.radioMaximo);
+    assert.ok(y >= zona.alturaMinima && y <= zona.alturaMaxima);
   });
 });
 
@@ -112,5 +115,7 @@ test('construirResumenObjetoPerdidoAr devuelve contrato comun y finaliza como co
   assert.equal(resultado.estadisticas.errores, 2);
   assert.equal(resultado.estadisticas.pistasUsadas, 1);
   assert.equal(resultado.detalles.tableroLimitado, true);
-  assert.equal(resultado.detalles.zonaBusqueda.ancho, 3.4);
+  assert.equal(resultado.detalles.zonaBusqueda.radioMaximo, 5);
+  assert.equal(resultado.detalles.zonaBusqueda.alturaMaxima, -0.25);
+  assert.equal(resultado.detalles.zonaBusqueda.coberturaGrados, 360);
 });

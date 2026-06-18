@@ -6,7 +6,10 @@ export const HABILIDAD_OBJETO_PERDIDO_AR = 'Atención';
 
 export const ESTADOS_OBJETO_PERDIDO_AR = Object.freeze({
   listo: 'listo',
-  buscandoSuperficie: 'buscando-superficie',
+  escaneandoZona: 'escaneando-zona',
+  zonaIdentificada: 'zona-identificada',
+  mostrandoMision: 'mostrando-mision',
+  cuentaRegresiva: 'cuenta-regresiva',
   jugando: 'jugando',
   rondaCompletada: 'ronda-completada',
   completado: 'completado',

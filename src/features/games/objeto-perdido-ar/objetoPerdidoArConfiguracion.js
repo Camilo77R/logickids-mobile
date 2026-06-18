@@ -6,15 +6,16 @@ const CONFIGURACION_NIVELES = Object.freeze({
     objetosPorRonda: 3,
     tiempoLimiteMs: 25000,
     ayudasDisponibles: 2,
-    escalaObjeto: 1.12,
+    escalaObjeto: 1,
     tipoMision: 'nombre-color',
     zonaBusqueda: {
-      ancho: 3,
-      profundidad: 3,
-      alturaMaxima: 0.85,
-      margen: 0.28,
-      separacionMinima: 0.58,
-      distanciaMinimaCentro: 0.75,
+      modo: 'envolvente-360',
+      radioMinimo: 1.6,
+      radioMaximo: 4.2,
+      alturaMinima: -1.05,
+      alturaMaxima: -0.3,
+      separacionMinima: 1.25,
+      coberturaGrados: 360,
     },
   }),
   2: Object.freeze({
@@ -25,12 +26,13 @@ const CONFIGURACION_NIVELES = Object.freeze({
     escalaObjeto: 1,
     tipoMision: 'nombre-color',
     zonaBusqueda: {
-      ancho: 3.2,
-      profundidad: 3.2,
-      alturaMaxima: 0.95,
-      margen: 0.28,
-      separacionMinima: 0.56,
-      distanciaMinimaCentro: 0.82,
+      modo: 'envolvente-360',
+      radioMinimo: 1.6,
+      radioMaximo: 4.6,
+      alturaMinima: -1.05,
+      alturaMaxima: -0.28,
+      separacionMinima: 1.2,
+      coberturaGrados: 360,
     },
   }),
   3: Object.freeze({
@@ -38,15 +40,16 @@ const CONFIGURACION_NIVELES = Object.freeze({
     objetosPorRonda: 5,
     tiempoLimiteMs: 16000,
     ayudasDisponibles: 1,
-    escalaObjeto: 0.92,
+    escalaObjeto: 1,
     tipoMision: 'caracteristica',
     zonaBusqueda: {
-      ancho: 3.4,
-      profundidad: 3.4,
-      alturaMaxima: 1.05,
-      margen: 0.3,
-      separacionMinima: 0.52,
-      distanciaMinimaCentro: 0.88,
+      modo: 'envolvente-360',
+      radioMinimo: 1.65,
+      radioMaximo: 5,
+      alturaMinima: -1.05,
+      alturaMaxima: -0.25,
+      separacionMinima: 1.15,
+      coberturaGrados: 360,
     },
   }),
   4: Object.freeze({
@@ -54,15 +57,16 @@ const CONFIGURACION_NIVELES = Object.freeze({
     objetosPorRonda: 6,
     tiempoLimiteMs: 12000,
     ayudasDisponibles: 1,
-    escalaObjeto: 0.82,
+    escalaObjeto: 1,
     tipoMision: 'condicion',
     zonaBusqueda: {
-      ancho: 3.6,
-      profundidad: 3.6,
-      alturaMaxima: 1.15,
-      margen: 0.32,
-      separacionMinima: 0.48,
-      distanciaMinimaCentro: 0.95,
+      modo: 'envolvente-360',
+      radioMinimo: 1.65,
+      radioMaximo: 5.4,
+      alturaMinima: -1.05,
+      alturaMaxima: -0.25,
+      separacionMinima: 1.1,
+      coberturaGrados: 360,
     },
   }),
 });
@@ -105,19 +109,24 @@ const normalizarZonaBusqueda = (entrada = {}, respaldo = {}) => {
     const numero = Number(valor);
     return Number.isFinite(numero) && numero > 0 ? numero : valorRespaldo;
   };
+  const asegurarNumero = (valor, valorRespaldo) => {
+    const numero = Number(valor);
+    return Number.isFinite(numero) ? numero : valorRespaldo;
+  };
 
   return {
-    ancho: asegurarNumeroPositivo(entrada.ancho, respaldo.ancho),
-    profundidad: asegurarNumeroPositivo(entrada.profundidad, respaldo.profundidad),
-    alturaMaxima: asegurarNumeroPositivo(entrada.alturaMaxima, respaldo.alturaMaxima),
-    margen: asegurarNumeroPositivo(entrada.margen, respaldo.margen),
+    modo: entrada.modo ?? respaldo.modo ?? 'envolvente-360',
+    radioMinimo: asegurarNumeroPositivo(entrada.radioMinimo, respaldo.radioMinimo),
+    radioMaximo: asegurarNumeroPositivo(entrada.radioMaximo, respaldo.radioMaximo),
+    alturaMinima: asegurarNumero(entrada.alturaMinima, respaldo.alturaMinima),
+    alturaMaxima: asegurarNumero(entrada.alturaMaxima, respaldo.alturaMaxima),
     separacionMinima: asegurarNumeroPositivo(
       entrada.separacionMinima,
       respaldo.separacionMinima,
     ),
-    distanciaMinimaCentro: asegurarNumeroPositivo(
-      entrada.distanciaMinimaCentro,
-      respaldo.distanciaMinimaCentro,
+    coberturaGrados: asegurarNumeroPositivo(
+      entrada.coberturaGrados,
+      respaldo.coberturaGrados,
     ),
   };
 };

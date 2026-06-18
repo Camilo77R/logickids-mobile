@@ -11,7 +11,7 @@ const construirEstadoInicial = (configuracion) => ({
   fase: ESTADOS_OBJETO_PERDIDO_AR.listo,
   rondaActual: null,
   numeroRonda: 0,
-  mensaje: 'Quedate en el centro. Los objetos apareceran alrededor.',
+  mensaje: 'Parate en un lugar seguro y gira despacio para reconocer tu espacio.',
   tiempoRestanteMs: configuracion.configuracion.tiempoLimiteMs,
   ayudasRestantes: configuracion.configuracion.ayudasDisponibles,
   resultado: null,
@@ -23,6 +23,7 @@ const construirEstadoInicial = (configuracion) => ({
   comboActual: 0,
   comboMaximo: 0,
   objetoActivoId: null,
+  cuentaRegresiva: null,
 });
 
 const ejecutarObservadorSeguro = (observador, carga) => {
@@ -103,7 +104,7 @@ export const useObjetoPerdidoArControlador = (configuracionInicial, observadores
     ejecutarObservadorSeguro(observadores.alFinalizarPartida, resultadoCalculado);
   };
 
-  const iniciarCuentaRegresiva = (tiempoInicialMs) => {
+  const iniciarTemporizadorRonda = (tiempoInicialMs) => {
     detenerCuentaRegresiva();
     const marcaInicio = Date.now();
 
@@ -143,23 +144,64 @@ export const useObjetoPerdidoArControlador = (configuracionInicial, observadores
 
     setEstado((previo) => ({
       ...previo,
-      fase: ESTADOS_OBJETO_PERDIDO_AR.jugando,
+      fase: ESTADOS_OBJETO_PERDIDO_AR.mostrandoMision,
       rondaActual: ronda,
       resumenRonda: null,
       numeroRonda,
       objetoActivoId: null,
       tiempoRestanteMs: configuracion.configuracion.tiempoLimiteMs,
       ayudasRestantes: Math.max(previo.ayudasRestantes, 0),
+      cuentaRegresiva: null,
       mensaje: ronda.mision,
     }));
+  };
 
-    iniciarCuentaRegresiva(configuracion.configuracion.tiempoLimiteMs);
+  const iniciarCuentaRegresivaRonda = () => {
+    const estadoActual = estadoRef.current;
+
+    if (
+      estadoActual.fase !== ESTADOS_OBJETO_PERDIDO_AR.mostrandoMision ||
+      !estadoActual.rondaActual
+    ) {
+      return;
+    }
+
+    detenerCuentaRegresiva();
+    setEstado((previo) => ({
+      ...previo,
+      fase: ESTADOS_OBJETO_PERDIDO_AR.cuentaRegresiva,
+      cuentaRegresiva: 3,
+      mensaje: 'Preparate. Los objetos apareceran alrededor.',
+      objetoActivoId: null,
+    }));
+
+    [2, 1].forEach((valor, indice) => {
+      const temporizador = setTimeout(() => {
+        setEstado((previo) => ({
+          ...previo,
+          cuentaRegresiva: valor,
+        }));
+      }, (indice + 1) * 850);
+      temporizadoresRef.current.push(temporizador);
+    });
+
+    const iniciarJuego = setTimeout(() => {
+      inicioRondaRef.current = Date.now();
+      setEstado((previo) => ({
+        ...previo,
+        fase: ESTADOS_OBJETO_PERDIDO_AR.jugando,
+        cuentaRegresiva: null,
+        mensaje: previo.rondaActual?.mision ?? 'Busca el objeto correcto.',
+      }));
+      iniciarTemporizadorRonda(configuracion.configuracion.tiempoLimiteMs);
+    }, 2550);
+    temporizadoresRef.current.push(iniciarJuego);
   };
 
   const iniciarPartida = () => {
     if (
       estadoRef.current.fase !== ESTADOS_OBJETO_PERDIDO_AR.listo &&
-      estadoRef.current.fase !== ESTADOS_OBJETO_PERDIDO_AR.buscandoSuperficie
+      estadoRef.current.fase !== ESTADOS_OBJETO_PERDIDO_AR.zonaIdentificada
     ) {
       return;
     }
@@ -179,15 +221,30 @@ export const useObjetoPerdidoArControlador = (configuracionInicial, observadores
     setEstado(construirEstadoInicial(configuracion));
   };
 
-  const marcarBuscandoSuperficie = () => {
+  const marcarEscaneandoZona = () => {
     if (estadoRef.current.fase !== ESTADOS_OBJETO_PERDIDO_AR.listo) {
       return;
     }
 
     setEstado((previo) => ({
       ...previo,
-      fase: ESTADOS_OBJETO_PERDIDO_AR.buscandoSuperficie,
-      mensaje: 'Apunta al piso sin moverte mucho. Luego busca alrededor.',
+      fase: ESTADOS_OBJETO_PERDIDO_AR.escaneandoZona,
+      mensaje: 'Gira lentamente con el telefono para reconocer el lugar.',
+    }));
+  };
+
+  const marcarZonaIdentificada = () => {
+    if (
+      estadoRef.current.fase !== ESTADOS_OBJETO_PERDIDO_AR.escaneandoZona &&
+      estadoRef.current.fase !== ESTADOS_OBJETO_PERDIDO_AR.listo
+    ) {
+      return;
+    }
+
+    setEstado((previo) => ({
+      ...previo,
+      fase: ESTADOS_OBJETO_PERDIDO_AR.zonaIdentificada,
+      mensaje: 'Zona identificada. Cuando estes listo, empieza a jugar.',
     }));
   };
 
@@ -354,9 +411,11 @@ export const useObjetoPerdidoArControlador = (configuracionInicial, observadores
     estado,
     iniciarPartida,
     reiniciarPartida,
-    marcarBuscandoSuperficie,
+    marcarEscaneandoZona,
+    marcarZonaIdentificada,
     seleccionarObjeto,
     usarPista,
+    iniciarCuentaRegresivaRonda,
     continuarSiguienteRonda: avanzarDespuesDeRonda,
     puedePedirPista:
       estado.fase === ESTADOS_OBJETO_PERDIDO_AR.jugando && estado.ayudasRestantes > 0,
