@@ -79,6 +79,7 @@ export const crearSesionFinalUiMercadoPremium = ({
     maxCombo: numeroNoNegativo(resumen.comboMaximo),
     score: numeroNoNegativo(resumen.puntaje),
     trophyLevel: Math.min(nivelesTotales, numeroNoNegativo(resumen.nivelesCompletados)),
+    primaryVisible: !sincronizandoResultado || Boolean(errorSincronizacionResultado),
     primaryLabel: 'Finalizar y volver al tablero',
     primaryAction: 'continue',
     primaryDisabled: false,

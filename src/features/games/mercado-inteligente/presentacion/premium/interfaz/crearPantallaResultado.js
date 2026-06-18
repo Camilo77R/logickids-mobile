@@ -69,6 +69,7 @@ export function crearPantallaResultado({ result = {}, reward = {}, player = {}, 
   const etiquetaPrincipal = result.primaryLabel ?? actions.continueLabel ?? '¡Siguiente nivel!';
   const accionPrincipal = result.primaryAction ?? 'continue';
   const accionDeshabilitada = Boolean(result.primaryDisabled ?? actions.continueDisabled);
+  const mostrarAccionPrincipal = result.primaryVisible !== false;
 
   return `
     <main class="mercado-resultado" data-mercado-screen="result">
@@ -137,15 +138,21 @@ export function crearPantallaResultado({ result = {}, reward = {}, player = {}, 
 
       ${crearInventario(result.selectedProducts ?? [])}
 
-      <button
-        class="mercado-resultado__continuar"
-        type="button"
-        data-mercado-action="${textoSeguro(accionPrincipal, 'continue')}"
-        ${accionDeshabilitada ? 'disabled' : ''}
-      >
-        <span>${textoSeguro(etiquetaPrincipal, '¡Siguiente nivel!')}</span>
-        <i aria-hidden="true">▶</i>
-      </button>
+      ${
+        mostrarAccionPrincipal
+          ? `
+            <button
+              class="mercado-resultado__continuar"
+              type="button"
+              data-mercado-action="${textoSeguro(accionPrincipal, 'continue')}"
+              ${accionDeshabilitada ? 'disabled' : ''}
+            >
+              <span>${textoSeguro(etiquetaPrincipal, '¡Siguiente nivel!')}</span>
+              <i aria-hidden="true">▶</i>
+            </button>
+          `
+          : ''
+      }
     </main>
   `;
 }

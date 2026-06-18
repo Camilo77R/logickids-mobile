@@ -64,6 +64,7 @@ export const crearViewModelSesionFinal = ({
       accion: resolverAccionPrincipalSesionFinal(sessionResult.primaryAction),
       deshabilitado: Boolean(sessionResult.primaryDisabled),
       etiqueta: textoPlanoSeguro(sessionResult.primaryLabel, 'Finalizar y volver al tablero'),
+      visible: sessionResult.primaryVisible !== false,
     }),
   });
 };

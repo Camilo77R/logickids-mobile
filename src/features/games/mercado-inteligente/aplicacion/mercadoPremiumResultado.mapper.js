@@ -52,6 +52,7 @@ export const crearResultadoUiMercadoPremium = ({
       coinsUsed: obtenerNumero(modeloVisual?.compra?.total),
     },
     selectedProducts: modeloVisual?.mochila ?? [],
+    primaryVisible: !sincronizandoResultado || Boolean(errorSincronizacionResultado),
     primaryLabel: errorSincronizacionResultado
       ? 'Reintentar guardado'
       : tieneSiguienteNivel

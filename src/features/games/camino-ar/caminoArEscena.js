@@ -233,8 +233,8 @@ const construirAccionResultado = ({
     return {
       accionContinuar: null,
       etiquetaContinuar: null,
-      accionSalir: salirActividad,
-      etiquetaSalir: 'Volver al tablero',
+      accionSalir: null,
+      etiquetaSalir: null,
       sincronizandoCierre: true,
     };
   }

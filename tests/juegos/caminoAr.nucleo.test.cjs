@@ -324,7 +324,9 @@ test('construirEscenaCaminoAr congela estrellas visuales mientras sincroniza cie
   assert.equal(escena.resultado.resumenInfantil.estrellas, 3);
   assert.match(escena.resultado.descripcion, /ganaste 3 estrellas/i);
   assert.match(escena.resultado.mensajeProgreso, /segundo plano/i);
-  assert.equal(escena.resultado.etiquetaSalir, 'Volver al tablero');
+  assert.equal(escena.resultado.accionSalir, null);
+  assert.equal(escena.resultado.etiquetaSalir, null);
+  assert.equal(escena.resultado.sincronizandoCierre, true);
 });
 
 test('construirEscenaEspacialCaminoAr deja listo un modelo AR agnostico al renderer', () => {

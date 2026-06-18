@@ -188,6 +188,39 @@ test('Pantalla 2 no afirma guardado exitoso cuando la persistencia falla', () =>
   assert.doesNotMatch(html, /Tu progreso quedó guardado\./i);
 });
 
+test('Pantalla 2 oculta la accion principal mientras guarda el resultado', () => {
+  const configuracion = normalizarConfiguracionMercado();
+  const ronda = generarRondaMercado({ configuracion, indiceRonda: 0 });
+  const modeloVisual = crearModeloVisualNivelMercado({
+    ronda,
+    nivel: 1,
+    totalNiveles: 2,
+    seleccionadosIds: ronda.oferta.slice(0, 2).map(({ id }) => id),
+    mensaje: 'Compra completada.',
+    estrellas: 2,
+    combo: 1,
+    aciertos: 1,
+    errores: 0,
+  });
+  const estadoUi = crearEstadoUiMercadoPremium({
+    modeloVisual,
+    nombreJugador: 'Santiago',
+    completado: true,
+    tieneSiguienteNivel: true,
+    sincronizandoResultado: true,
+  });
+  const html = generarDocumentoMercadoPremium({
+    estadoUi,
+    assets: { productos: {}, escena: {} },
+  });
+
+  assert.equal(estadoUi.result.primaryVisible, false);
+  assert.match(html, /Guardamos tu progreso en segundo plano/i);
+  assert.doesNotMatch(html, /data-mercado-action="continue"/);
+  assert.doesNotMatch(html, /Volver al tablero/i);
+  assert.doesNotMatch(html, /¡Siguiente nivel!/i);
+});
+
 test('Pantalla 3 acumula resultados reales de los niveles completados', () => {
   const primerNivel = {
     estadisticas: {
@@ -350,6 +383,46 @@ test('Pantalla 3 permite volver al tablero aunque falle la sincronización', () 
   assert.match(html, /No pudimos guardar todavía/i);
   assert.match(html, /data-mercado-action="continue"/);
   assert.doesNotMatch(html, /data-mercado-action="retry-save"/);
+});
+
+test('Pantalla 3 oculta volver al tablero mientras guarda el cierre final', () => {
+  const configuracion = normalizarConfiguracionMercado();
+  const ronda = generarRondaMercado({ configuracion, indiceRonda: 0 });
+  const modeloVisual = crearModeloVisualNivelMercado({
+    ronda,
+    nivel: 1,
+    totalNiveles: 1,
+    seleccionadosIds: ronda.oferta.slice(0, 2).map(({ id }) => id),
+    mensaje: 'Actividad completada.',
+    estrellas: 2,
+    combo: 1,
+    aciertos: 1,
+    errores: 0,
+  });
+  const estadoUi = crearEstadoUiMercadoPremium({
+    modeloVisual,
+    nombreJugador: 'Luna',
+    completado: true,
+    tieneSiguienteNivel: false,
+    sincronizandoResultado: true,
+    resumenActividad: {
+      nivelesCompletados: 1,
+      estrellasObtenidas: 2,
+      aciertos: 1,
+      errores: 0,
+      comboMaximo: 1,
+      puntaje: 20,
+    },
+  });
+  const html = generarDocumentoMercadoPremium({
+    estadoUi,
+    assets: { productos: {}, escena: {} },
+  });
+
+  assert.equal(estadoUi.sessionResult.primaryVisible, false);
+  assert.match(html, /Guardamos tu progreso en segundo plano/i);
+  assert.doesNotMatch(html, /data-mercado-action="continue"/);
+  assert.doesNotMatch(html, /Finalizar y volver al tablero/i);
 });
 
 test('Salir de Mercado desmonta el juego antes de refrescar el tablero', () => {

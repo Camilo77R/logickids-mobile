@@ -316,7 +316,10 @@ export const crearBotonHistorialSesionFinal = ({ etiqueta, deshabilitado, assets
   </button>
 `;
 
-export const crearBotonTableroSesionFinal = ({ accion, etiqueta, deshabilitado, assets } = {}) => `
+export const crearBotonTableroSesionFinal = ({ accion, etiqueta, deshabilitado, visible = true, assets } = {}) =>
+  visible === false
+    ? ''
+    : `
   <button
     class="mercado-sesion-final__tablero ${tieneFuenteRaster(assets?.capas?.botonTablero) ? 'mercado-sesion-final__tablero--con-asset' : ''}"
     type="button"
