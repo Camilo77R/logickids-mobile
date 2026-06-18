@@ -16,11 +16,14 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import CaminoARScreen from '../features/games/camino-ar/CaminoARScreen';
 import { obtenerConfiguracionBaseCaminoAr } from '../features/games/camino-ar/caminoArConfiguracion';
+import MercadoInteligenteScreen from '../features/games/mercado-inteligente/MercadoInteligenteScreen';
+import { obtenerConfiguracionBaseMercado } from '../features/games/mercado-inteligente/mercadoConfiguracion';
 import Tren3DScreen from '../features/games/tren-3d/Tren3DScreen';
 import { obtenerConfiguracionBaseTren3D } from '../features/games/tren-3d/tren3dConfiguracion';
 import {
   SLUG_TREN_3D,
 } from '../features/games/tren-3d/tren3d.constants';
+import { CATALOGO_JUEGOS } from '../features/games/core/catalogoJuegos';
 import RobotTallerScreen from '../features/games/robot-taller/RobotTallerScreen';
 import { obtenerConfiguracionBaseRobotTaller } from '../features/games/robot-taller/robotTallerConfiguracion';
 import {
@@ -37,11 +40,11 @@ const DASHBOARD_BACKGROUND = '#FAF3FF';
 const trainHeroImage = require('../../assets/branding/fondo definitivo.jpeg');
 
 const OFFICIAL_SKILLS = Object.freeze([
-  { name: 'Memoria', icon: 'bulb', gameSlug: 'camino-ar' },
+  { name: 'Memoria', icon: 'bulb', gameSlug: CATALOGO_JUEGOS.caminoAr.slug },
   { name: 'Patrones', icon: 'extension-puzzle', gameSlug: SLUG_TREN_3D },
   { name: 'Logica', icon: 'scale', gameSlug: 'robot-logico' },
-  { name: 'Razonar', icon: 'cube' },
-  { name: 'Atencion', icon: 'search' },
+  { name: 'Razonar', icon: 'cube', gameSlug: CATALOGO_JUEGOS.mercadoInteligente.slug },
+  { name: 'Atencion', icon: 'search', gameSlug: null },
 ]);
 
 const DASHBOARD_TABS = Object.freeze({
@@ -277,6 +280,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
 
   const studentProfile = profile ?? studentSession?.studentProfile ?? null;
   const caminoArConfig = useMemo(() => obtenerConfiguracionBaseCaminoAr(), []);
+  const mercadoConfig = useMemo(() => obtenerConfiguracionBaseMercado(), []);
   const tren3DConfig = useMemo(() => obtenerConfiguracionBaseTren3D(), []);
   const robotTallerConfig = useMemo(() => obtenerConfiguracionBaseRobotTaller(), []);
   const caminoArAccess = useMemo(
@@ -303,6 +307,14 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       }),
     [studentProfile, robotTallerConfig.slug],
   );
+  const mercadoAccess = useMemo(
+    () =>
+      resolverAccesoJuegoDesdePerfil({
+        perfilEstudiante: studentProfile,
+        slugJuego: mercadoConfig.slug,
+      }),
+    [mercadoConfig.slug, studentProfile],
+  );
   const caminoArSessionContext = useMemo(
     () => ({
       tokenEstudiante: studentSession?.token ?? null,
@@ -327,13 +339,36 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     }),
     [studentProfile?.sesion_minijuego_id, studentSession?.apiBaseUrl, studentSession?.token],
   );
+  const mercadoSessionContext = useMemo(
+    () => ({
+      tokenEstudiante: studentSession?.token ?? null,
+      baseUrlApi: studentSession?.apiBaseUrl ?? null,
+      minijuegoId: studentProfile?.sesion_minijuego_id ?? null,
+      nombreEstudiante: getStudentName(studentProfile, studentSession?.studentProfile),
+      sesionModo: studentProfile?.sesion_modo ?? null,
+      sesionPasoActual: studentProfile?.sesion_paso_actual ?? null,
+      sesionTotalPasos: studentProfile?.sesion_total_pasos ?? null,
+      sesionNivelEnBloque: studentProfile?.sesion_nivel_en_bloque ?? null,
+    }),
+    [
+      studentProfile?.sesion_minijuego_id,
+      studentProfile?.sesion_modo,
+      studentProfile?.sesion_nivel_en_bloque,
+      studentProfile?.sesion_paso_actual,
+      studentProfile?.sesion_total_pasos,
+      studentSession?.apiBaseUrl,
+      studentSession?.studentProfile,
+      studentSession?.token,
+    ],
+  );
   const accessBySlug = useMemo(
     () => ({
       [caminoArConfig.slug]: caminoArAccess,
+      [mercadoConfig.slug]: mercadoAccess,
       [tren3DConfig.slug]: tren3DAccess,
       [robotTallerConfig.slug]: robotTallerAccess,
     }),
-    [caminoArAccess, caminoArConfig.slug, tren3DAccess, tren3DConfig.slug, robotTallerAccess, robotTallerConfig.slug],
+    [caminoArAccess, caminoArConfig.slug, mercadoAccess, mercadoConfig.slug, tren3DAccess, tren3DConfig.slug, robotTallerAccess, robotTallerConfig.slug],
   );
   const currentGameAccess = accessBySlug[studentProfile?.sesion_minijuego_slug] ?? caminoArAccess;
   const activityCopy = useMemo(
@@ -358,6 +393,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const avatarUri = getFrontendAvatarUri(studentProfile, studentSession?.studentProfile);
   const avatarColor = getStudentAvatarColor(studentProfile, studentSession?.studentProfile);
   const canPlayCaminoAr = caminoArAccess.estado === ESTADOS_ACCESO_JUEGO.disponible;
+  const canPlayMercado = mercadoAccess.estado === ESTADOS_ACCESO_JUEGO.disponible;
   const canPlayTren3D = tren3DAccess.estado === ESTADOS_ACCESO_JUEGO.disponible;
   const canPlayRobotTaller = robotTallerAccess.estado === ESTADOS_ACCESO_JUEGO.disponible;
   const availableGameSlug = canPlayCaminoAr
@@ -366,6 +402,8 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       ? tren3DConfig.slug
       : canPlayRobotTaller
         ? robotTallerConfig.slug
+        : canPlayMercado
+          ? mercadoConfig.slug
         : null;
   const achievementsCount = achievements.length;
   const sessionStatusLabel = buildSessionStatusLabel(studentProfile);
@@ -380,9 +418,16 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     activeActivityTitle.includes('tren') ||
     activeActivityTitle.includes('figura') ||
     activeActivityTitle.includes('patron');
+  const isMarketHero =
+    activeActivitySlug === mercadoConfig.slug ||
+    activeActivityTitle.includes('mercado') ||
+    activeActivityTitle.includes('moneda') ||
+    activeActivityTitle.includes('compra');
   const scrollBottomPadding = activeTab === DASHBOARD_TABS.perfil ? 92 : 128;
   const heroActivityLabel = isTrainHero
     ? 'Tren de Figuras'
+    : isMarketHero
+      ? 'Mercado Inteligente'
     : activeActivityTitle.includes('camino')
       ? 'Camino AR'
       : 'Actividad de hoy';
@@ -429,12 +474,24 @@ export default function DashboardScreen({ studentSession, onLogout }) {
         lockedReason: buildLockedReason(robotTallerAccess, true),
         icon: 'hardware-chip',
       },
+      {
+        slug: mercadoConfig.slug,
+        id: mercadoConfig.slug,
+        title: 'Mercado Inteligente',
+        status: canPlayMercado ? 'Actividad' : 'Bloqueado',
+        locked: !canPlayMercado,
+        lockedReason: buildLockedReason(mercadoAccess, true),
+        icon: 'basket',
+      },
     ],
     [
       caminoArAccess,
       caminoArConfig.slug,
       canPlayCaminoAr,
+      canPlayMercado,
       canPlayTren3D,
+      mercadoAccess,
+      mercadoConfig.slug,
       tren3DAccess,
       tren3DConfig.slug,
       canPlayRobotTaller,
@@ -492,12 +549,9 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     openActivityBySlug(skill.gameSlug);
   };
 
-  const exitGame = async () => {
-    try {
-      await reloadDashboard();
-    } finally {
-      setActiveGame(null);
-    }
+  const exitGame = () => {
+    setActiveGame(null);
+    void reloadDashboard();
   };
 
   if (!dashboardAccess.allowed) {
@@ -545,6 +599,16 @@ export default function DashboardScreen({ studentSession, onLogout }) {
         onSalir={exitGame}
         configuracionInicial={robotTallerConfig}
         contextoSesion={robotTallerSessionContext}
+      />
+    );
+  }
+
+  if (activeGame === mercadoConfig.slug) {
+    return (
+      <MercadoInteligenteScreen
+        onSalir={exitGame}
+        configuracionInicial={mercadoConfig}
+        contextoSesion={mercadoSessionContext}
       />
     );
   }

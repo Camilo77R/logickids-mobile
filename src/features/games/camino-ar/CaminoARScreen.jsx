@@ -13,6 +13,7 @@ export default function CaminoARScreen({
   contextoSesion,
 }) {
   const [preparandoRonda, setPreparandoRonda] = useState(false);
+  const [guiaInicialVisible, setGuiaInicialVisible] = useState(true);
   const sesionCaminoAr = useSesionCaminoAr({
     configuracion: configuracionInicial,
     contextoSesion,
@@ -158,6 +159,8 @@ export default function CaminoARScreen({
   return (
     <CaminoArVistaArViro
       onSalir={onSalir}
+      guiaInicialVisible={guiaInicialVisible}
+      onCerrarGuiaInicial={() => setGuiaInicialVisible(false)}
       escena={escena}
       escenaEspacial={escenaEspacial}
       persistenciaSesion={sesionCaminoAr.persistencia}

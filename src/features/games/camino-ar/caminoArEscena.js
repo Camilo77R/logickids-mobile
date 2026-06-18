@@ -49,6 +49,31 @@ const resolverNumeroFinito = (valor, respaldo = 0) => {
   return Number.isFinite(numero) ? numero : respaldo;
 };
 
+const limitarEstrellasResultado = (valor) =>
+  Math.max(0, Math.min(3, Math.round(resolverNumeroFinito(valor, 0))));
+
+const resolverEstrellasVisualesResultado = (resultado) => {
+  const estrellasDeclaradas = resultado?.detalles?.estrellasVisuales;
+
+  if (estrellasDeclaradas != null) {
+    return limitarEstrellasResultado(estrellasDeclaradas);
+  }
+
+  const patronResuelto = Boolean(resultado?.detalles?.patronResuelto);
+  const aciertos = resolverNumeroFinito(resultado?.estadisticas?.aciertos, 0);
+  const errores = resolverNumeroFinito(resultado?.estadisticas?.errores, 0);
+
+  if (patronResuelto && errores === 0) {
+    return 3;
+  }
+
+  if (patronResuelto) {
+    return errores <= 1 ? 2 : 1;
+  }
+
+  return aciertos > 0 ? 1 : 0;
+};
+
 const construirDatosResultadoOficial = ({
   resultado,
   respuestaFinalizacionSesion,
@@ -88,9 +113,10 @@ const construirResumenInfantilResultado = ({
   });
   const patronLongitud = resolverNumeroFinito(resultado.detalles.patronLongitud, 0);
   const patronResuelto = Boolean(resultado.detalles.patronResuelto);
+  const estrellasVisuales = resolverEstrellasVisualesResultado(resultado);
 
   return {
-    estrellas: datosResultado.estrellasObtenidas ?? 0,
+    estrellas: estrellasVisuales,
     estrellasSincronizadas: datosResultado.estrellasObtenidas != null,
     estrellasMaximas: 3,
     aciertos: datosResultado.aciertos,
@@ -112,6 +138,7 @@ const construirMetricasResultado = ({
     resultado,
     respuestaFinalizacionSesion,
   });
+  const estrellasVisuales = resolverEstrellasVisualesResultado(resultado);
 
   return [
     { etiqueta: 'Puntaje', valor: datosResultado.puntaje },
@@ -123,7 +150,7 @@ const construirMetricasResultado = ({
       valor: `${Math.ceil(resultado.estadisticas.tiempoTotalMs / 1000)} s`,
     },
     { etiqueta: 'Combo', valor: datosResultado.comboMaximo },
-    { etiqueta: 'Estrellas', valor: datosResultado.estrellasObtenidas ?? '--' },
+    { etiqueta: 'Estrellas', valor: estrellasVisuales },
   ];
 };
 
@@ -159,7 +186,7 @@ const construirResumenCierreSesion = ({
 
 const resolverMensajeProgreso = ({ cierreSesion }) => {
   if (!cierreSesion) {
-    return 'Guardando tus resultados y actualizando tu progreso...';
+    return 'Resultado listo. Guardamos tu progreso en segundo plano.';
   }
 
   if (cierreSesion.haySiguientePaso && cierreSesion.siguienteEsMismoJuego) {
@@ -191,9 +218,7 @@ const construirCopyResultado = ({ resultado, cierreSesion, resumenInfantil }) =>
   return {
     titulo: patronResuelto ? 'Misión cumplida' : 'Buen intento',
     descripcion: patronResuelto
-      ? resumenInfantil.estrellasSincronizadas
-        ? `Seguiste ${resumenInfantil.patronLongitud} luces y ganaste ${resumenInfantil.estrellas} estrellas.`
-        : `Seguiste ${resumenInfantil.patronLongitud} luces. Estamos guardando tus estrellas.`
+      ? `Seguiste ${resumenInfantil.patronLongitud} luces y ganaste ${resumenInfantil.estrellas} ${resumenInfantil.estrellas === 1 ? 'estrella' : 'estrellas'}.`
       : `Llegaste a ${resumenInfantil.aciertos} aciertos. Tu avance quedo guardado para seguir practicando.`,
     mensajeProgreso: resolverMensajeProgreso({ cierreSesion }),
   };

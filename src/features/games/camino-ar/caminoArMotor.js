@@ -26,6 +26,30 @@ export const resolverColumnasTablero = (cantidadBaldosas) => {
   return 3;
 };
 
+const limitarEstrellasVisuales = (valor) =>
+  Math.max(0, Math.min(3, Math.round(Number(valor) || 0)));
+
+export const calcularEstrellasVisualesCaminoAr = ({
+  exito,
+  aciertos,
+  errores,
+  ayudasUsadas,
+}) => {
+  if (exito && errores === 0 && ayudasUsadas === 0) {
+    return 3;
+  }
+
+  if (exito && errores <= 1) {
+    return 2;
+  }
+
+  if (exito) {
+    return 1;
+  }
+
+  return limitarEstrellasVisuales(aciertos > 0 ? 1 : 0);
+};
+
 export const construirResumenPartida = ({
   exito,
   configuracion,
@@ -37,6 +61,12 @@ export const construirResumenPartida = ({
 }) => {
   const puntajeBase = Math.max(aciertos * 10 - errores * 3 - ayudasUsadas * 2, 0);
   const comboMaximo = exito ? aciertos : Math.max(aciertos - 1, 0);
+  const estrellasVisuales = calcularEstrellasVisualesCaminoAr({
+    exito,
+    aciertos,
+    errores,
+    ayudasUsadas,
+  });
 
   /**
    * REGLA DE NEGOCIO:
@@ -81,6 +111,7 @@ export const construirResumenPartida = ({
       patronLongitud: patron.length,
       patronResuelto: exito,
       cantidadBaldosas: configuracion.configuracion.cantidadBaldosas,
+      estrellasVisuales,
     },
   });
 };

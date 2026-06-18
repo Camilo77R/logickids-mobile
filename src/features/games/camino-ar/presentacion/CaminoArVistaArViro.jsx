@@ -22,7 +22,10 @@ import {
 } from '@reactvision/react-viro';
 import { colores, espaciado, radios } from '../../../../theme/tokens';
 import { caminoArTheme, resolverColorInsigniaCaminoAr } from '../caminoArTheme';
+import { ESTADOS_CAMINO_AR } from '../caminoAr.constants';
 import { useCaminoArAudio } from '../useCaminoArAudio';
+import MascotaGuiaJuego from '../../core/MascotaGuiaJuego';
+import CaminoArGuiaInicial from './CaminoArGuiaInicial';
 
 const RADIANES_A_GRADOS = 180 / Math.PI;
 const PERDIDA_PLANO_CANCELACION_MS = 900;
@@ -174,13 +177,13 @@ const construirMomentoJuego = ({ escena, estadoPlano }) => {
   }
 
   switch (escena.estadoActual.fase) {
-    case 'mostrandoPatron':
+    case ESTADOS_CAMINO_AR.mostrandoPatron:
       return {
         badge: 'Mira',
         titulo: 'Las luces marcan la ruta',
         texto: 'Mira todo el recorrido antes de tocar.',
       };
-    case 'esperandoRespuesta':
+    case ESTADOS_CAMINO_AR.esperandoRespuesta:
       return {
         badge: 'Tu turno',
         titulo: 'Repite la ruta',
@@ -192,6 +195,35 @@ const construirMomentoJuego = ({ escena, estadoPlano }) => {
         titulo: 'Tu isla ya esta lista',
         texto: 'Cuando quieras, empezamos el reto.',
       };
+  }
+};
+
+const construirGuiaMascotaFase = ({ escena, estadoPlano }) => {
+  if (!estadoPlano.disponible) {
+    return {
+      titulo: 'Busca el suelo',
+      mensaje: 'Mueve el celular lento hasta que aparezcan las baldosas.',
+    };
+  }
+
+  switch (escena.estadoActual.fase) {
+    case ESTADOS_CAMINO_AR.mostrandoPatron:
+      return {
+        titulo: 'Mira y memoriza',
+        mensaje: 'No toques todavía. Escucha los tin y recuerda el orden.',
+      };
+    case ESTADOS_CAMINO_AR.esperandoRespuesta:
+      return {
+        titulo: '¡Tu turno!',
+        mensaje: 'Ahora toca las baldosas en el mismo camino de luces.',
+      };
+    case ESTADOS_CAMINO_AR.listo:
+      return {
+        titulo: 'Camino listo',
+        mensaje: 'Pulsa iniciar y yo te guío paso a paso.',
+      };
+    default:
+      return null;
   }
 };
 
@@ -337,6 +369,8 @@ export default function CaminoArVistaArViro({
   onSalir,
   seleccionarBaldosa,
   cancelarPartidaTecnica,
+  guiaInicialVisible = false,
+  onCerrarGuiaInicial,
 }) {
   const insets = useSafeAreaInsets();
   const insetSuperior = insets.top;
@@ -380,7 +414,7 @@ export default function CaminoArVistaArViro({
     limpiarCancelacionPorPerdida();
   }, [limpiarCancelacionPorPerdida]);
 
-  const { reproducirToque } = useCaminoArAudio({ escena, escenaEspacial });
+  const { reproducirToque } = useCaminoArAudio({ escena });
   const manejarSeleccionarBaldosa = useCallback(
     (indiceBaldosa) => {
       reproducirToque();
@@ -449,6 +483,13 @@ export default function CaminoArVistaArViro({
   );
 
   const momentoJuego = construirMomentoJuego({ escena, estadoPlano });
+  const guiaMascotaFase = construirGuiaMascotaFase({ escena, estadoPlano });
+  const mostrarGuiaInicial =
+    guiaInicialVisible &&
+    !escena.resultado.visible &&
+    escena.estadoActual.fase === ESTADOS_CAMINO_AR.listo;
+  const mostrarMascotaFase =
+    !mostrarGuiaInicial && !escena.resultado.visible && Boolean(guiaMascotaFase);
   const hud = construirHud({ escena, estadoPlano });
   const colorInsignia = resolverColorInsigniaCaminoAr(momentoJuego.badge);
   const resumenResultado = escena.resultado.resumenInfantil ?? {
@@ -494,7 +535,7 @@ export default function CaminoArVistaArViro({
 
       <SafeAreaView pointerEvents="box-none" style={styles.overlaySeguro}>
         {!escena.resultado.visible ? (
-          <View style={styles.layoutOverlay}>
+          <View pointerEvents="box-none" style={styles.layoutOverlay}>
             <View
               pointerEvents="box-none"
               style={[
@@ -529,14 +570,27 @@ export default function CaminoArVistaArViro({
                 </View>
               </View>
 
-              <View pointerEvents="none" style={styles.panelEstado}>
-                <Text style={styles.cejaMision}>Camino AR</Text>
-                <Text style={styles.subtitulo}>{momentoJuego.titulo}</Text>
-                <Text style={styles.subtituloSecundario}>{momentoJuego.texto}</Text>
-              </View>
+              {!mostrarMascotaFase ? (
+                <View pointerEvents="none" style={styles.panelEstado}>
+                  <Text style={styles.cejaMision}>Camino AR</Text>
+                  <Text style={styles.subtitulo}>{momentoJuego.titulo}</Text>
+                  <Text style={styles.subtituloSecundario}>{momentoJuego.texto}</Text>
+                </View>
+              ) : null}
             </View>
 
+            {mostrarMascotaFase ? (
+              <View pointerEvents="none" style={styles.mascotaFaseFlotante}>
+                <MascotaGuiaJuego
+                  variante="pill"
+                  titulo={guiaMascotaFase.titulo}
+                  mensaje={guiaMascotaFase.mensaje}
+                />
+              </View>
+            ) : null}
+
             <View
+              pointerEvents="box-none"
               style={[
                 styles.panelAcciones,
                 { paddingBottom: Math.max(espaciado.lg, insetInferior + 8) },
@@ -558,21 +612,22 @@ export default function CaminoArVistaArViro({
                 </Text>
               </TouchableOpacity>
 
-              <View style={styles.filaBotonesSecundarios}>
-                <TouchableOpacity
-                  style={[
-                    styles.botonSecundario,
-                    (!estadoPlano.disponible || escena.acciones.pista.deshabilitada) &&
-                      styles.botonInactivo,
-                  ]}
-                  disabled={!estadoPlano.disponible || escena.acciones.pista.deshabilitada}
-                  onPress={escena.acciones.pista.accion}
-                >
-                  <Text style={styles.botonSecundarioTexto}>
-                    {escena.acciones.pista.etiqueta}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              {!escena.acciones.pista.deshabilitada ? (
+                <View style={styles.filaBotonesSecundarios}>
+                  <TouchableOpacity
+                    style={[
+                      styles.botonSecundario,
+                      !estadoPlano.disponible && styles.botonInactivo,
+                    ]}
+                    disabled={!estadoPlano.disponible}
+                    onPress={escena.acciones.pista.accion}
+                  >
+                    <Text style={styles.botonSecundarioTexto}>
+                      {escena.acciones.pista.etiqueta}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
             </View>
           </View>
         ) : (
@@ -682,9 +737,7 @@ export default function CaminoArVistaArViro({
                 <View style={styles.panelResumenResultado}>
                   <Text style={styles.resumenResultadoTitulo}>Progreso guardado</Text>
                   <Text style={styles.resultadoSecundario}>
-                    {escena.resultado.sincronizandoCierre
-                      ? 'Guardando tus resultados y actualizando tu progreso...'
-                      : escena.resultado.mensajeProgreso}
+                    {escena.resultado.mensajeProgreso}
                   </Text>
                 </View>
 
@@ -749,6 +802,10 @@ export default function CaminoArVistaArViro({
           </View>
         )}
       </SafeAreaView>
+
+      {mostrarGuiaInicial ? (
+        <CaminoArGuiaInicial onComenzar={onCerrarGuiaInicial} />
+      ) : null}
     </View>
   );
 }
@@ -767,6 +824,14 @@ const styles = StyleSheet.create({
   layoutOverlay: {
     flex: 1,
     justifyContent: 'space-between',
+  },
+  mascotaFaseFlotante: {
+    position: 'absolute',
+    top: 92,
+    left: espaciado.md,
+    right: espaciado.md,
+    zIndex: 14,
+    alignItems: 'flex-start',
   },
   encabezado: {
     paddingHorizontal: espaciado.md,
@@ -875,15 +940,15 @@ const styles = StyleSheet.create({
   botonPrimario: {
     width: '100%',
     maxWidth: 250,
-    backgroundColor: caminoArTheme.botones.primario,
+    backgroundColor: '#39C84F',
     borderRadius: 26,
     minHeight: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.58)',
-    shadowColor: '#C57A00',
-    shadowOpacity: 0.22,
+    borderWidth: 4,
+    borderColor: '#1D7B31',
+    shadowColor: '#145A26',
+    shadowOpacity: 0.34,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
     elevation: 6,
@@ -895,17 +960,17 @@ const styles = StyleSheet.create({
   },
   botonSecundario: {
     flex: 0,
-    backgroundColor: caminoArTheme.botones.secundario,
-    minWidth: 138,
+    backgroundColor: '#FFF6DD',
+    minWidth: 148,
     borderRadius: 22,
     minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.56)',
+    borderWidth: 3,
+    borderColor: '#F5C84B',
   },
   botonSecundarioTexto: {
-    color: caminoArTheme.botones.secundarioTexto,
+    color: '#5A2F17',
     fontWeight: '800',
     fontSize: 14,
   },
@@ -980,10 +1045,10 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 430,
     alignSelf: 'center',
-    backgroundColor: '#FFF8DE',
+    backgroundColor: '#FFF4D8',
     borderRadius: 34,
     borderWidth: 4,
-    borderColor: '#FFFFFF',
+    borderColor: '#8E541E',
     paddingTop: 38,
     paddingHorizontal: espaciado.md,
     paddingBottom: espaciado.md,
@@ -1007,10 +1072,10 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     paddingHorizontal: espaciado.lg,
     borderRadius: radios.pill,
-    backgroundColor: '#FF3E8A',
+    backgroundColor: '#45CC54',
     borderWidth: 3,
-    borderColor: '#FFD54F',
-    shadowColor: '#6D1446',
+    borderColor: '#247E2D',
+    shadowColor: '#145A25',
     shadowOpacity: 0.38,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 7 },
@@ -1032,9 +1097,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 12,
     borderRadius: 28,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFF9E8',
     borderWidth: 3,
-    borderColor: '#8BE8FF',
+    borderColor: '#F2C858',
     gap: 10,
   },
   resultadoAura: {
@@ -1050,19 +1115,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: radios.pill,
-    backgroundColor: '#32236C',
+    backgroundColor: '#FFF2C7',
     borderWidth: 2,
-    borderColor: '#A897FF',
+    borderColor: '#F2C858',
   },
   resultadoNivelTexto: {
-    color: '#FFFFFF',
+    color: '#5A2F17',
     fontSize: 12,
     fontWeight: '900',
     textTransform: 'uppercase',
     letterSpacing: 0.7,
   },
   tituloResultado: {
-    color: '#251B57',
+    color: '#3B220F',
     fontSize: 30,
     fontWeight: '900',
     textAlign: 'center',
@@ -1071,7 +1136,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 4,
   },
   resultadoTexto: {
-    color: '#31516D',
+    color: '#5A2F17',
     lineHeight: 20,
     textAlign: 'center',
     fontWeight: '700',
@@ -1081,13 +1146,13 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    backgroundColor: '#EAFBFF',
+    backgroundColor: '#FFF2C7',
     borderWidth: 2,
-    borderColor: '#A9EFFF',
+    borderColor: '#FFD166',
     gap: 4,
   },
   resultadoRecompensaLabel: {
-    color: '#FF3E8A',
+    color: '#D66D00',
     fontSize: 11,
     fontWeight: '900',
     textAlign: 'center',
@@ -1143,7 +1208,7 @@ const styles = StyleSheet.create({
     textShadowColor: 'transparent',
   },
   resultadoSecundario: {
-    color: '#405C78',
+    color: '#5A2F17',
     lineHeight: 19,
     fontWeight: '700',
     textAlign: 'center',
@@ -1165,14 +1230,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardMetricaEtiqueta: {
-    color: '#324B66',
+    color: '#68401E',
     fontSize: 11,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     fontWeight: '800',
   },
   cardMetricaValor: {
-    color: '#251B57',
+    color: '#3B220F',
     fontSize: 18,
     fontWeight: '900',
   },
@@ -1186,7 +1251,7 @@ const styles = StyleSheet.create({
     gap: espaciado.xs,
   },
   resumenResultadoTitulo: {
-    color: '#251B57',
+    color: '#3B220F',
     fontWeight: '900',
     textAlign: 'center',
   },
@@ -1197,9 +1262,9 @@ const styles = StyleSheet.create({
   logroResultadoCard: {
     padding: espaciado.sm,
     borderRadius: 24,
-    backgroundColor: '#F1E9FF',
+    backgroundColor: '#FFF9E8',
     borderWidth: 2,
-    borderColor: '#C7B5FF',
+    borderColor: '#F2C858',
     flexDirection: 'row',
     alignItems: 'center',
     gap: espaciado.sm,
@@ -1222,11 +1287,11 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   logroResultadoTitulo: {
-    color: '#251B57',
+    color: '#3B220F',
     fontWeight: '900',
   },
   logroResultadoTexto: {
-    color: '#405C78',
+    color: '#68401E',
     lineHeight: 17,
   },
   resultadoBotones: {
@@ -1239,38 +1304,44 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     paddingVertical: 17,
     alignItems: 'center',
-    backgroundColor: '#36D990',
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    shadowColor: '#0B8B55',
-    shadowOpacity: 0.32,
-    shadowRadius: 12,
+    backgroundColor: '#39C84F',
+    borderWidth: 4,
+    borderColor: '#1F7B31',
+    shadowColor: '#145923',
+    shadowOpacity: 0.42,
+    shadowRadius: 0,
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
   },
   botonContinuarTexto: {
-    color: '#073B2A',
+    color: '#FFFFFF',
     fontWeight: '900',
     fontSize: 16,
+    textShadowColor: '#1B6B2C',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 0,
   },
   botonResultadoSalir: {
     flex: 1,
     borderRadius: 26,
     paddingVertical: 17,
     alignItems: 'center',
-    backgroundColor: '#4EC8FF',
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    shadowColor: '#146D93',
-    shadowOpacity: 0.24,
-    shadowRadius: 10,
+    backgroundColor: '#29B8F2',
+    borderWidth: 4,
+    borderColor: '#087CAD',
+    shadowColor: '#075E85',
+    shadowOpacity: 0.36,
+    shadowRadius: 0,
     shadowOffset: { width: 0, height: 6 },
     elevation: 6,
   },
   botonResultadoSalirTexto: {
-    color: '#083451',
+    color: '#FFFFFF',
     fontWeight: '900',
     fontSize: 15,
+    textShadowColor: '#075E85',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 0,
   },
 });
 

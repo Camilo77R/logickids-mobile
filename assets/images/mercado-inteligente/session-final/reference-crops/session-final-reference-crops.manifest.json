@@ -1,0 +1,441 @@
+{
+  "generatedAt": "2026-06-14T17:37:43.885Z",
+  "source": "assets/images/mercado-inteligente/session-final/sources/session-final-screen3-reference-official.png",
+  "sourceWidth": 1408,
+  "sourceHeight": 768,
+  "note": "Recortes reales desde pantalla 3 oficial. Los recortes con hasBakedText=true son referencia visual, no deben reemplazar texto dinamico sin limpiar primero.",
+  "assets": [
+    {
+      "family": "backgrounds",
+      "name": "screen3-official-full-reference",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 1408,
+        "height": 768
+      },
+      "width": 1408,
+      "height": 768,
+      "hasBakedText": false,
+      "hasBackground": false,
+      "note": "Referencia completa aprobada; conserva marco y composicion original.",
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/reference-crops/backgrounds/screen3-official-full-reference.png",
+        "webp": "assets/images/mercado-inteligente/session-final/reference-crops/backgrounds/screen3-official-full-reference.webp",
+        "png2x": "assets/images/mercado-inteligente/session-final/reference-crops/backgrounds/screen3-official-full-reference@2x.png",
+        "webp2x": "assets/images/mercado-inteligente/session-final/reference-crops/backgrounds/screen3-official-full-reference@2x.webp"
+      },
+      "bytes": {
+        "png": 1148207,
+        "webp": 181770,
+        "png2x": 3249786,
+        "webp2x": 407294
+      }
+    },
+    {
+      "family": "backgrounds",
+      "name": "screen3-game-viewport-reference",
+      "rect": {
+        "x": 72,
+        "y": 35,
+        "width": 1262,
+        "height": 675
+      },
+      "width": 1262,
+      "height": 675,
+      "hasBakedText": false,
+      "hasBackground": false,
+      "note": "Viewport visual aproximado sin gran parte del marco blanco externo.",
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/reference-crops/backgrounds/screen3-game-viewport-reference.png",
+        "webp": "assets/images/mercado-inteligente/session-final/reference-crops/backgrounds/screen3-game-viewport-reference.webp",
+        "png2x": "assets/images/mercado-inteligente/session-final/reference-crops/backgrounds/screen3-game-viewport-reference@2x.png",
+        "webp2x": "assets/images/mercado-inteligente/session-final/reference-crops/backgrounds/screen3-game-viewport-reference@2x.webp"
+      },
+      "bytes": {
+        "png": 1036633,
+        "webp": 170286,
+        "png2x": 2937067,
+        "webp2x": 358314
+      }
+    },
+    {
+      "family": "banners",
+      "name": "session-final-banner-reference-crop",
+      "rect": {
+        "x": 360,
+        "y": 28,
+        "width": 705,
+        "height": 130
+      },
+      "width": 705,
+      "height": 130,
+      "hasBakedText": true,
+      "hasBackground": false,
+      "note": "Banner superior real con texto incrustado; usar como referencia visual o fondo temporal, no como texto dinamico final.",
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/reference-crops/banners/session-final-banner-reference-crop.png",
+        "webp": "assets/images/mercado-inteligente/session-final/reference-crops/banners/session-final-banner-reference-crop.webp",
+        "png2x": "assets/images/mercado-inteligente/session-final/reference-crops/banners/session-final-banner-reference-crop@2x.png",
+        "webp2x": "assets/images/mercado-inteligente/session-final/reference-crops/banners/session-final-banner-reference-crop@2x.webp"
+      },
+      "bytes": {
+        "png": 103696,
+        "webp": 17954,
+        "png2x": 292625,
+        "webp2x": 38516
+      }
+    },
+    {
+      "family": "characters",
+      "name": "session-final-player-card-reference-crop",
+      "rect": {
+        "x": 86,
+        "y": 46,
+        "width": 205,
+        "height": 178
+      },
+      "width": 205,
+      "height": 178,
+      "hasBakedText": true,
+      "hasBackground": false,
+      "note": "Tarjeta real de jugador con avatar y nivel incrustados; requiere variante nino/nina o marco limpio para runtime dinamico.",
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/reference-crops/characters/session-final-player-card-reference-crop.png",
+        "webp": "assets/images/mercado-inteligente/session-final/reference-crops/characters/session-final-player-card-reference-crop.webp",
+        "png2x": "assets/images/mercado-inteligente/session-final/reference-crops/characters/session-final-player-card-reference-crop@2x.png",
+        "webp2x": "assets/images/mercado-inteligente/session-final/reference-crops/characters/session-final-player-card-reference-crop@2x.webp"
+      },
+      "bytes": {
+        "png": 53247,
+        "webp": 10276,
+        "png2x": 151104,
+        "webp2x": 20356
+      }
+    },
+    {
+      "family": "characters",
+      "name": "session-final-diploma-reference-crop",
+      "rect": {
+        "x": 302,
+        "y": 185,
+        "width": 315,
+        "height": 175
+      },
+      "width": 315,
+      "height": 175,
+      "hasBakedText": true,
+      "hasBackground": false,
+      "note": "Diploma y medallon reales desde referencia oficial.",
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/reference-crops/characters/session-final-diploma-reference-crop.png",
+        "webp": "assets/images/mercado-inteligente/session-final/reference-crops/characters/session-final-diploma-reference-crop.webp",
+        "png2x": "assets/images/mercado-inteligente/session-final/reference-crops/characters/session-final-diploma-reference-crop@2x.png",
+        "webp2x": "assets/images/mercado-inteligente/session-final/reference-crops/characters/session-final-diploma-reference-crop@2x.webp"
+      },
+      "bytes": {
+        "png": 103170,
+        "webp": 19562,
+        "png2x": 296376,
+        "webp2x": 40182
+      }
+    },
+    {
+      "family": "awards",
+      "name": "session-final-trophy-reference-crop",
+      "rect": {
+        "x": 590,
+        "y": 120,
+        "width": 330,
+        "height": 250
+      },
+      "width": 330,
+      "height": 250,
+      "hasBakedText": true,
+      "hasBackground": false,
+      "note": "Trofeo central real desde referencia oficial, con numero incrustado.",
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/reference-crops/awards/session-final-trophy-reference-crop.png",
+        "webp": "assets/images/mercado-inteligente/session-final/reference-crops/awards/session-final-trophy-reference-crop.webp",
+        "png2x": "assets/images/mercado-inteligente/session-final/reference-crops/awards/session-final-trophy-reference-crop@2x.png",
+        "webp2x": "assets/images/mercado-inteligente/session-final/reference-crops/awards/session-final-trophy-reference-crop@2x.webp"
+      },
+      "bytes": {
+        "png": 136866,
+        "webp": 23012,
+        "png2x": 386975,
+        "webp2x": 48392
+      }
+    },
+    {
+      "family": "awards",
+      "name": "session-final-celebration-cluster-reference-crop",
+      "rect": {
+        "x": 295,
+        "y": 118,
+        "width": 890,
+        "height": 250
+      },
+      "width": 890,
+      "height": 250,
+      "hasBakedText": true,
+      "hasBackground": false,
+      "note": "Cluster completo: diploma, trofeo y estrellas. Util para comparacion pixel-perfect.",
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/reference-crops/awards/session-final-celebration-cluster-reference-crop.png",
+        "webp": "assets/images/mercado-inteligente/session-final/reference-crops/awards/session-final-celebration-cluster-reference-crop.webp",
+        "png2x": "assets/images/mercado-inteligente/session-final/reference-crops/awards/session-final-celebration-cluster-reference-crop@2x.png",
+        "webp2x": "assets/images/mercado-inteligente/session-final/reference-crops/awards/session-final-celebration-cluster-reference-crop@2x.webp"
+      },
+      "bytes": {
+        "png": 337471,
+        "webp": 57104,
+        "png2x": 952869,
+        "webp2x": 119472
+      }
+    },
+    {
+      "family": "stars",
+      "name": "session-final-stars-group-reference-crop",
+      "rect": {
+        "x": 850,
+        "y": 190,
+        "width": 335,
+        "height": 170
+      },
+      "width": 335,
+      "height": 170,
+      "hasBakedText": false,
+      "hasBackground": false,
+      "note": "Grupo real de estrellas de la pantalla final.",
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/reference-crops/stars/session-final-stars-group-reference-crop.png",
+        "webp": "assets/images/mercado-inteligente/session-final/reference-crops/stars/session-final-stars-group-reference-crop.webp",
+        "png2x": "assets/images/mercado-inteligente/session-final/reference-crops/stars/session-final-stars-group-reference-crop@2x.png",
+        "webp2x": "assets/images/mercado-inteligente/session-final/reference-crops/stars/session-final-stars-group-reference-crop@2x.webp"
+      },
+      "bytes": {
+        "png": 81556,
+        "webp": 12754,
+        "png2x": 225940,
+        "webp2x": 26072
+      }
+    },
+    {
+      "family": "stars",
+      "name": "session-final-star-active-01-reference-crop",
+      "rect": {
+        "x": 855,
+        "y": 220,
+        "width": 112,
+        "height": 112
+      },
+      "width": 112,
+      "height": 112,
+      "hasBakedText": false,
+      "hasBackground": false,
+      "note": "Estrella activa recortada de la referencia oficial.",
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/reference-crops/stars/session-final-star-active-01-reference-crop.png",
+        "webp": "assets/images/mercado-inteligente/session-final/reference-crops/stars/session-final-star-active-01-reference-crop.webp",
+        "png2x": "assets/images/mercado-inteligente/session-final/reference-crops/stars/session-final-star-active-01-reference-crop@2x.png",
+        "webp2x": "assets/images/mercado-inteligente/session-final/reference-crops/stars/session-final-star-active-01-reference-crop@2x.webp"
+      },
+      "bytes": {
+        "png": 21381,
+        "webp": 3636,
+        "png2x": 59398,
+        "webp2x": 7500
+      }
+    },
+    {
+      "family": "stars",
+      "name": "session-final-star-active-02-reference-crop",
+      "rect": {
+        "x": 940,
+        "y": 205,
+        "width": 125,
+        "height": 125
+      },
+      "width": 125,
+      "height": 125,
+      "hasBakedText": false,
+      "hasBackground": false,
+      "note": "Segunda estrella activa recortada de la referencia oficial.",
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/reference-crops/stars/session-final-star-active-02-reference-crop.png",
+        "webp": "assets/images/mercado-inteligente/session-final/reference-crops/stars/session-final-star-active-02-reference-crop.webp",
+        "png2x": "assets/images/mercado-inteligente/session-final/reference-crops/stars/session-final-star-active-02-reference-crop@2x.png",
+        "webp2x": "assets/images/mercado-inteligente/session-final/reference-crops/stars/session-final-star-active-02-reference-crop@2x.webp"
+      },
+      "bytes": {
+        "png": 25961,
+        "webp": 4124,
+        "png2x": 72467,
+        "webp2x": 9012
+      }
+    },
+    {
+      "family": "stars",
+      "name": "session-final-star-inactive-reference-crop",
+      "rect": {
+        "x": 1040,
+        "y": 240,
+        "width": 105,
+        "height": 105
+      },
+      "width": 105,
+      "height": 105,
+      "hasBakedText": false,
+      "hasBackground": false,
+      "note": "Estrella inactiva recortada de la referencia oficial.",
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/reference-crops/stars/session-final-star-inactive-reference-crop.png",
+        "webp": "assets/images/mercado-inteligente/session-final/reference-crops/stars/session-final-star-inactive-reference-crop.webp",
+        "png2x": "assets/images/mercado-inteligente/session-final/reference-crops/stars/session-final-star-inactive-reference-crop@2x.png",
+        "webp2x": "assets/images/mercado-inteligente/session-final/reference-crops/stars/session-final-star-inactive-reference-crop@2x.webp"
+      },
+      "bytes": {
+        "png": 17025,
+        "webp": 2668,
+        "png2x": 47128,
+        "webp2x": 5666
+      }
+    },
+    {
+      "family": "panels",
+      "name": "session-final-summary-panel-reference-crop",
+      "rect": {
+        "x": 360,
+        "y": 358,
+        "width": 690,
+        "height": 205
+      },
+      "width": 690,
+      "height": 205,
+      "hasBakedText": true,
+      "hasBackground": false,
+      "note": "Panel de resumen real con textos incrustados; sirve como referencia de proporciones.",
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/reference-crops/panels/session-final-summary-panel-reference-crop.png",
+        "webp": "assets/images/mercado-inteligente/session-final/reference-crops/panels/session-final-summary-panel-reference-crop.webp",
+        "png2x": "assets/images/mercado-inteligente/session-final/reference-crops/panels/session-final-summary-panel-reference-crop@2x.png",
+        "webp2x": "assets/images/mercado-inteligente/session-final/reference-crops/panels/session-final-summary-panel-reference-crop@2x.webp"
+      },
+      "bytes": {
+        "png": 167290,
+        "webp": 33444,
+        "png2x": 484277,
+        "webp2x": 68830
+      }
+    },
+    {
+      "family": "panels",
+      "name": "session-final-message-bubble-reference-crop",
+      "rect": {
+        "x": 448,
+        "y": 585,
+        "width": 555,
+        "height": 108
+      },
+      "width": 555,
+      "height": 108,
+      "hasBakedText": true,
+      "hasBackground": false,
+      "note": "Globo de mensaje real con texto incrustado; runtime debe conservar texto dinamico.",
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/reference-crops/panels/session-final-message-bubble-reference-crop.png",
+        "webp": "assets/images/mercado-inteligente/session-final/reference-crops/panels/session-final-message-bubble-reference-crop.webp",
+        "png2x": "assets/images/mercado-inteligente/session-final/reference-crops/panels/session-final-message-bubble-reference-crop@2x.png",
+        "webp2x": "assets/images/mercado-inteligente/session-final/reference-crops/panels/session-final-message-bubble-reference-crop@2x.webp"
+      },
+      "bytes": {
+        "png": 83433,
+        "webp": 16130,
+        "png2x": 240189,
+        "webp2x": 33116
+      }
+    },
+    {
+      "family": "buttons",
+      "name": "session-final-history-button-reference-crop",
+      "rect": {
+        "x": 108,
+        "y": 600,
+        "width": 250,
+        "height": 100
+      },
+      "width": 250,
+      "height": 100,
+      "hasBakedText": true,
+      "hasBackground": false,
+      "note": "Boton historial real con texto incrustado; referencia para tamano/color/sombra.",
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/reference-crops/buttons/session-final-history-button-reference-crop.png",
+        "webp": "assets/images/mercado-inteligente/session-final/reference-crops/buttons/session-final-history-button-reference-crop.webp",
+        "png2x": "assets/images/mercado-inteligente/session-final/reference-crops/buttons/session-final-history-button-reference-crop@2x.png",
+        "webp2x": "assets/images/mercado-inteligente/session-final/reference-crops/buttons/session-final-history-button-reference-crop@2x.webp"
+      },
+      "bytes": {
+        "png": 43042,
+        "webp": 8540,
+        "png2x": 125803,
+        "webp2x": 18284
+      }
+    },
+    {
+      "family": "buttons",
+      "name": "session-final-return-button-reference-crop",
+      "rect": {
+        "x": 1018,
+        "y": 580,
+        "width": 335,
+        "height": 120
+      },
+      "width": 335,
+      "height": 120,
+      "hasBakedText": true,
+      "hasBackground": false,
+      "note": "Boton volver al tablero real con texto incrustado; referencia para tamano/color/sombra.",
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/reference-crops/buttons/session-final-return-button-reference-crop.png",
+        "webp": "assets/images/mercado-inteligente/session-final/reference-crops/buttons/session-final-return-button-reference-crop.webp",
+        "png2x": "assets/images/mercado-inteligente/session-final/reference-crops/buttons/session-final-return-button-reference-crop@2x.png",
+        "webp2x": "assets/images/mercado-inteligente/session-final/reference-crops/buttons/session-final-return-button-reference-crop@2x.webp"
+      },
+      "bytes": {
+        "png": 65872,
+        "webp": 13272,
+        "png2x": 193594,
+        "webp2x": 26948
+      }
+    },
+    {
+      "family": "effects",
+      "name": "session-final-confetti-reference-full-crop",
+      "rect": {
+        "x": 72,
+        "y": 35,
+        "width": 1262,
+        "height": 675
+      },
+      "width": 1262,
+      "height": 675,
+      "hasBakedText": false,
+      "hasBackground": true,
+      "note": "Capa de referencia con confeti visible; no es overlay transparente.",
+      "files": {
+        "png": "assets/images/mercado-inteligente/session-final/reference-crops/effects/session-final-confetti-reference-full-crop.png",
+        "webp": "assets/images/mercado-inteligente/session-final/reference-crops/effects/session-final-confetti-reference-full-crop.webp",
+        "png2x": "assets/images/mercado-inteligente/session-final/reference-crops/effects/session-final-confetti-reference-full-crop@2x.png",
+        "webp2x": "assets/images/mercado-inteligente/session-final/reference-crops/effects/session-final-confetti-reference-full-crop@2x.webp"
+      },
+      "bytes": {
+        "png": 1036633,
+        "webp": 170286,
+        "png2x": 2937067,
+        "webp2x": 358314
+      }
+    }
+  ]
+}
