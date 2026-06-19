@@ -27,7 +27,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.camilosr.logickidsmobile"
+      "package": "com.camilosr.logickidsmobile",
+      "minSdkVersion": 24
     },
     "plugins": [
       [

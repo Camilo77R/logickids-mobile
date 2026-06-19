@@ -10,8 +10,8 @@ dist/
 web-build/
 
 # Native
-android/
-ios/
+/android/
+/ios/
 *.orig.*
 *.jks
 *.p8
@@ -37,3 +37,6 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# juego-logica (orphaned web project - not part of the mobile app)
+juego-logica/

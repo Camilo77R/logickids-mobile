@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["ExpoHandTrackerModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.handtracker.ExpoHandTrackerModule"]
+  }
+}
