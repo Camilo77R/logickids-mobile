@@ -2,7 +2,7 @@
   "expo": {
     "owner": "logickids-sena-org-v2",
     "name": "logickidsMobile",
-    "slug": "logickidsMobile",
+    "slug": "logickids",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
