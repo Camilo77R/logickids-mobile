@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  ActivityIndicator,
+  ImageBackground,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -27,6 +29,8 @@ import { ESTADOS_TREN_3D } from './tren3d.constants';
 import Tren3DVistaWebView from './presentacion/Tren3DVistaWebView';
 import { useTren3DAudio } from './useTren3DAudio';
 import { colores, espaciado, radios, tipografia } from '../../../theme/tokens';
+
+const fondoTrenInicio = require('../../../../assets/images/tren-3d/fondo-tren.avif');
 
 const construirParametrosNivel = ({ dificultad, configuracion }) => {
   const params = obtenerParametrosDificultad(dificultad);
@@ -196,7 +200,7 @@ const TarjetaResultadoTren = ({
 
   const esTarjetaNivel = tarjeta.tipo === 'nivel';
   const esTarjetaFinal = tarjeta.tipo === 'final';
-  const esPortraitFinal = esTarjetaFinal && (viewport?.height ?? 0) >= (viewport?.width ?? 999);
+  const esPortraitFinal = false;
   const esCompacta = !esPortraitFinal && (
     (viewport?.height ?? 999) <= 430 || (viewport?.width ?? 999) <= 780
   );
@@ -208,9 +212,9 @@ const TarjetaResultadoTren = ({
   const metricasVisibles = esTarjetaNivel
     ? tarjeta.metricas.slice(0, 4)
     : tarjeta.metricas.filter((metrica) => (
-      ['Aciertos', 'Precision', 'Puntos', 'Nivel'].includes(metrica.etiqueta)
+      ['Aciertos', 'Errores', 'Precision', 'Puntos', 'Nivel'].includes(metrica.etiqueta)
     ));
-  const logrosVisibles = tarjeta.logros;
+  const logrosVisibles = esTarjetaFinal ? [] : tarjeta.logros;
 
   return (
     <View style={styles.resultadoOverlay}>
@@ -308,7 +312,7 @@ const TarjetaResultadoTren = ({
               ))}
             </View>
 
-            {!esTarjetaNivel ? (
+            {!esTarjetaNivel && !esTarjetaFinal ? (
               <View style={[styles.resultadoRecompensa, esCompacta && styles.resultadoRecompensaCompacta]}>
                 <Text style={styles.resultadoRecompensaLabel}>Premio del tren</Text>
                 <Text style={[styles.resultadoTexto, esCompacta && styles.resultadoTextoCompacto]}>
@@ -322,7 +326,9 @@ const TarjetaResultadoTren = ({
             style={[
               styles.gridMetricasResultado,
               esTarjetaNivel && styles.gridMetricasResultadoNivel,
+              esTarjetaFinal && styles.gridMetricasResultadoFinal,
               esCompacta && styles.gridMetricasResultadoCompacta,
+              esFinalCompacta && styles.gridMetricasResultadoFinalCompacta,
             ]}
           >
             {metricasVisibles.map((metrica, indice) => (
@@ -332,7 +338,9 @@ const TarjetaResultadoTren = ({
                   styles.cardMetricaResultado,
                   styles[`cardMetricaResultado${indice % 3}`],
                   esTarjetaNivel && styles.cardMetricaResultadoNivel,
+                  esTarjetaFinal && styles.cardMetricaResultadoFinal,
                   esCompacta && styles.cardMetricaResultadoCompacta,
+                  esFinalCompacta && styles.cardMetricaResultadoFinalCompacta,
                 ]}
               >
                 <Text style={[styles.cardMetricaEtiqueta, esCompacta && styles.cardMetricaEtiquetaCompacta]}>
@@ -468,6 +476,10 @@ export default function Tren3DScreen({
   const finalizadoRef = useRef(false);
   const siguienteNivelPendienteRef = useRef(null);
   const audioTren = useTren3DAudio();
+  const [juegoSolicitado, setJuegoSolicitado] = useState(false);
+  const [motorListo, setMotorListo] = useState(false);
+  const [errorMotor, setErrorMotor] = useState(null);
+  const [webViewKey, setWebViewKey] = useState(0);
 
   const parametrosIniciales = useMemo(
     () =>
@@ -577,14 +589,6 @@ export default function Tren3DScreen({
     }));
   };
 
-  const mostrarResultadoFinalEnPortrait = useCallback(async () => {
-    try {
-      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-    } catch {
-      // El resultado final debe mostrarse aunque no se pueda cambiar orientacion.
-    }
-  }, []);
-
   const construirTarjetaFinal = (resultado) => ({
     tipo: 'final',
     cinta: resultado.finalizacionSesion.estado === 'abandonado' ? 'PARTIDA PAUSADA' : 'RETO TERMINADO',
@@ -621,7 +625,6 @@ export default function Tren3DScreen({
     }
 
     finalizadoRef.current = true;
-    void mostrarResultadoFinalEnPortrait();
     const acumulado = acumuladoRef.current;
     const resultado = construirResumenPartidaTren3D({
       configuracion,
@@ -643,6 +646,26 @@ export default function Tren3DScreen({
       mensaje: 'Partida finalizada. Buen trabajo con los patrones.',
     }));
     setTarjetaResultado(construirTarjetaFinal(resultado));
+  };
+
+  const iniciarJuegoDesdePortada = () => {
+    setJuegoSolicitado(true);
+    setMotorListo(false);
+    setErrorMotor(null);
+    setEstado((previo) => ({
+      ...previo,
+      mensaje: 'Preparando el tren...',
+    }));
+  };
+
+  const reintentarCargaMotor = () => {
+    setMotorListo(false);
+    setErrorMotor(null);
+    setWebViewKey((valor) => valor + 1);
+    setEstado((previo) => ({
+      ...previo,
+      mensaje: 'Preparando el tren...',
+    }));
   };
 
   const restaurarPortrait = useCallback(async () => {
@@ -818,6 +841,9 @@ export default function Tren3DScreen({
 
     if (mensaje.tipo === 'motorListo') {
       partidaIniciadaRef.current = true;
+      inicioPartidaRef.current = Date.now();
+      setMotorListo(true);
+      setErrorMotor(null);
       sesionTren.observadoresJuego.alIniciarPartida({
         configuracionPartida: configuracion,
       });
@@ -848,6 +874,7 @@ export default function Tren3DScreen({
     }
 
     if (mensaje.tipo === 'errorMotor') {
+      setErrorMotor(mensaje.mensaje ?? 'No fue posible cargar el motor 3D.');
       setEstado((previo) => ({
         ...previo,
         mensaje: mensaje.mensaje ?? 'No fue posible cargar el motor 3D.',
@@ -866,95 +893,165 @@ export default function Tren3DScreen({
 
   return (
     <SafeAreaView style={styles.contenedor}>
-      <Tren3DVistaWebView
-        webViewRef={webViewRef}
-        onMensaje={manejarMensaje}
-        parametrosIniciales={parametrosIniciales}
-      />
+      {juegoSolicitado ? (
+        <Tren3DVistaWebView
+          key={webViewKey}
+          webViewRef={webViewRef}
+          onMensaje={manejarMensaje}
+          parametrosIniciales={parametrosIniciales}
+        />
+      ) : (
+        <ImageBackground
+          source={fondoTrenInicio}
+          resizeMode="cover"
+          style={styles.portadaImagen}
+        />
+      )}
 
-      <View style={styles.barraSuperior}>
-        <View style={styles.barraSuperiorTexto}>
-          <Text style={styles.titulo}>Tren Patrones</Text>
-          <Text style={styles.subtitulo} numberOfLines={2}>{estado.mensaje}</Text>
-        </View>
-        <TouchableOpacity style={styles.botonSalir} onPress={salir}>
-          <Text style={styles.botonSalirTexto}>Salir</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.barraPatron}>
-        <Text style={styles.barraPatronTitulo}>Patron del nivel</Text>
-        <ScrollView
-          showsVerticalScrollIndicator
-          contentContainerStyle={styles.listaPatron}
+      {!juegoSolicitado ? (
+        <ImageBackground
+          source={fondoTrenInicio}
+          resizeMode="cover"
+          style={styles.portadaOverlay}
         >
-          {estado.patronActual.map((paso) => (
-            <FiguraPatron
-              key={`${paso.posicion}-${paso.clave}`}
-              paso={paso}
-              completado={estado.vagonesResueltos.includes(paso.posicion)}
-            />
-          ))}
-        </ScrollView>
-      </View>
-
-      <View style={styles.barraBotones}>
-        <ScrollView
-          showsVerticalScrollIndicator
-          contentContainerStyle={styles.listaBotones}
-        >
-          {opcionesUnicas.map((opcion) => (
+          <View style={styles.portadaSombra} />
+          <View style={styles.portadaContenido}>
+            <Text style={styles.portadaTitulo}>Tren Patrones</Text>
+            <Text style={styles.portadaSubtitulo}>
+              Listo para el viaje de patrones.
+            </Text>
             <TouchableOpacity
-              key={opcion.clave}
-              activeOpacity={0.8}
-              disabled={estado.fase !== ESTADOS_TREN_3D.jugando}
-              style={[
-                styles.botonNativo,
-                { backgroundColor: opcion.colorHex },
-                estado.seleccionClave === opcion.clave && styles.botonNativoActivo,
-                estado.fase !== ESTADOS_TREN_3D.jugando && { opacity: 0.5 },
-              ]}
-              onPress={() => seleccionarFiguraNativa(opcion)}
+              activeOpacity={0.86}
+              style={styles.botonJugarPortada}
+              onPress={iniciarJuegoDesdePortada}
             >
-              <View
-                style={[
-                  styles.figuraBoton,
-                  opcion.figuraId === 'circulo' && styles.figuraBotonCirculo,
-                  opcion.figuraId === 'triangulo' && styles.figuraBotonTriangulo,
-                  opcion.figuraId === 'triangulo' && { borderBottomColor: opcion.colorHex },
-                  opcion.figuraId === 'estrella' && styles.figuraBotonEstrella,
-                ]}
-              />
-              <Text style={styles.botonNativoTexto} numberOfLines={1}>
-                {opcion.figuraLabel}
-              </Text>
+              <Text style={styles.botonJugarPortadaTexto}>Jugar</Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+          </View>
+          <TouchableOpacity style={styles.botonSalirPortada} onPress={salir}>
+            <Text style={styles.botonSalirTexto}>Salir</Text>
+          </TouchableOpacity>
+        </ImageBackground>
+      ) : null}
 
-      <View style={styles.panelMetricas}>
-        <View style={styles.metrica}>
-          <Text style={styles.metricaValor}>{estado.nivel}/{configuracion.nivelesPorPartida}</Text>
-          <Text style={styles.metricaLabel}>Nivel</Text>
+      {juegoSolicitado && !motorListo ? (
+        <ImageBackground
+          source={fondoTrenInicio}
+          resizeMode="cover"
+          style={styles.cargaMotorOverlay}
+        >
+          <View style={styles.cargaMotorPanel}>
+            {errorMotor ? null : <ActivityIndicator color={colores.alerta} size="large" />}
+            <Text style={styles.cargaMotorTitulo}>
+              {errorMotor ? 'No pudimos cargar el tren' : 'Preparando el tren'}
+            </Text>
+            <Text style={styles.cargaMotorTexto}>
+              {errorMotor ?? 'Un momento mientras llega a la estacion.'}
+            </Text>
+            {errorMotor ? (
+              <TouchableOpacity
+                activeOpacity={0.86}
+                style={styles.botonReintentarMotor}
+                onPress={reintentarCargaMotor}
+              >
+                <Text style={styles.botonReintentarMotorTexto}>Reintentar</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </ImageBackground>
+      ) : null}
+
+      {motorListo ? (
+        <View style={styles.barraSuperior}>
+          <View style={styles.barraSuperiorTexto}>
+            <Text style={styles.titulo}>Tren Patrones</Text>
+            <Text style={styles.subtitulo} numberOfLines={2}>{estado.mensaje}</Text>
+          </View>
+          <TouchableOpacity style={styles.botonSalir} onPress={salir}>
+            <Text style={styles.botonSalirTexto}>Salir</Text>
+          </TouchableOpacity>
         </View>
-        <View style={styles.metrica}>
-          <Text style={styles.metricaValor}>{estado.dificultad}</Text>
-          <Text style={styles.metricaLabel}>Dificultad</Text>
+      ) : null}
+
+      {motorListo ? (
+        <View style={styles.barraPatron}>
+          <Text style={styles.barraPatronTitulo}>Patron del nivel</Text>
+          <ScrollView
+            showsVerticalScrollIndicator
+            contentContainerStyle={styles.listaPatron}
+          >
+            {estado.patronActual.map((paso) => (
+              <FiguraPatron
+                key={`${paso.posicion}-${paso.clave}`}
+                paso={paso}
+                completado={estado.vagonesResueltos.includes(paso.posicion)}
+              />
+            ))}
+          </ScrollView>
         </View>
-        <View style={styles.metrica}>
-          <Text style={styles.metricaValor}>{estado.aciertos}</Text>
-          <Text style={styles.metricaLabel}>Aciertos</Text>
+      ) : null}
+
+      {motorListo ? (
+        <View style={styles.barraBotones}>
+          <ScrollView
+            showsVerticalScrollIndicator
+            contentContainerStyle={styles.listaBotones}
+          >
+            {opcionesUnicas.map((opcion) => (
+              <TouchableOpacity
+                key={opcion.clave}
+                activeOpacity={0.8}
+                disabled={estado.fase !== ESTADOS_TREN_3D.jugando}
+                style={[
+                  styles.botonNativo,
+                  { backgroundColor: opcion.colorHex },
+                  estado.seleccionClave === opcion.clave && styles.botonNativoActivo,
+                  estado.fase !== ESTADOS_TREN_3D.jugando && { opacity: 0.5 },
+                ]}
+                onPress={() => seleccionarFiguraNativa(opcion)}
+              >
+                <View
+                  style={[
+                    styles.figuraBoton,
+                    opcion.figuraId === 'circulo' && styles.figuraBotonCirculo,
+                    opcion.figuraId === 'triangulo' && styles.figuraBotonTriangulo,
+                    opcion.figuraId === 'triangulo' && { borderBottomColor: opcion.colorHex },
+                    opcion.figuraId === 'estrella' && styles.figuraBotonEstrella,
+                  ]}
+                />
+                <Text style={styles.botonNativoTexto} numberOfLines={1}>
+                  {opcion.figuraLabel}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
-        <View style={styles.metrica}>
-          <Text style={styles.metricaValor}>{estado.errores}</Text>
-          <Text style={styles.metricaLabel}>Errores</Text>
+      ) : null}
+
+      {motorListo ? (
+        <View style={styles.panelMetricas}>
+          <View style={styles.metrica}>
+            <Text style={styles.metricaValor}>{estado.nivel}/{configuracion.nivelesPorPartida}</Text>
+            <Text style={styles.metricaLabel}>Nivel</Text>
+          </View>
+          <View style={styles.metrica}>
+            <Text style={styles.metricaValor}>{estado.dificultad}</Text>
+            <Text style={styles.metricaLabel}>Dificultad</Text>
+          </View>
+          <View style={styles.metrica}>
+            <Text style={styles.metricaValor}>{estado.aciertos}</Text>
+            <Text style={styles.metricaLabel}>Aciertos</Text>
+          </View>
+          <View style={styles.metrica}>
+            <Text style={styles.metricaValor}>{estado.errores}</Text>
+            <Text style={styles.metricaLabel}>Errores</Text>
+          </View>
+          <View style={styles.metrica}>
+            <Text style={styles.metricaValor}>{estado.puntaje}</Text>
+            <Text style={styles.metricaLabel}>Puntos</Text>
+          </View>
         </View>
-        <View style={styles.metrica}>
-          <Text style={styles.metricaValor}>{estado.puntaje}</Text>
-          <Text style={styles.metricaLabel}>Puntos</Text>
-        </View>
-      </View>
+      ) : null}
 
       <TarjetaResultadoTren
         tarjeta={tarjetaResultadoVisible}
@@ -971,6 +1068,121 @@ const styles = StyleSheet.create({
   contenedor: {
     flex: 1,
     backgroundColor: '#06131f',
+  },
+  portadaImagen: {
+    flex: 1,
+  },
+  portadaOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  portadaSombra: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(6, 19, 31, 0.34)',
+  },
+  portadaContenido: {
+    width: '48%',
+    minWidth: 300,
+    maxWidth: 430,
+    alignItems: 'center',
+    gap: espaciado.sm,
+    paddingVertical: 22,
+    paddingHorizontal: 28,
+    borderRadius: 18,
+    backgroundColor: 'rgba(7,28,43,0.78)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  portadaTitulo: {
+    color: '#FFFFFF',
+    fontSize: 30,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  portadaSubtitulo: {
+    color: '#DFF6FF',
+    fontSize: 14,
+    fontWeight: '800',
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+  botonJugarPortada: {
+    marginTop: 6,
+    minWidth: 190,
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 34,
+    alignItems: 'center',
+    backgroundColor: colores.alerta,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#6D4D00',
+    shadowOpacity: 0.32,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  botonJugarPortadaTexto: {
+    color: '#06131f',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  botonSalirPortada: {
+    position: 'absolute',
+    top: 24,
+    right: 18,
+    backgroundColor: 'rgba(7,28,43,0.82)',
+    borderRadius: radios.md,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
+  },
+  cargaMotorOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cargaMotorPanel: {
+    minWidth: 300,
+    maxWidth: 420,
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 20,
+    paddingHorizontal: 26,
+    borderRadius: 18,
+    backgroundColor: 'rgba(7,28,43,0.86)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.34)',
+  },
+  cargaMotorTitulo: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  cargaMotorTexto: {
+    color: '#DFF6FF',
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  botonReintentarMotor: {
+    marginTop: 6,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    backgroundColor: colores.alerta,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  botonReintentarMotorTexto: {
+    color: '#06131f',
+    fontWeight: '900',
   },
   barraSuperior: {
     position: 'absolute',
@@ -1525,10 +1737,16 @@ const styles = StyleSheet.create({
     flexWrap: 'nowrap',
     gap: 7,
   },
+  gridMetricasResultadoFinal: {
+    flexWrap: 'nowrap',
+  },
   gridMetricasResultadoCompacta: {
     gap: 5,
     marginTop: 6,
     flexWrap: 'nowrap',
+  },
+  gridMetricasResultadoFinalCompacta: {
+    gap: 5,
   },
   cardMetricaResultado: {
     minWidth: '22%',
@@ -1546,12 +1764,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 14,
   },
+  cardMetricaResultadoFinal: {
+    minWidth: 0,
+    flex: 1,
+  },
   cardMetricaResultadoCompacta: {
     paddingVertical: 5,
     paddingHorizontal: 6,
     borderRadius: 11,
     borderWidth: 1,
     gap: 1,
+  },
+  cardMetricaResultadoFinalCompacta: {
+    paddingHorizontal: 4,
   },
   cardMetricaResultado0: {
     backgroundColor: '#EAFBFF',

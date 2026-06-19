@@ -107,14 +107,23 @@ export const generarHtmlMotorBabylon = (parametrosIniciales, opciones = {}) => {
           return mesh;
         }
 
+        function obtenerXvagon(indice) {
+          return -5.25 + indice * 1.02;
+        }
+
+        function obtenerXLocomotora() {
+          return obtenerXvagon(Math.max(estado.patron.length, 1)) + 0.12;
+        }
+
         function crearVagon(paso, indice) {
-          var x = -4.85 + indice * 1.02;
+          var x = obtenerXvagon(indice);
           var completado = !!estado.completados[indice];
           var seleccionado = estado.seleccion && estado.seleccion.clave === paso.clave;
           var base = BABYLON.MeshBuilder.CreateBox('vagon-' + indice, { width: 0.9, height: 0.56, depth: 0.82 }, scene);
           base.position = new BABYLON.Vector3(x, 0, 0);
           base.material = material('vagon-mat-' + indice, completado ? '#64d28a' : seleccionado ? '#ffd85f' : '#4bb2e6');
           base.metadata = { tipo: 'vagon', indice: indice, paso: paso };
+          base.parent = grupoTren;
 
           var ruedaA = BABYLON.MeshBuilder.CreateCylinder('rueda-a-' + indice, { diameter: 0.18, height: 0.1, tessellation: 18 }, scene);
           ruedaA.rotation.z = Math.PI / 2;
@@ -126,30 +135,49 @@ export const generarHtmlMotorBabylon = (parametrosIniciales, opciones = {}) => {
           ruedaB.position.x = x + 0.2;
           ruedaB.metadata = { tipo: 'vagon', indice: indice, paso: paso };
 
+          ruedaA.parent = grupoTren;
+          ruedaB.parent = grupoTren;
+          vagones.push(ruedaA, ruedaB);
+
           var esperado = crearFigura(paso.figuraId, 'objetivo-' + indice, new BABYLON.Vector3(x, 0.56, 0), 0.52, completado ? paso.colorHex : '#e9f2fb');
           esperado.visibility = completado ? 1 : 0.32;
           esperado.metadata = { tipo: 'vagon', decoracion: true, indice: indice, paso: paso };
 
-          base.parent = grupoTren;
-          ruedaA.parent = grupoTren;
-          ruedaB.parent = grupoTren;
           esperado.parent = grupoTren;
 
-          vagones.push(base, ruedaA, ruedaB, esperado);
+          vagones.push(base, esperado);
         }
 
         function crearLocomotora() {
-          var cuerpo = BABYLON.MeshBuilder.CreateBox('locomotora', { width: 1.18, height: 0.82, depth: 0.92 }, scene);
-          cuerpo.position = new BABYLON.Vector3(-6.05, 0.08, 0);
+          var x = obtenerXLocomotora();
+
+          var cuerpo = BABYLON.MeshBuilder.CreateBox('locomotora', { width: 1.26, height: 0.78, depth: 0.92 }, scene);
+          cuerpo.position = new BABYLON.Vector3(x, 0.08, 0);
           cuerpo.material = material('locomotora-mat', '#ff6b6b');
+          var cabina = BABYLON.MeshBuilder.CreateBox('cabina-locomotora', { width: 0.48, height: 0.58, depth: 0.78 }, scene);
+          cabina.position = new BABYLON.Vector3(x - 0.28, 0.62, 0);
+          cabina.material = material('cabina-locomotora-mat', '#4bb2e6');
           var chimenea = BABYLON.MeshBuilder.CreateCylinder('chimenea', { diameter: 0.3, height: 0.5, tessellation: 18 }, scene);
-          chimenea.position = new BABYLON.Vector3(-6.28, 0.76, 0);
+          chimenea.position = new BABYLON.Vector3(x + 0.28, 0.76, 0);
           chimenea.material = material('chimenea-mat', '#273548');
+          var faro = BABYLON.MeshBuilder.CreateSphere('faro-locomotora', { diameter: 0.22, segments: 16 }, scene);
+          faro.position = new BABYLON.Vector3(x + 0.66, 0.2, 0);
+          faro.material = material('faro-locomotora-mat', '#fff2a8', true);
+          var ruedaLocomotoraA = BABYLON.MeshBuilder.CreateCylinder('rueda-locomotora-a', { diameter: 0.26, height: 0.12, tessellation: 20 }, scene);
+          ruedaLocomotoraA.rotation.z = Math.PI / 2;
+          ruedaLocomotoraA.position = new BABYLON.Vector3(x - 0.36, -0.38, 0.43);
+          ruedaLocomotoraA.material = material('rueda-locomotora-a-mat', '#263348');
+          var ruedaLocomotoraB = ruedaLocomotoraA.clone('rueda-locomotora-b');
+          ruedaLocomotoraB.position.x = x + 0.34;
           
           cuerpo.parent = grupoTren;
+          cabina.parent = grupoTren;
           chimenea.parent = grupoTren;
+          faro.parent = grupoTren;
+          ruedaLocomotoraA.parent = grupoTren;
+          ruedaLocomotoraB.parent = grupoTren;
 
-          vagones.push(cuerpo, chimenea);
+          vagones.push(cuerpo, cabina, chimenea, faro, ruedaLocomotoraA, ruedaLocomotoraB);
         }
 
         function marcarSeleccion(paso) {

@@ -160,6 +160,9 @@ test('motor Babylon V2 expone selector nativo y movimiento continuo del tren', (
   assert.match(html, /finRecorridoX/);
   assert.match(html, /resolverJugada\(picked\.metadata\.indice\)/);
   assert.match(html, /function reportarNivelCompletado/);
+  assert.match(html, /function obtenerXLocomotora/);
+  assert.match(html, /obtenerXvagon\(Math\.max\(estado\.patron\.length, 1\)\) \+ 0\.12/);
+  assert.match(html, /rueda-locomotora-a/);
   assert.match(html, /nivelCompletado: nivelCompletado/);
   assert.match(html, /estado\.nivelReportado = true/);
   assert.match(html, /esperado\.metadata = \{ tipo: 'vagon', decoracion: true/);
