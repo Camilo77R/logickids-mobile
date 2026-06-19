@@ -30,11 +30,12 @@ import {
 } from '../features/games/core/resolverAccesoJuego';
 import { useStudentDashboard } from '../hooks/useStudentDashboard';
 import { colors, fonts, shadows, spacing } from '../constants/theme';
+import ActivitiesScreen from './ActivitiesScreen';
 import GamePathScreen from './GamePathScreen';
 import ProfileNinoScreen from './ProfileNinoScreen';
 
 const TERMINAL_PARTICIPANT_STATES = new Set(['completado', 'abandonado', 'cerrado']);
-const DASHBOARD_BACKGROUND = '#FAF3FF';
+const DASHBOARD_BACKGROUND = '#F5F5F5';
 const trainHeroImage = require('../../assets/branding/fondo definitivo.jpeg');
 
 const OFFICIAL_SKILLS = Object.freeze([
@@ -43,7 +44,15 @@ const OFFICIAL_SKILLS = Object.freeze([
   { name: 'Logica', icon: 'scale', gameSlug: null },
   { name: 'Razonar', icon: 'cube', gameSlug: CATALOGO_JUEGOS.mercadoInteligente.slug },
   { name: 'Atencion', icon: 'search', gameSlug: null },
+
 ]);
+
+const SESSION_BADGES = Object.freeze({
+  Activa: { backgroundColor: '#DDF8EA', color: '#157347' },
+  Pendiente: { backgroundColor: '#FFF3CD', color: '#8A6500' },
+  Bloqueada: { backgroundColor: '#ECEFF3', color: '#5F6673' },
+  Completada: { backgroundColor: '#F3E8FA', color: colors.purple },
+});
 
 const DASHBOARD_TABS = Object.freeze({
   mapa: 'mapa',
@@ -225,7 +234,8 @@ const buildSkillCards = ({ accessBySlug, skillStatsView }) => {
   );
 
   return OFFICIAL_SKILLS.map((skill, index) => {
-    const stat = statsBySkill.get(normalizeSkillKey(skill.name));
+    const statKeys = [skill.name, ...(skill.statAliases ?? [])].map(normalizeSkillKey);
+    const stat = statKeys.map((key) => statsBySkill.get(key)).find(Boolean);
     const access = skill.gameSlug ? accessBySlug[skill.gameSlug] : null;
     const isAvailable = access?.estado === ESTADOS_ACCESO_JUEGO.disponible;
     const lockedReason = buildMapLockedReason(access, Boolean(skill.gameSlug), skill.gameSlug);
@@ -236,6 +246,12 @@ const buildSkillCards = ({ accessBySlug, skillStatsView }) => {
       number: index + 1,
       active: isAvailable,
       locked: !isAvailable,
+      level: stat?.tone?.label ?? (isAvailable ? 'Lista' : 'Inicial'),
+      percent: stat?.precision ?? 0,
+      percentLabel: stat?.precisionLabel ?? '0%',
+      activitiesLabel: stat?.attemptsLabel ?? '0 intentos',
+      achievementsLabel: stat ? stat.tone.label : 'Sin logros asociados',
+      detailProgressLabel: stat?.reactionLabel ?? (isAvailable ? 'Juego habilitado' : lockedReason),
       value: stat?.precisionLabel ?? (isAvailable ? 'Listo para jugar' : 'Listo para comenzar'),
       detail: stat?.attemptsLabel ?? (isAvailable ? 'Juego habilitado' : lockedReason),
       activeMessage: isAvailable ? 'Juego habilitado' : '',
@@ -244,6 +260,43 @@ const buildSkillCards = ({ accessBySlug, skillStatsView }) => {
     };
   });
 };
+
+const resolveSessionStatus = ({ access, profile, slug, isComingSoon }) => {
+  if (isComingSoon) {
+    return 'Pendiente';
+  }
+
+  if (profile?.sesion_participante_estado === 'completado' && profile?.sesion_minijuego_slug === slug) {
+    return 'Completada';
+  }
+
+  if (access?.estado === ESTADOS_ACCESO_JUEGO.disponible) {
+    return 'Activa';
+  }
+
+  if (!profile?.sesion_activa) {
+    return 'Pendiente';
+  }
+
+  return 'Bloqueada';
+};
+
+const buildSessionCards = ({ activityCards, studentProfile }) =>
+  activityCards.map((activity) => {
+    const status = resolveSessionStatus({
+      access: activity.access,
+      profile: studentProfile,
+      slug: activity.slug,
+      isComingSoon: activity.isComingSoon,
+    });
+    const isLocked = status === 'Bloqueada';
+
+    return {
+      ...activity,
+      status,
+      locked: isLocked,
+    };
+  });
 
 const clampProgress = (value) => Math.min(Math.max(value, 0), 100);
 
@@ -263,6 +316,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const [activeGame, setActiveGame] = useState(null);
   const [showGamePath, setShowGamePath] = useState(false);
   const [skillsExpanded, setSkillsExpanded] = useState(false);
+  const [expandedSkillId, setExpandedSkillId] = useState(null);
   const [activeTab, setActiveTab] = useState(DASHBOARD_TABS.mapa);
   const {
     profile,
@@ -428,19 +482,25 @@ export default function DashboardScreen({ studentSession, onLogout }) {
         slug: caminoArConfig.slug,
         id: caminoArConfig.slug,
         title: 'Camino AR',
+        skillLabel: 'Memoria',
+        durationLabel: '10 min',
         status: canPlayCaminoAr ? 'Actividad' : 'Bloqueado',
         locked: !canPlayCaminoAr,
         lockedReason: buildLockedReason(caminoArAccess, true),
         icon: 'trail-sign',
+        access: caminoArAccess,
       },
       {
         slug: tren3DConfig.slug,
         id: tren3DConfig.slug,
         title: 'Tren de Figuras',
+        skillLabel: 'Patrones',
+        durationLabel: '10 min',
         status: canPlayTren3D ? 'Actividad' : 'Bloqueado',
         locked: !canPlayTren3D,
         lockedReason: buildLockedReason(tren3DAccess, true),
         icon: 'shapes',
+        access: tren3DAccess,
       },
       {
         slug: mercadoConfig.slug,
@@ -450,6 +510,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
         locked: !canPlayMercado,
         lockedReason: buildLockedReason(mercadoAccess, true),
         icon: 'basket',
+
       },
     ],
     [
@@ -463,6 +524,14 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       tren3DAccess,
       tren3DConfig.slug,
     ],
+  );
+  const sessionCards = useMemo(
+    () =>
+      buildSessionCards({
+        activityCards,
+        studentProfile,
+      }),
+    [activityCards, studentProfile],
   );
 
   useEffect(() => {
@@ -513,10 +582,38 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const handlePathSkillPress = (skill) => {
     openActivityBySlug(skill.gameSlug);
   };
-
-  const exitGame = () => {
+const exitGame = async () => {
+  try {
+    await reloadDashboard();
+  } finally {
     setActiveGame(null);
-    void reloadDashboard();
+  }
+};
+
+const handleSkillDetailPress = (skill) => {
+  if (skill.gameSlug && skill.active) {
+    openActivityBySlug(skill.gameSlug);
+  }
+};
+
+const openActivitiesTab = () => {
+  setActiveTab(DASHBOARD_TABS.actividades);
+  setShowGamePath(false);
+  setSkillsExpanded(false);
+};
+
+const handleActivityDetailPress = () => {
+  setActiveTab(DASHBOARD_TABS.actividades);
+};
+
+const handleActivityActionPress = (activity) => {
+  if (activity.status === 'Activa' && activity.slug) {
+    openActivityBySlug(activity.slug);
+    return;
+  }
+
+  handleActivityDetailPress(activity);
+};
   };
 
   if (!dashboardAccess.allowed) {
@@ -546,6 +643,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     setActiveTab(nextTab);
     setShowGamePath(false);
     setSkillsExpanded(false);
+    setExpandedSkillId(null);
   };
 
   if (activeGame === SLUG_TREN_3D) {
@@ -673,20 +771,20 @@ export default function DashboardScreen({ studentSession, onLogout }) {
               </View>
 
               <View style={styles.sectionBlock}>
-                <SectionTitle title="Continua jugando" />
-                <View style={styles.games}>
-                  {activityCards.map((activity) => (
-                    <GameCard
-                      key={activity.id}
-                      icon={activity.icon}
-                      title={activity.title}
-                      status={activity.status}
-                      lockedReason={activity.lockedReason}
-                      locked={activity.locked}
-                      onPress={!activity.locked ? () => openActivityBySlug(activity.slug) : undefined}
+                <SectionTitle title="Mis Sesiones" subtitle="Continúa donde te quedaste" />
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.sessionsCarousel}
+                >
+                  {sessionCards.map((session) => (
+                    <SessionCard
+                      key={session.id}
+                      session={session}
+                      onPress={openActivitiesTab}
                     />
                   ))}
-                </View>
+                </ScrollView>
               </View>
 
               <View style={styles.sectionBlock}>
@@ -697,14 +795,28 @@ export default function DashboardScreen({ studentSession, onLogout }) {
                   onAction={() => setSkillsExpanded((current) => !current)}
                 />
                 {skillsExpanded ? (
-                  <View style={styles.skillGrid}>
+                  <View style={styles.skillsList}>
                     {skillCards.map((skill) => (
-                      <SkillCard key={skill.id} skill={skill} />
+                      <SkillCard
+                        key={skill.id}
+                        skill={skill}
+                        expanded={expandedSkillId === skill.id}
+                        onToggle={() =>
+                          setExpandedSkillId((current) => (current === skill.id ? null : skill.id))
+                        }
+                        onDetail={() => handleSkillDetailPress(skill)}
+                      />
                     ))}
                   </View>
                 ) : null}
               </View>
             </>
+          ) : activeTab === DASHBOARD_TABS.actividades ? (
+            <ActivitiesScreen
+              activities={sessionCards}
+              onActivityPress={handleActivityDetailPress}
+              onActivityActionPress={handleActivityActionPress}
+            />
           ) : (
             <View style={styles.emptyTabContent} />
           )}
@@ -759,7 +871,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       </SafeAreaView>
     </View>
   );
-}
+
 
 function SectionTitle({ title, subtitle, action, actionIcon, onAction }) {
   return (
@@ -839,26 +951,31 @@ function ProgressItem({ icon, value, label, helper, progress = 0 }) {
   );
 }
 
-function GameCard({ icon, title, status, locked, lockedReason, onPress }) {
+function SessionCard({ session, onPress }) {
+  const badge = SESSION_BADGES[session.status] ?? SESSION_BADGES.Bloqueada;
+
   return (
     <TouchableOpacity
       activeOpacity={0.88}
       disabled={!onPress}
       onPress={onPress}
-      style={[styles.gameCard, locked && styles.gameCardLocked]}
+      style={[styles.sessionCard, session.locked && styles.sessionCardLocked]}
     >
-      <View style={styles.gameArt}>
+      <View style={styles.sessionIcon}>
         <Ionicons
-          name={locked ? 'lock-closed' : icon}
-          size={30}
-          color={locked ? colors.muted : colors.purple}
+          name={session.locked ? 'lock-closed' : session.icon}
+          size={24}
+          color={session.locked ? colors.muted : colors.purple}
         />
       </View>
-      <Text style={styles.gameStatus}>{status}</Text>
-      <Text style={styles.gameTitle}>{title}</Text>
-      {locked ? <Text style={styles.gameLockText}>{lockedReason}</Text> : null}
-      <View style={styles.gameTrack}>
-        <View style={[styles.gameFill, { width: locked ? '18%' : '72%' }]} />
+      <Text style={styles.sessionTitle} numberOfLines={2}>{session.title}</Text>
+      <View style={styles.sessionFooter}>
+        <View style={[styles.sessionBadge, { backgroundColor: badge.backgroundColor }]}>
+          <Text style={[styles.sessionBadgeText, { color: badge.color }]}>{session.status}</Text>
+        </View>
+        <View style={styles.sessionActionButton}>
+          <Text style={styles.sessionActionText}>Ver detalle</Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -927,12 +1044,56 @@ function StudentAccessGateScreen({
   );
 }
 
-function SkillCard({ skill }) {
+function SkillCard({ skill, expanded, onToggle, onDetail }) {
   return (
-    <View style={[styles.skillCard, skill.active && styles.skillCardActive]}>
-      <Text style={[styles.skillName, skill.active && styles.skillNameActive]}>{skill.name}</Text>
-      <Text style={[styles.skillValue, skill.active && styles.skillValueActive]}>{skill.value}</Text>
-      <Text style={[styles.skillDetail, skill.active && styles.skillDetailActive]}>{skill.detail}</Text>
+    <TouchableOpacity activeOpacity={0.88} onPress={onToggle} style={styles.skillCard}>
+      <View style={styles.skillHeader}>
+        <View style={[styles.skillIconWrap, { backgroundColor: `${skill.color}1F` }]}>
+          <Ionicons name={skill.icon} size={22} color={skill.color} />
+        </View>
+        <View style={styles.skillMain}>
+          <Text style={styles.skillName} numberOfLines={1}>{skill.name}</Text>
+          <Text style={styles.skillLevel} numberOfLines={1}>Nivel {skill.level}</Text>
+        </View>
+        <Text style={[styles.skillPercent, { color: skill.color }]}>{skill.percentLabel}</Text>
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.muted} />
+      </View>
+
+      <View style={styles.skillTrack}>
+        <View style={[styles.skillFill, { width: `${clampProgress(skill.percent)}%`, backgroundColor: skill.color }]} />
+      </View>
+
+      {expanded ? (
+        <View style={styles.skillExpanded}>
+          <SkillInfoRow label="Actividades realizadas" value={skill.activitiesLabel} />
+          <SkillInfoRow label="Logros asociados" value={skill.achievementsLabel} />
+          <SkillInfoRow label="Progreso detallado" value={skill.detailProgressLabel} />
+          <TouchableOpacity
+            activeOpacity={0.86}
+            disabled={!skill.gameSlug || !skill.active}
+            onPress={onDetail}
+            style={[styles.skillDetailButton, (!skill.gameSlug || !skill.active) && styles.skillDetailButtonDisabled]}
+          >
+            <Text
+              style={[
+                styles.skillDetailButtonText,
+                (!skill.gameSlug || !skill.active) && styles.skillDetailButtonTextDisabled,
+              ]}
+            >
+              Ver detalle
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+    </TouchableOpacity>
+  );
+}
+
+function SkillInfoRow({ label, value }) {
+  return (
+    <View style={styles.skillInfoRow}>
+      <Text style={styles.skillInfoLabel}>{label}</Text>
+      <Text style={styles.skillInfoValue}>{value}</Text>
     </View>
   );
 }
@@ -1167,50 +1328,119 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
   },
-  games: { flexDirection: 'row', gap: spacing.sm },
-  gameCard: {
-    flex: 1,
-    minHeight: 132,
-    borderRadius: 18,
+  sessionsCarousel: {
+    gap: spacing.sm,
+    paddingRight: spacing.md,
+  },
+  sessionCard: {
+    width: 220,
+    height: 150,
+    borderRadius: 20,
     backgroundColor: colors.white,
-    padding: spacing.xs,
+    padding: spacing.md,
+    justifyContent: 'space-between',
     ...shadows.soft,
   },
-  gameCardLocked: { opacity: 0.72 },
-  gameArt: {
-    height: 38,
+  sessionCardLocked: { opacity: 0.78 },
+  sessionIcon: {
+    width: 42,
+    height: 42,
     borderRadius: 14,
     backgroundColor: colors.purpleSoft,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
   },
-  gameStatus: { color: colors.purple, fontFamily: fonts.black, fontSize: 8 },
-  gameTitle: { color: colors.purpleDark, fontFamily: fonts.black, fontSize: 10, lineHeight: 13, marginTop: 2 },
-  gameLockText: {
-    color: colors.textGray,
-    fontFamily: fonts.semiBold,
-    fontSize: 8,
-    lineHeight: 11,
-    marginTop: 3,
+  sessionFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
   },
-  gameTrack: { height: 6, borderRadius: 3, backgroundColor: colors.lavender, marginTop: 'auto', overflow: 'hidden' },
-  gameFill: { height: '100%', borderRadius: 4, backgroundColor: colors.purple },
-  skillGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  sessionBadge: {
+    minHeight: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  sessionBadgeText: { fontFamily: fonts.black, fontSize: 11 },
+  sessionTitle: {
+    color: colors.purpleDark,
+    fontFamily: fonts.black,
+    fontSize: 16,
+    lineHeight: 21,
+  },
+  sessionActionButton: {
+    minHeight: 30,
+    borderRadius: 15,
+    backgroundColor: colors.purple,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  sessionActionText: { color: colors.white, fontFamily: fonts.black, fontSize: 10 },
+  skillsList: { gap: 12 },
   skillCard: {
-    width: '47.5%',
-    borderRadius: 18,
+    borderRadius: 16,
     backgroundColor: colors.white,
-    padding: spacing.sm,
+    padding: spacing.md,
     ...shadows.soft,
   },
-  skillCardActive: { backgroundColor: colors.yellow },
-  skillName: { color: colors.purple, fontFamily: fonts.black, fontSize: 12 },
-  skillNameActive: { color: colors.white },
-  skillValue: { color: colors.purpleDark, fontFamily: fonts.black, fontSize: 18, marginTop: 4 },
-  skillValueActive: { color: colors.white },
-  skillDetail: { color: colors.textGray, fontFamily: fonts.semiBold, fontSize: 10, marginTop: 2 },
-  skillDetailActive: { color: colors.white },
+  skillHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  skillIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  skillMain: { flex: 1 },
+  skillName: { color: colors.purpleDark, fontFamily: fonts.black, fontSize: 14, lineHeight: 18 },
+  skillLevel: { color: colors.textGray, fontFamily: fonts.semiBold, fontSize: 10, lineHeight: 14, marginTop: 1 },
+  skillPercent: { fontFamily: fonts.black, fontSize: 14, minWidth: 42, textAlign: 'right' },
+  skillTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ECE7F3',
+    overflow: 'hidden',
+    marginTop: spacing.sm,
+  },
+  skillFill: { height: '100%', borderRadius: 4 },
+  skillExpanded: {
+    borderTopWidth: 1,
+    borderTopColor: '#EEE8F4',
+    marginTop: spacing.md,
+    paddingTop: spacing.sm,
+    gap: spacing.xs,
+  },
+  skillInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  skillInfoLabel: { flex: 1, color: colors.textGray, fontFamily: fonts.semiBold, fontSize: 10, lineHeight: 14 },
+  skillInfoValue: {
+    flex: 1,
+    color: colors.purpleDark,
+    fontFamily: fonts.black,
+    fontSize: 10,
+    lineHeight: 14,
+    textAlign: 'right',
+  },
+  skillDetailButton: {
+    alignSelf: 'flex-start',
+    minHeight: 34,
+    borderRadius: 17,
+    backgroundColor: colors.purple,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.xs,
+  },
+  skillDetailButtonDisabled: { backgroundColor: '#E5E1EA' },
+  skillDetailButtonText: { color: colors.white, fontFamily: fonts.black, fontSize: 11 },
+  skillDetailButtonTextDisabled: { color: colors.textGray },
   emptyTabContent: { flexGrow: 1 },
   mapFabWrap: {
     position: 'absolute',
