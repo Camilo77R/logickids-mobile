@@ -68,7 +68,9 @@ export default function ProfileNinoScreen({
   attemptsLabel,
   avatarColor,
   avatarUri,
+  gradeLabel,
   groupLabel,
+  lastSession,
   onContinue,
   onLogout,
   precisionLabel,
@@ -89,7 +91,7 @@ export default function ProfileNinoScreen({
         <View style={styles.heroText}>
           <Text style={styles.eyebrow}>Mi perfil</Text>
           <Text style={styles.name}>{studentName}</Text>
-          <Text style={styles.meta}>{groupLabel}</Text>
+          <Text style={styles.meta}>{gradeLabel ?? groupLabel}</Text>
         </View>
       </View>
 
@@ -114,6 +116,20 @@ export default function ProfileNinoScreen({
         <View style={styles.cardTextBlock}>
           <Text style={styles.cardTitle}>Tu proxima meta</Text>
           <Text style={styles.cardText}>{goalMessage}</Text>
+        </View>
+      </View>
+
+      <View style={styles.goalCard}>
+        <View style={styles.cardIcon}>
+          <Ionicons name="calendar" size={20} color={colors.white} />
+        </View>
+        <View style={styles.cardTextBlock}>
+          <Text style={styles.cardTitle}>Ultima sesion</Text>
+          <Text style={styles.cardText}>
+            {lastSession
+              ? `${lastSession.title ?? 'Sesion de clase'} - ${lastSession.stateLabel ?? 'En progreso'}`
+              : 'Aun no tienes sesiones registradas.'}
+          </Text>
         </View>
       </View>
 

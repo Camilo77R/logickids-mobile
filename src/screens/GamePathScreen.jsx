@@ -4,16 +4,16 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, G, LinearGradient, Path, Stop } from 'react-native-svg';
 import { colors, fonts, shadows, spacing } from '../constants/theme';
 
-const NODE_SIZE = 78;
+const NODE_SIZE = 84;
 const ROAD_PATH =
-  'M 250 34 C 289 88 215 104 143 114 C 64 126 59 184 132 202 C 212 222 300 212 300 278 C 300 342 194 326 118 358 C 45 392 64 462 149 476 C 213 486 272 464 295 520';
+  'M 248 40 C 298 94 218 116 142 126 C 58 138 52 202 132 222 C 214 242 304 234 304 304 C 304 374 198 358 116 394 C 38 430 62 510 150 526 C 218 538 278 512 300 586';
 
 const NODE_LAYOUT = [
-  { top: 62, left: '4%' },
-  { top: 150, right: '2%' },
-  { top: 252, left: '5%' },
-  { top: 344, right: '8%' },
-  { top: 428, left: '12%' },
+  { top: 72, left: '5%' },
+  { top: 172, right: '1%' },
+  { top: 292, left: '5%' },
+  { top: 400, right: '8%' },
+  { top: 500, left: '12%' },
 ];
 
 export default function GamePathScreen({ skills, onBack, onStartSkill }) {
@@ -62,7 +62,7 @@ export default function GamePathScreen({ skills, onBack, onStartSkill }) {
 
 function AdventureRoad() {
   return (
-    <Svg width="100%" height="100%" viewBox="0 0 360 540" style={styles.roadSvg}>
+    <Svg width="100%" height="100%" viewBox="0 0 360 620" style={styles.roadSvg}>
       <Defs>
         <LinearGradient id="roadPurple" x1="0" y1="0" x2="1" y2="1">
           <Stop offset="0" stopColor="#A84BDB" />
@@ -74,8 +74,8 @@ function AdventureRoad() {
         <Circle cx="44" cy="84" r="15" fill="#F3E8FA" />
         <Circle cx="315" cy="144" r="11" fill="#F3E8FA" />
         <Circle cx="52" cy="286" r="12" fill="#F3E8FA" />
-        <Circle cx="312" cy="410" r="14" fill="#F3E8FA" />
-        <Circle cx="80" cy="506" r="10" fill="#F3E8FA" />
+        <Circle cx="312" cy="448" r="14" fill="#F3E8FA" />
+        <Circle cx="80" cy="564" r="10" fill="#F3E8FA" />
       </G>
 
       <Path
@@ -113,7 +113,7 @@ function AdventureRoad() {
         fill="none"
       />
       <Circle cx="250" cy="34" r="25" fill={colors.yellow} />
-      <Circle cx="295" cy="520" r="28" fill={colors.yellow} />
+      <Circle cx="300" cy="586" r="30" fill={colors.yellow} />
     </Svg>
   );
 }
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
-    minHeight: 0,
+    minHeight: 650,
     borderRadius: 24,
     backgroundColor: '#F8FBFA',
     overflow: 'hidden',
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   },
   node: {
     position: 'absolute',
-    width: NODE_SIZE + 76,
+    width: NODE_SIZE + 86,
     alignItems: 'center',
   },
   nodeCircle: {
@@ -271,10 +271,10 @@ const styles = StyleSheet.create({
   labelText: {
     color: colors.purple,
     fontFamily: fonts.black,
-    fontSize: 11,
+    fontSize: 13,
   },
   reasonPill: {
-    maxWidth: NODE_SIZE + 70,
+    maxWidth: NODE_SIZE + 82,
     minHeight: 32,
     borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.92)',
@@ -292,12 +292,12 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.textGray,
     fontFamily: fonts.semiBold,
-    fontSize: 8,
-    lineHeight: 10,
+    fontSize: 9,
+    lineHeight: 11,
     textAlign: 'center',
   },
   activePill: {
-    maxWidth: NODE_SIZE + 70,
+    maxWidth: NODE_SIZE + 82,
     minHeight: 30,
     borderRadius: 15,
     backgroundColor: colors.white,
@@ -320,8 +320,8 @@ const styles = StyleSheet.create({
   },
   finishMark: {
     position: 'absolute',
-    right: '8%',
-    bottom: 12,
+    right: '7%',
+    bottom: 18,
     minWidth: 78,
     minHeight: 34,
     borderRadius: 17,
@@ -335,8 +335,8 @@ const styles = StyleSheet.create({
   },
   startMark: {
     position: 'absolute',
-    right: '22%',
-    top: 8,
+    right: '21%',
+    top: 14,
     minWidth: 82,
     minHeight: 34,
     borderRadius: 17,
