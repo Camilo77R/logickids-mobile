@@ -36,7 +36,10 @@ export default function RobotTallerScreen({
         estado: controlador.estado,
         respuestaInicioSesion: sesionRobotTaller.respuestaInicio,
         respuestaFinalizacionSesion: sesionRobotTaller.respuestaFinalizacion,
-        continuarActividad: controlador.reiniciarPartida,
+        continuarActividad: () => {
+          sesionRobotTaller.prepararNuevaRonda();
+          controlador.reiniciarPartida();
+        },
         salirActividad: onSalir,
         reiniciarPartida: controlador.reiniciarPartida,
       }),
@@ -60,6 +63,16 @@ export default function RobotTallerScreen({
       moverParte={controlador.moverParte}
       soltarParte={controlador.soltarParte}
       reiniciarPartida={controlador.reiniciarPartida}
+      modoQuiz={controlador.modoQuiz}
+      preguntaActual={controlador.preguntaActual}
+      feedbackQuiz={controlador.feedbackQuiz}
+      responderQuiz={controlador.responderQuiz}
+      problemaMatematico={controlador.problemaMatematico}
+      mostrarModalMatematica={controlador.mostrarModalMatematica}
+      manejarCorrectaMatematica={controlador.manejarCorrectaMatematica}
+      manejarIncorrectaMatematica={controlador.manejarIncorrectaMatematica}
+      setMostrarModalMatematica={controlador.setMostrarModalMatematica}
+      temaNombre={controlador.temaNombre}
     />
   );
 }

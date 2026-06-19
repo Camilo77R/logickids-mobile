@@ -66,7 +66,7 @@ export const construirEscenaRobotTaller = ({
           metricas: construirMetricasResultado({ resultado: estado.resultado }),
           logros: cierreSesion?.logros ?? [],
           accionContinuar: continuarActividad ?? null,
-          etiquetaContinuar: 'Reintentar',
+          etiquetaContinuar: cierreSesion?.haySiguientePaso ? 'Siguiente Nivel' : 'Reintentar',
           accionSalir: salirActividad,
           etiquetaSalir: 'Volver al inicio',
           sincronizandoCierre: false,

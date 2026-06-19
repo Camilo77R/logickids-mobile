@@ -1,4 +1,4 @@
-import { MODO_PRESENTACION_ROBOT_TALLER } from './robotTaller.constants';
+import { MODO_PRESENTACION_ROBOT_TALLER, NIVELES } from './robotTaller.constants';
 
 const CONFIGURACION_BASE = Object.freeze({
   slug: 'robot-logico',
@@ -11,6 +11,8 @@ const CONFIGURACION_BASE = Object.freeze({
   configuracion: Object.freeze({
     tiempoLimiteMs: 120000,
   }),
+  nivel: 1,
+  idMision: null,
 });
 
 const asegurarEnteroPositivo = (valor, respaldo) => {
@@ -19,6 +21,12 @@ const asegurarEnteroPositivo = (valor, respaldo) => {
     return respaldo;
   }
   return numero;
+};
+
+const normalizarNivel = (valor, respaldo) => {
+  const nivel = asegurarEnteroPositivo(valor, respaldo);
+  if (!NIVELES[nivel]) return respaldo;
+  return nivel;
 };
 
 const normalizarModoPresentacion = (valor, respaldo) => {
@@ -31,6 +39,8 @@ const normalizarModoPresentacion = (valor, respaldo) => {
 export const normalizarConfiguracionRobotTaller = (entrada = {}) => {
   const configuracionEntrada = entrada.configuracion ?? {};
   const configuracionBase = CONFIGURACION_BASE.configuracion;
+  const nivel = normalizarNivel(entrada.nivel, CONFIGURACION_BASE.nivel);
+  const nivelConfig = NIVELES[nivel];
 
   return {
     slug: entrada.slug ?? CONFIGURACION_BASE.slug,
@@ -45,10 +55,12 @@ export const normalizarConfiguracionRobotTaller = (entrada = {}) => {
     habilidad: entrada.habilidad ?? CONFIGURACION_BASE.habilidad,
     configuracion: {
       tiempoLimiteMs: asegurarEnteroPositivo(
-        configuracionEntrada.tiempoLimiteMs,
+        configuracionEntrada.tiempoLimiteMs ?? nivelConfig.tiempoLimiteMs,
         configuracionBase.tiempoLimiteMs,
       ),
     },
+    nivel,
+    idMision: entrada.idMision ?? CONFIGURACION_BASE.idMision,
   };
 };
 
@@ -72,5 +84,7 @@ export const resolverConfiguracionRobotTallerDesdeBackend = ({
       ...configuracionLocal.configuracion,
       tiempoLimiteMs: gameConfig.tiempo_limite_ms,
     },
+    nivel: gameConfig.nivel,
+    idMision: gameConfig.id_mision,
   });
 };

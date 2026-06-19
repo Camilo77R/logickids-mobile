@@ -53,10 +53,11 @@ test('PARTES_ROBOT define 7 piezas con formas y posiciones', () => {
 });
 
 test('detectarSnap reconoce pieza cerca de su objetivo', () => {
-  const resultado = detectarSnap(PARTES_ROBOT[0].posicionObjetivo);
+  const resultado = detectarSnap(PARTES_ROBOT[1].posicionObjetivo);
   assert.ok(resultado);
-  assert.equal(resultado.ensamblada, true);
-  assert.equal(resultado.distancia, 0);
+  assert.ok(resultado.snapPerfecto);
+  assert.equal(resultado.snapPerfecto.ensamblada, true);
+  assert.equal(resultado.snapPerfecto.distancia, 0);
 });
 
 test('detectarSnap retorna null para posicion lejana', () => {
