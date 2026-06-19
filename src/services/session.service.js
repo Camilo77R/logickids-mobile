@@ -121,6 +121,33 @@ export const buildStudentSessionState = ({ profile, history }) => {
   };
 };
 
+export const mergeCatalogIntoAssignedGames = (assignedGames = [], games = []) => {
+  const gamesBySlug = new Map(games.map((game) => [game.slug, game]));
+
+  return assignedGames.map((game) => ({
+    ...(gamesBySlug.get(game.slug) ?? {}),
+    ...game,
+    skillName: game.skillName ?? gamesBySlug.get(game.slug)?.skillName ?? null,
+    skillDescription: game.skillDescription ?? gamesBySlug.get(game.slug)?.skillDescription ?? null,
+  }));
+};
+
+export const buildDashboardSessionState = ({ profile, history, games = [] }) => {
+  const sessionState = buildStudentSessionState({ profile, history });
+  const assignedGames = mergeCatalogIntoAssignedGames(sessionState.assignedGames, games);
+
+  return {
+    ...sessionState,
+    assignedGames,
+    activeSession: sessionState.activeSession
+      ? {
+          ...sessionState.activeSession,
+          assignedGames,
+        }
+      : null,
+  };
+};
+
 export const createSessionService = (baseUrl, token) => {
   const apiBaseUrl = normalizeBaseUrl(baseUrl);
   const headers = buildJsonHeaders(token);

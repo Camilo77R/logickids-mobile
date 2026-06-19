@@ -1,6 +1,4 @@
-import {
-  STUDENT_ACHIEVEMENTS_PATH,
-} from '../config/apiContract';
+import { STUDENT_ACHIEVEMENTS_PATH } from '../config/apiContract';
 import {
   buildJsonHeaders,
   normalizeBaseUrl,
@@ -9,8 +7,23 @@ import {
 import { createGameService } from './game.service';
 import { createRankingService } from './ranking.service';
 import { createResultService } from './result.service';
-import { buildStudentSessionState, createSessionService } from './session.service';
+import { buildDashboardSessionState, createSessionService } from './session.service';
 import { createSkillService } from './skill.service';
+
+const unwrapRequiredResult = (result, fallbackMessage) => {
+  if (result.status === 'fulfilled') {
+    return result.value;
+  }
+
+  if (result.reason instanceof Error) {
+    throw result.reason;
+  }
+
+  throw new Error(fallbackMessage);
+};
+
+const buildDashboardStats = (skills = []) =>
+  skills.map((skill) => skill.raw).filter(Boolean);
 
 /**
  * Servicio del dashboard del estudiante.
@@ -44,43 +57,46 @@ export const createStudentDashboardService = (baseUrl, token) => {
     fetchGames: gameService.fetchCatalog,
     fetchResults: resultService.fetchMyResults,
     fetchSkills: skillService.fetchMySkills,
+    fetchRanking: rankingService.fetchMyRanking,
+    fetchStats: async () => buildDashboardStats(await skillService.fetchMySkills()),
 
     async fetchDashboardData() {
-      const [profile, achievements, games, results, skills, backendRanking] = await Promise.all([
+      const [
+        profileResult,
+        achievementsResult,
+        gamesResult,
+        resultsResult,
+        skillsResult,
+        rankingResult,
+      ] = await Promise.allSettled([
         sessionService.fetchProfile(),
         fetchAchievements(),
         gameService.fetchCatalog(),
         resultService.fetchMyResults(),
         skillService.fetchMySkills(),
-        rankingService.fetchMyRanking().catch(() => null),
+        rankingService.fetchMyRanking(),
       ]);
+
+      const profile = unwrapRequiredResult(profileResult, 'No pudimos cargar tu perfil.');
+      const achievements = unwrapRequiredResult(
+        achievementsResult,
+        'No pudimos cargar tus logros.',
+      );
+      const games = unwrapRequiredResult(gamesResult, 'No pudimos cargar tus juegos asignados.');
+      const results = unwrapRequiredResult(
+        resultsResult,
+        'No pudimos cargar tu historial de sesiones.',
+      );
+      const skills = unwrapRequiredResult(skillsResult, 'No pudimos cargar tu progreso.');
+      const rankingSummary = rankingResult.status === 'fulfilled' ? rankingResult.value : null;
       const history = results.map((result) => result.raw).filter(Boolean);
-      const sessionState = buildStudentSessionState({ profile, history });
-      const gamesBySlug = new Map(games.map((game) => [game.slug, game]));
-      const assignedGames = sessionState.assignedGames.map((game) => ({
-        ...(gamesBySlug.get(game.slug) ?? {}),
-        ...game,
-        skillName: game.skillName ?? gamesBySlug.get(game.slug)?.skillName ?? null,
-        skillDescription: game.skillDescription ?? gamesBySlug.get(game.slug)?.skillDescription ?? null,
-      }));
-      const enrichedSessionState = {
-        ...sessionState,
-        assignedGames,
-        activeSession: sessionState.activeSession
-          ? {
-              ...sessionState.activeSession,
-              assignedGames,
-            }
-          : null,
-      };
+      const sessionState = buildDashboardSessionState({ profile, history, games });
       const activeSessionRanking = rankingService.buildSessionRanking({
-        sessionId: enrichedSessionState.activeSession?.id,
+        sessionId: sessionState.activeSession?.id,
         results,
         currentStudent: profile,
       });
-      const ranking = backendRanking?.entries?.length
-        ? backendRanking.entries
-        : activeSessionRanking;
+      const ranking = rankingSummary?.entries?.length ? rankingSummary.entries : activeSessionRanking;
 
       return {
         profile,
@@ -89,9 +105,9 @@ export const createStudentDashboardService = (baseUrl, token) => {
         results,
         skills,
         ranking,
-        rankingSummary: backendRanking,
-        sessionState: enrichedSessionState,
-        stats: skills.map((skill) => skill.raw).filter(Boolean),
+        rankingSummary,
+        sessionState,
+        stats: buildDashboardStats(skills),
       };
     },
   };
