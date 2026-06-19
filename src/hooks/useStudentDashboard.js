@@ -4,6 +4,7 @@ import {
   buildSkillStatsView,
 } from '../features/student-dashboard/studentDashboard.selectors';
 import { createStudentDashboardService } from '../services/studentDashboard.service';
+import { buildStudentSessionState } from '../services/session.service';
 
 const PROFILE_REFRESH_INTERVAL_MS = 12000;
 const TERMINAL_PARTICIPANT_STATES = new Set(['completado', 'abandonado', 'cerrado']);
@@ -12,6 +13,16 @@ const EMPTY_DASHBOARD = {
   profile: null,
   achievements: [],
   stats: [],
+  games: [],
+  results: [],
+  skills: [],
+  ranking: [],
+  rankingSummary: null,
+  sessionState: {
+    activeSession: null,
+    historicalSessions: [],
+    assignedGames: [],
+  },
 };
 
 /**
@@ -168,10 +179,34 @@ export const useStudentDashboard = (studentSession) => {
       try {
         const freshProfile = await service.fetchProfile();
         if (!cancelled) {
-          setDashboard((current) => ({
-            ...current,
-            profile: freshProfile,
-          }));
+          setDashboard((current) => {
+            const nextSessionState = buildStudentSessionState({
+              profile: freshProfile,
+              history: current.results.map((result) => result.raw).filter(Boolean),
+            });
+            const gamesBySlug = new Map(current.games.map((game) => [game.slug, game]));
+            const assignedGames = nextSessionState.assignedGames.map((game) => ({
+              ...(gamesBySlug.get(game.slug) ?? {}),
+              ...game,
+              skillName: game.skillName ?? gamesBySlug.get(game.slug)?.skillName ?? null,
+              skillDescription: game.skillDescription ?? gamesBySlug.get(game.slug)?.skillDescription ?? null,
+            }));
+
+            return {
+              ...current,
+              profile: freshProfile,
+              sessionState: {
+                ...nextSessionState,
+                assignedGames,
+                activeSession: nextSessionState.activeSession
+                  ? {
+                      ...nextSessionState.activeSession,
+                      assignedGames,
+                    }
+                  : null,
+                },
+            };
+          });
         }
       } catch {
         // El polling no debe tumbar la UI; solo la recarga manual informa el error.
@@ -188,6 +223,12 @@ export const useStudentDashboard = (studentSession) => {
     profile: dashboard.profile,
     achievements: dashboard.achievements,
     stats: dashboard.stats,
+    games: dashboard.games,
+    results: dashboard.results,
+    skills: dashboard.skills,
+    ranking: dashboard.ranking,
+    rankingSummary: dashboard.rankingSummary,
+    sessionState: dashboard.sessionState,
     progressSummary: buildProgressSummary(dashboard.stats),
     skillStatsView: buildSkillStatsView(dashboard.stats),
     playState: resolvePlayState(dashboard.profile),
