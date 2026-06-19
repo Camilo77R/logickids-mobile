@@ -1,6 +1,7 @@
 import {
   STUDENT_ACHIEVEMENTS_PATH,
   STUDENT_PROFILE_PATH,
+  STUDENT_RANKING_PATH,
   STUDENT_STATS_PATH,
 } from '../config/apiContract';
 import {
@@ -20,6 +21,18 @@ import {
 export const createStudentDashboardService = (baseUrl, token) => {
   const apiBaseUrl = normalizeBaseUrl(baseUrl);
   const headers = buildJsonHeaders(token);
+
+  const unwrapRequiredResult = (result, fallbackMessage) => {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    }
+
+    if (result.reason instanceof Error) {
+      throw result.reason;
+    }
+
+    throw new Error(fallbackMessage);
+  };
 
   const fetchProfile = async () => {
     const response = await fetch(`${apiBaseUrl}${STUDENT_PROFILE_PATH}`, {
@@ -48,19 +61,38 @@ export const createStudentDashboardService = (baseUrl, token) => {
     return parseJsonResponse(response);
   };
 
+  const fetchRanking = async () => {
+    const response = await fetch(`${apiBaseUrl}${STUDENT_RANKING_PATH}`, {
+      method: 'GET',
+      headers,
+    });
+
+    return parseJsonResponse(response);
+  };
+
   return {
     fetchProfile,
     fetchAchievements,
+    fetchRanking,
     fetchStats,
 
     async fetchDashboardData() {
-      const [profile, achievements, stats] = await Promise.all([
+      const [profileResult, achievementsResult, statsResult, rankingResult] = await Promise.allSettled([
         fetchProfile(),
         fetchAchievements(),
         fetchStats(),
+        fetchRanking(),
       ]);
 
-      return { profile, achievements, stats };
+      const profile = unwrapRequiredResult(profileResult, 'No pudimos cargar tu perfil.');
+      const achievements = unwrapRequiredResult(
+        achievementsResult,
+        'No pudimos cargar tus logros.',
+      );
+      const stats = unwrapRequiredResult(statsResult, 'No pudimos cargar tu progreso.');
+      const ranking = rankingResult.status === 'fulfilled' ? rankingResult.value : null;
+
+      return { profile, achievements, stats, ranking };
     },
   };
 };

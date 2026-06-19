@@ -274,7 +274,9 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     isRefreshing,
     errorMessage,
     reloadDashboard,
-  } = useStudentDashboard(studentSession);
+  } = useStudentDashboard(studentSession, {
+    onSessionExpired: onLogout,
+  });
 
   const studentProfile = profile ?? studentSession?.studentProfile ?? null;
   const caminoArConfig = useMemo(() => obtenerConfiguracionBaseCaminoAr(), []);
