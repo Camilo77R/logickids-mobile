@@ -1,7 +1,8 @@
 {
   "expo": {
+    "owner": "logickids-sena-org-v2",
     "name": "logickidsMobile",
-    "slug": "logickidsMobile",
+    "slug": "logickids",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -62,7 +63,7 @@
       "qrLoginPath": "/estudiantes/login",
       "studentProfilePath": "/estudiantes/mi-perfil",
       "eas": {
-        "projectId": "2b38a483-2833-421a-8bb1-b56bbfbfb76a"
+        "projectId": "6c2a15a3-0027-4354-9907-7c5a08fe42a7"
       }
     }
   }
