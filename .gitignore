@@ -3,6 +3,7 @@
 # dependencies
 node_modules/
 .npm-cache/
+npm-cache/
 
 # Expo
 .expo/
@@ -12,6 +13,7 @@ web-build/
 # Native
 /android/
 /ios/
+modules/expo-hand-tracker/android/build/
 *.orig.*
 *.jks
 *.p8
