@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useRobotTallerControlador } from './useRobotTallerControlador';
 import { construirEscenaRobotTaller } from './robotTallerEscena';
 import { useSesionRobotTaller } from './aplicacion/useSesionRobotTaller';
@@ -10,6 +10,7 @@ export default function RobotTallerScreen({
   configuracionInicial,
   contextoSesion,
 }) {
+  const [preparandoPartida, setPreparandoPartida] = useState(false);
   const sesionRobotTaller = useSesionRobotTaller({
     configuracion: configuracionInicial,
     contextoSesion,
@@ -29,6 +30,19 @@ export default function RobotTallerScreen({
     sesionRobotTaller.observadoresJuego,
   );
 
+  const prepararPartida = useCallback(async () => {
+    if (preparandoPartida) {
+      return false;
+    }
+
+    setPreparandoPartida(true);
+    try {
+      return await sesionRobotTaller.prepararRonda(configuracionEfectiva.dificultad);
+    } finally {
+      setPreparandoPartida(false);
+    }
+  }, [configuracionEfectiva.dificultad, preparandoPartida, sesionRobotTaller]);
+
   const escena = useMemo(
     () =>
       construirEscenaRobotTaller({
@@ -36,9 +50,15 @@ export default function RobotTallerScreen({
         estado: controlador.estado,
         respuestaInicioSesion: sesionRobotTaller.respuestaInicio,
         respuestaFinalizacionSesion: sesionRobotTaller.respuestaFinalizacion,
-        continuarActividad: () => {
+        continuarActividad: async () => {
           sesionRobotTaller.prepararNuevaRonda();
-          controlador.reiniciarPartida();
+          const partidaLista = await sesionRobotTaller.prepararRonda(
+            configuracionEfectiva.dificultad,
+          );
+
+          if (partidaLista) {
+            controlador.reiniciarPartida();
+          }
         },
         salirActividad: onSalir,
         reiniciarPartida: controlador.reiniciarPartida,
@@ -50,6 +70,7 @@ export default function RobotTallerScreen({
       onSalir,
       sesionRobotTaller.respuestaInicio,
       sesionRobotTaller.respuestaFinalizacion,
+      sesionRobotTaller,
     ],
   );
 
@@ -63,6 +84,10 @@ export default function RobotTallerScreen({
       moverParte={controlador.moverParte}
       soltarParte={controlador.soltarParte}
       reiniciarPartida={controlador.reiniciarPartida}
+      finalizarPorTiempo={controlador.finalizarPorTiempo}
+      permitirReinicioManual={!sesionRobotTaller.persistenciaRemotaHabilitada}
+      prepararPartida={prepararPartida}
+      preparandoPartida={preparandoPartida}
       modoQuiz={controlador.modoQuiz}
       preguntaActual={controlador.preguntaActual}
       feedbackQuiz={controlador.feedbackQuiz}

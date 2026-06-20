@@ -84,6 +84,7 @@ export const useRobotTallerControlador = (configuracionInicial, observadores = {
   const intentosRef = useRef({});
   const marcaInicioRef = useRef(null);
   const ultimaPosicionGrabadaRef = useRef({});
+  const finalizadoRef = useRef(false);
 
   const [preguntaActual, setPreguntaActual] = useState(null);
   const [feedbackQuiz, setFeedbackQuiz] = useState(null);
@@ -336,6 +337,7 @@ export const useRobotTallerControlador = (configuracionInicial, observadores = {
 
   const reiniciarPartida = useCallback(() => {
     marcaInicioRef.current = null;
+    finalizadoRef.current = false;
     primerProblemaGeneradoRef.current = false;
     setFeedbackQuiz(null);
     setPreguntaActual(null);
@@ -353,6 +355,11 @@ export const useRobotTallerControlador = (configuracionInicial, observadores = {
   };
 
   const finalizarPartida = (exito) => {
+    if (finalizadoRef.current) {
+      return;
+    }
+
+    finalizadoRef.current = true;
     const estadoActual = estadoRef.current;
     const tiempoTranscurridoMs = marcaInicioRef.current
       ? Date.now() - marcaInicioRef.current
@@ -542,6 +549,7 @@ export const useRobotTallerControlador = (configuracionInicial, observadores = {
     moverParte,
     soltarParte,
     reiniciarPartida,
+    finalizarPorTiempo: () => finalizarPartida(false),
     iniciarPartida: agarrarParte,
     modoQuiz: false,
     preguntaActual,

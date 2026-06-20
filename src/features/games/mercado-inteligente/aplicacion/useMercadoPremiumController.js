@@ -55,6 +55,24 @@ const resolverNivelSesion = ({ respuestaInicio, contextoSesion }) =>
 const resolverTotalNivelesSesion = (contextoSesion) =>
   normalizarEnteroPositivo(contextoSesion?.sesionTotalPasos, 1);
 
+const resolverSiguientePasoSesion = ({ respuestaInicio, respuestaFinalizacion }) => {
+  const progreso = respuestaFinalizacion?.progreso_ruta ?? null;
+  const siguientePaso = progreso?.siguientePaso ?? null;
+  const minijuegoActualId = Number(respuestaInicio?.sesion?.minijuego_id ?? 0);
+  const siguienteMinijuegoId = Number(siguientePaso?.minijuego_id ?? 0);
+  const siguienteEsMismoJuego =
+    Boolean(siguientePaso) &&
+    minijuegoActualId > 0 &&
+    siguienteMinijuegoId > 0 &&
+    minijuegoActualId === siguienteMinijuegoId;
+
+  return {
+    cierreDisponible: Boolean(respuestaFinalizacion),
+    haySiguientePaso: Boolean(progreso?.haySiguientePaso),
+    siguienteEsMismoJuego,
+  };
+};
+
 const construirEstadoInicial = (configuracion) => ({
   fase: FASES_MERCADO_PREMIUM.preparando,
   ronda: generarRondaMercado({ configuracion, indiceRonda: 0 }),
@@ -370,20 +388,8 @@ export const useMercadoPremiumController = ({
   }, [estado, feedback, finalizar, registrarEvento]);
 
   const salir = useCallback(() => {
-    if (
-      !finalizadoRef.current &&
-      estado.fase !== FASES_MERCADO_PREMIUM.preparando &&
-      estado.fase !== FASES_MERCADO_PREMIUM.bloqueado
-    ) {
-      finalizar({
-        resumenEstado: estado,
-        estadoFinal: ESTADOS_FINALIZACION_SESION.abandonado,
-        mostrarCompletado: false,
-      });
-    }
-
     onSalir?.();
-  }, [estado, finalizar, onSalir]);
+  }, [onSalir]);
 
   const resultadoSincronizado =
     !persistenciaRemotaHabilitada ||
@@ -408,6 +414,14 @@ export const useMercadoPremiumController = ({
     contextoSesion,
   });
   const totalNiveles = resolverTotalNivelesSesion(contextoSesion);
+  const siguientePasoSesion = resolverSiguientePasoSesion({
+    respuestaInicio,
+    respuestaFinalizacion,
+  });
+  const puedeContinuarNivel =
+    siguientePasoSesion.cierreDisponible
+      ? siguientePasoSesion.haySiguientePaso && siguientePasoSesion.siguienteEsMismoJuego
+      : nivel < totalNiveles;
   const estrellasOficiales = Number(
     respuestaFinalizacion?.resumen_oficial?.estrellas_obtenidas,
   );
@@ -430,11 +444,9 @@ export const useMercadoPremiumController = ({
   );
 
   const continuarNivel = useCallback(() => {
-    const esUltimoNivel = nivel >= totalNiveles;
-
     if (
       estado.fase !== FASES_MERCADO_PREMIUM.completado ||
-      esUltimoNivel ||
+      !puedeContinuarNivel ||
       !resultadoSincronizado ||
       continuandoNivelRef.current
     ) {
@@ -455,10 +467,10 @@ export const useMercadoPremiumController = ({
     estado.fase,
     estrellas,
     nivel,
+    puedeContinuarNivel,
     prepararNuevaRonda,
     resultadoNivelParaResumen,
     resultadoSincronizado,
-    totalNiveles,
   ]);
 
   const modeloVisual = useMemo(
@@ -498,6 +510,7 @@ export const useMercadoPremiumController = ({
       ? persistencia.error ?? 'No pudimos guardar tu progreso.'
       : null,
     modeloVisual,
+    puedeContinuarNivel,
     feedbackEscena: estado.feedbackEscena,
     resultado: estado.resultado,
     resumenActividad: resumenActividadVisible,

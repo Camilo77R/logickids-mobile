@@ -464,7 +464,6 @@ export default function Tren3DScreen({
   });
   const nivelRef = useRef(1);
   const dificultadRef = useRef(configuracion.dificultad);
-  const partidaIniciadaRef = useRef(false);
   const finalizadoRef = useRef(false);
   const siguienteNivelPendienteRef = useRef(null);
   const audioTren = useTren3DAudio();
@@ -817,7 +816,6 @@ export default function Tren3DScreen({
     }
 
     if (mensaje.tipo === 'motorListo') {
-      partidaIniciadaRef.current = true;
       sesionTren.observadoresJuego.alIniciarPartida({
         configuracionPartida: configuracion,
       });
@@ -856,10 +854,6 @@ export default function Tren3DScreen({
   };
 
   const salir = async () => {
-    if (!finalizadoRef.current && partidaIniciadaRef.current) {
-      finalizarPartida({ estadoFinal: 'abandonado' });
-    }
-
     await restaurarPortrait();
     onSalir?.();
   };

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,7 +41,7 @@ function OverlayPausa({ alReanudar }) {
   );
 }
 
-function InstruccionesIniciales({ alComenzar }) {
+function InstruccionesIniciales({ alComenzar, preparando = false }) {
   return (
     <View style={styles.pauseOverlay}>
       <View style={styles.instructionsCard}>
@@ -54,9 +54,18 @@ function InstruccionesIniciales({ alComenzar }) {
           2️⃣ Tocá la pieza que ganaste y arrastrala hasta su holograma brillante.{"\n\n"}
           🤖 ¡Completá todo el robot para ganar! ¡Vos podés!
         </Text>
-        <TouchableOpacity activeOpacity={0.88} onPress={alComenzar} style={styles.startButton}>
-          <Ionicons name="rocket" size={24} color={colors.white} />
-          <Text style={styles.startButtonText}>¡A Jugar!</Text>
+        <TouchableOpacity
+          activeOpacity={0.88}
+          disabled={preparando}
+          onPress={alComenzar}
+          style={[styles.startButton, preparando && styles.startButtonDisabled]}
+        >
+          {preparando ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <Ionicons name="rocket" size={24} color={colors.white} />
+          )}
+          <Text style={styles.startButtonText}>{preparando ? 'Preparando...' : '¡A Jugar!'}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -66,6 +75,8 @@ function InstruccionesIniciales({ alComenzar }) {
 export default function RobotTallerVista({
   onSalir, escena, estado, configuracion,
   agarrarParte, moverParte, soltarParte, reiniciarPartida,
+  finalizarPorTiempo, permitirReinicioManual = false,
+  prepararPartida, preparandoPartida = false,
   modoQuiz, preguntaActual, feedbackQuiz, responderQuiz,
   problemaMatematico, mostrarModalMatematica,
   manejarCorrectaMatematica, manejarIncorrectaMatematica,
@@ -77,6 +88,8 @@ export default function RobotTallerVista({
   const [tiempoInicio, setTiempoInicio] = useState(null);
   const [tiempoRestanteMs, setTiempoRestanteMs] = useState(configuracion?.configuracion?.tiempoLimiteMs ?? 300000);
   const timerRef = useRef(null);
+  const tiempoAgotadoNotificadoRef = useRef(false);
+  const finalizarPorTiempoRef = useRef(finalizarPorTiempo);
 
   const nivelConfig = NIVELES[configuracion?.nivel] ?? NIVELES[1];
   const piezaDesbloqueadaId = estado.partes.find((p) => !p.ensamblada && !p.bloqueado)?.id ?? null;
@@ -102,12 +115,43 @@ export default function RobotTallerVista({
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [estado.fase, enPausa, configuracion?.configuracion?.tiempoLimiteMs]);
 
+  useEffect(() => {
+    finalizarPorTiempoRef.current = finalizarPorTiempo;
+  }, [finalizarPorTiempo]);
+
+  useEffect(() => {
+    if (estado.fase === 'completado') {
+      tiempoAgotadoNotificadoRef.current = false;
+      return;
+    }
+
+    if (tiempoRestanteMs > 0 || tiempoAgotadoNotificadoRef.current) {
+      return;
+    }
+
+    tiempoAgotadoNotificadoRef.current = true;
+    finalizarPorTiempoRef.current?.();
+  }, [estado.fase, tiempoRestanteMs]);
+
   const togglePausa = useCallback(() => setEnPausa((prev) => !prev), []);
 
   const handleReiniciar = useCallback(() => {
     setMostrarInstrucciones(true);
     reiniciarPartida();
   }, [reiniciarPartida]);
+
+  const handleComenzar = useCallback(async () => {
+    if (preparandoPartida) {
+      return;
+    }
+
+    const partidaLista =
+      typeof prepararPartida === 'function' ? await prepararPartida() : true;
+
+    if (partidaLista) {
+      setMostrarInstrucciones(false);
+    }
+  }, [preparandoPartida, prepararPartida]);
 
   return (
     <View style={styles.root}>
@@ -151,7 +195,10 @@ export default function RobotTallerVista({
       ) : null}
       
       {mostrarInstrucciones && (
-        <InstruccionesIniciales alComenzar={() => setMostrarInstrucciones(false)} />
+        <InstruccionesIniciales
+          alComenzar={handleComenzar}
+          preparando={preparandoPartida}
+        />
       )}
 
       {enPausa && <OverlayPausa alReanudar={togglePausa} />}
@@ -160,7 +207,7 @@ export default function RobotTallerVista({
         <SafeAreaView style={styles.safeAreaBottom} edges={['bottom']}>
           <View style={styles.footer}>
             {tiempoRestanteMs <= 0 ? (
-              <Text style={styles.hintTimeout}>Se acabo el tiempo! Presiona Reiniciar para intentar de nuevo.</Text>
+              <Text style={styles.hintTimeout}>Se acabo el tiempo. Estamos guardando tu resultado.</Text>
             ) : (
               <Text style={styles.hintSub}>{estado.mensaje}</Text>
             )}
@@ -175,10 +222,12 @@ export default function RobotTallerVista({
                   <Text style={styles.solveButtonText}>Desbloquear Pieza</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity activeOpacity={0.88} onPress={handleReiniciar} style={styles.resetButton}>
-                <Ionicons name="refresh" size={18} color={colors.white} />
-                <Text style={styles.resetButtonText}>Reiniciar</Text>
-              </TouchableOpacity>
+              {permitirReinicioManual ? (
+                <TouchableOpacity activeOpacity={0.88} onPress={handleReiniciar} style={styles.resetButton}>
+                  <Ionicons name="refresh" size={18} color={colors.white} />
+                  <Text style={styles.resetButtonText}>Reiniciar práctica</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           </View>
         </SafeAreaView>
@@ -260,5 +309,6 @@ const styles = StyleSheet.create({
   instructionsTitle: { color: colors.white, fontFamily: fonts.black, fontSize: 28, textAlign: 'center' },
   instructionsText: { color: '#00F5D4', fontFamily: fonts.bold, fontSize: 16, lineHeight: 24, textAlign: 'center' },
   startButton: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FF006E', borderRadius: 30, paddingHorizontal: 32, paddingVertical: 16, marginTop: 12, borderWidth: 3, borderColor: 'rgba(255,255,255,0.5)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
+  startButtonDisabled: { opacity: 0.7 },
   startButtonText: { color: colors.white, fontFamily: fonts.black, fontSize: 20, textTransform: 'uppercase' },
 });

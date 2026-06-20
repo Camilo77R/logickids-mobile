@@ -7,7 +7,7 @@ import BrandBackground from '../components/BrandBackground';
 import PrimaryButton from '../components/PrimaryButton';
 import { colors, fonts, spacing } from '../constants/theme';
 
-const welcomeVideo = require('../../assets/branding/Vid/Prueba 2.mp4');
+const welcomeVideo = require('../../assets/branding/Vid/logickids-intro.mp4');
 const logoFallback = require('../../assets/branding/logo-logickids-badge.png');
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);

@@ -43,12 +43,13 @@ export default function MercadoInteligenteScreen({
     fase,
     feedbackEscena,
     modeloVisual,
+    puedeContinuarNivel,
     resumenActividad,
     resultado,
     sincronizandoResultado,
   } = controlador;
   const completado = fase === FASES_MERCADO_PREMIUM.completado;
-  const tieneSiguienteNivel = modeloVisual.nivel < modeloVisual.totalNiveles;
+  const tieneSiguienteNivel = Boolean(puedeContinuarNivel);
   const nombreJugador = resolverNombreJugador(contextoSesion);
   const mostrarGuiaInicial = guiaVisible && fase === FASES_MERCADO_PREMIUM.jugando;
 

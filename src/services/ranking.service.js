@@ -7,6 +7,22 @@ import {
 
 const COMPLETED_RESULT_STATES = new Set(['completado', 'cerrado']);
 
+const resolveRankingEntries = (payload = {}) => {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  return (
+    payload.entries ??
+    payload.entradas ??
+    payload.top3 ??
+    payload.top ??
+    payload.ranking ??
+    payload.leaderboard ??
+    []
+  );
+};
+
 export const normalizeRankingEntry = (entry = {}, index = 0) => {
   const studentName = entry.studentName ?? entry.nombre ?? entry.estudiante_nombre ?? entry.name ?? null;
   const score = entry.score ?? entry.points ?? entry.puntaje ?? entry.valor ?? entry.puntaje_total ?? 0;
@@ -39,21 +55,20 @@ export const normalizeRankingEntry = (entry = {}, index = 0) => {
 };
 
 export const normalizeSessionRanking = (payload = {}) => {
-  const entries = Array.isArray(payload)
-    ? payload
-    : payload.top3 ?? payload.top ?? payload.ranking ?? payload.leaderboard ?? [];
+  const entries = resolveRankingEntries(payload);
   const currentStudent = payload.currentStudent ?? payload.estudiante_actual ?? payload.mi_posicion ?? null;
   const current = currentStudent
     ? normalizeRankingEntry({ ...currentStudent, isCurrentStudent: true })
     : null;
-  const top = entries.map((entry, index) => {
+  const normalizedEntries = entries.map((entry, index) => {
     const normalized = normalizeRankingEntry(entry, index);
     return current?.studentId && normalized.studentId === current.studentId
       ? { ...normalized, isCurrentStudent: true }
       : normalized;
-  }).slice(0, 3);
-  const currentIsInTop = current
-    ? top.some((entry) => entry.studentId === current.studentId)
+  });
+  const top = normalizedEntries.slice(0, 3);
+  const currentIsInEntries = current
+    ? normalizedEntries.some((entry) => entry.studentId === current.studentId)
     : true;
 
   return {
@@ -63,7 +78,7 @@ export const normalizeSessionRanking = (payload = {}) => {
     totalParticipants: payload.total_participantes ?? payload.totalParticipants ?? top.length,
     top,
     currentStudent: current,
-    entries: current && !currentIsInTop ? [...top, current] : top,
+    entries: current && !currentIsInEntries ? [...normalizedEntries, current] : normalizedEntries,
     raw: payload,
   };
 };

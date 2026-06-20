@@ -1,4 +1,4 @@
-import { useRef, useMemo, useCallback, useEffect, useState } from 'react';
+import React, { useRef, useMemo, useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -13,6 +13,14 @@ const AMBER = '#ffbf00';
 const VERDE_HOLO = '#00FF88';
 const ROJO_ERROR = '#FF3355';
 const COLOR_BLOQUEADO = '#777777';
+const ROBOT_CANVAS_DPR = [1, 1.25];
+const GRID_DIVISIONS_MOBILE = 22;
+const BACKGROUND_PARTICLE_COUNT = 14;
+const TRAIL_PARTICLE_COUNT = 10;
+const CELEBRATION_PARTICLE_COUNT = 28;
+const HOLOGRAM_RING_SEGMENTS = 32;
+const HOLOGRAM_TORUS_RADIAL_SEGMENTS = 8;
+const HOLOGRAM_TORUS_TUBULAR_SEGMENTS = 32;
 
 function ShaderTimeSync() {
   useFrame((state) => { sharedTime.value = state.clock.elapsedTime; });
@@ -57,7 +65,7 @@ function ScanBeamSync() {
 }
 
 function ParrillaHolografica() {
-  const size = 15; const divisions = 39;
+  const size = 15; const divisions = GRID_DIVISIONS_MOBILE;
   const positions = useMemo(() => {
     const pts = []; const half = size / 2; const step = size / divisions;
     for (let i = 0; i <= divisions; i++) {
@@ -76,7 +84,7 @@ function ParrillaHolografica() {
         <primitive object={lineMat} attach="material" />
       </lineSegments>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.99, 0]}>
-        <ringGeometry args={[7.4, 7.5, 64]} />
+        <ringGeometry args={[7.4, 7.5, HOLOGRAM_RING_SEGMENTS]} />
         <primitive object={ringMat} attach="material" />
       </mesh>
     </group>
@@ -94,13 +102,13 @@ function ScannerRing({ radio, color, cycle = 2.4, phase = 0 }) {
   });
   return (
     <mesh ref={ref} position={[0, -2, 0]}>
-      <torusGeometry args={[radio, 0.02, 16, 48]} />
+      <torusGeometry args={[radio, 0.02, HOLOGRAM_TORUS_RADIAL_SEGMENTS, HOLOGRAM_TORUS_TUBULAR_SEGMENTS]} />
       <primitive object={mat} attach="material" />
     </mesh>
   );
 }
 
-function ArcoAnillo({ innerRadius, outerRadius, thetaSegments = 64, thetaStart = 0, thetaLength = Math.PI * 0.6, color = CYAN, opacity = 0.5, metadata }) {
+function ArcoAnillo({ innerRadius, outerRadius, thetaSegments = HOLOGRAM_RING_SEGMENTS, thetaStart = 0, thetaLength = Math.PI * 0.6, color = CYAN, opacity = 0.5, metadata }) {
   const ref = useRef();
   const mat = useMemo(() => createHologramMat(color, opacity, 2.5, 40, true), []);
   useFrame((state, delta) => {
@@ -212,7 +220,7 @@ function FondoHolografico({ colorBase }) {
   const particulas = useMemo(() => {
     const cols = [base, mid, '#00ccff', base, '#33ffff', mid];
     const posiciones = [];
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < BACKGROUND_PARTICLE_COUNT; i++) {
       const ang = Math.random() * Math.PI * 2;
       const rad = 1.5 + Math.random() * 4;
       posiciones.push({ pos: [Math.cos(ang) * rad, -1.5 + Math.random() * 3.5, -2 - Math.random() * 3], color: cols[i % cols.length], tam: 0.06 + Math.random() * 0.08, vel: 0.5 + Math.random() * 1 });
@@ -221,9 +229,9 @@ function FondoHolografico({ colorBase }) {
   }, []);
   const figuras = useMemo(() => [
     { tipo: 'box', argsGeo: [0.8, 0.8, 0.8], pos: [-2.0, 2.0, -2], color: base, spin: [0.08, 0.13, 0.05] },
-    { tipo: 'cylinder', argsGeo: [0.25, 0.25, 1.0, 16], pos: [2.0, 0.8, -2.5], color: mid, spin: [0.1, 0.06, 0.14] },
-    { tipo: 'sphere', argsGeo: [0.5, 16, 16], pos: [1.2, 2.8, -3], color: '#33ffff', spin: [0.05, 0.18, 0.04] },
-    { tipo: 'cone', argsGeo: [0.35, 0.7, 16], pos: [-1.8, -0.5, -2.5], color: base, spin: [0.14, 0.08, 0.06] },
+    { tipo: 'cylinder', argsGeo: [0.25, 0.25, 1.0, 10], pos: [2.0, 0.8, -2.5], color: mid, spin: [0.1, 0.06, 0.14] },
+    { tipo: 'sphere', argsGeo: [0.5, 10, 10], pos: [1.2, 2.8, -3], color: '#33ffff', spin: [0.05, 0.18, 0.04] },
+    { tipo: 'cone', argsGeo: [0.35, 0.7, 10], pos: [-1.8, -0.5, -2.5], color: base, spin: [0.14, 0.08, 0.06] },
   ], [base]);
   const innerRingMat = useMemo(() => createHologramMat(base, 0.7, 2.0, 0, false), [base]);
   return (
@@ -235,7 +243,7 @@ function FondoHolografico({ colorBase }) {
       <ArcoAnillo innerRadius={2.1} outerRadius={2.3} thetaStart={Math.PI * 2 / 3} opacity={0.4} metadata={{ rotationSpeed: 0.4, rotationAxis: 'z' }} />
       <ArcoAnillo innerRadius={2.4} outerRadius={2.6} thetaStart={Math.PI * 4 / 3} opacity={0.3} metadata={{ rotationSpeed: 0.5, rotationAxis: 'y' }} />
       <mesh rotation={[Math.PI / -2, 0, 0]}>
-        <torusGeometry args={[1.44, 0.02, 8, 64]} />
+        <torusGeometry args={[1.44, 0.02, HOLOGRAM_TORUS_RADIAL_SEGMENTS, HOLOGRAM_TORUS_TUBULAR_SEGMENTS]} />
         <primitive object={innerRingMat} attach="material" />
       </mesh>
       {particulas.map((p, i) => <ParticulaFlotante key={i} posicion={p.pos} color={p.color} tamanio={p.tam} velocidad={p.vel} />)}
@@ -325,7 +333,7 @@ function ManoIndicadora({ posicion }) {
 }
 
 function RastroDeParticulas({ desde, hasta, activo }) {
-  const count = 20;
+  const count = TRAIL_PARTICLE_COUNT;
   const refs = useRef([]);
   const mat = useMemo(() => createHologramMat('#00FF88', 0.6, 4.0, 0, false), []);
   useFrame((state) => {
@@ -737,7 +745,7 @@ function SlotGlow({ parteDef, destacado = false }) {
 }
 
 function EfectoCelebracion({ activo, posicion }) {
-  const count = 50;
+  const count = CELEBRATION_PARTICLE_COUNT;
   const refs = useRef([]);
   const ringRef = useRef();
   const ringMat = useMemo(() => createHologramMat('#00FF88', 0, 3.0, 0, false), []);
@@ -924,7 +932,7 @@ function PlanoArrastre({ arrastreRef, schematicRef, onMoverParte, onSoltarParte 
   );
 }
 
-export default function EscenaEnsamblaje({
+function EscenaEnsamblaje({
   estado,
   nivel = 1,
   slotDestacadoId,
@@ -978,7 +986,8 @@ export default function EscenaEnsamblaje({
     <View style={StyleSheet.absoluteFill}>
       <Canvas
         camera={{ position: [0, 0, 12], fov: 60 }}
-        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
+        dpr={ROBOT_CANVAS_DPR}
+        gl={{ antialias: false, powerPreference: 'high-performance', toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
         onPointerMissed={finalizarArrastre}
       >
         <FondoHolografico colorBase={colorFondo} />
@@ -1006,3 +1015,5 @@ export default function EscenaEnsamblaje({
     </View>
   );
 }
+
+export default React.memo(EscenaEnsamblaje);

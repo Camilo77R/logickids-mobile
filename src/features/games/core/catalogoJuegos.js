@@ -1,5 +1,9 @@
 import { SLUG_CAMINO_AR } from '../camino-ar/caminoAr.constants';
 import { SLUG_MERCADO, TITULO_MERCADO } from '../mercado-inteligente/mercado.constants';
+import {
+  HABILIDAD_OBJETO_PERDIDO_AR,
+  SLUG_OBJETO_PERDIDO_AR,
+} from '../objeto-perdido-ar/objetoPerdidoAr.constants';
 import { SLUG_TREN_3D, TITULO_TREN_3D } from '../tren-3d/tren3d.constants';
 
 export const CATALOGO_JUEGOS = Object.freeze({
@@ -28,9 +32,9 @@ export const CATALOGO_JUEGOS = Object.freeze({
     icono: 'hardware-chip',
   }),
   objetoPerdido: Object.freeze({
-    slug: 'objeto-perdido',
+    slug: SLUG_OBJETO_PERDIDO_AR,
     titulo: 'Encuentra el Objeto Perdido',
-    habilidad: 'Atencion',
+    habilidad: HABILIDAD_OBJETO_PERDIDO_AR,
     icono: 'search',
   }),
 });

@@ -14,17 +14,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { SvgUri } from 'react-native-svg';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import CaminoARScreen from '../features/games/camino-ar/CaminoARScreen';
 import { obtenerConfiguracionBaseCaminoAr } from '../features/games/camino-ar/caminoArConfiguracion';
-import MercadoInteligenteScreen from '../features/games/mercado-inteligente/MercadoInteligenteScreen';
 import { obtenerConfiguracionBaseMercado } from '../features/games/mercado-inteligente/mercadoConfiguracion';
-import Tren3DScreen from '../features/games/tren-3d/Tren3DScreen';
+import { obtenerConfiguracionBaseObjetoPerdidoAr } from '../features/games/objeto-perdido-ar/objetoPerdidoArConfiguracion';
 import { obtenerConfiguracionBaseTren3D } from '../features/games/tren-3d/tren3dConfiguracion';
 import {
   SLUG_TREN_3D,
 } from '../features/games/tren-3d/tren3d.constants';
 import { CATALOGO_JUEGOS } from '../features/games/core/catalogoJuegos';
-import RobotTallerScreen from '../features/games/robot-taller/RobotTallerScreen';
 import { obtenerConfiguracionBaseRobotTaller } from '../features/games/robot-taller/robotTallerConfiguracion';
 import {
   ESTADOS_ACCESO_JUEGO,
@@ -62,6 +59,33 @@ const DASHBOARD_TABS = Object.freeze({
   progreso: 'progreso',
   perfil: 'perfil',
 });
+
+const INTEGRATED_CATALOG_GAME_KEYS = Object.freeze([
+  'caminoAr',
+  'trenFiguras',
+  'robotLogico',
+  'mercadoInteligente',
+  'objetoPerdido',
+]);
+
+const INTEGRATED_CATALOG_GAMES = Object.freeze(
+  INTEGRATED_CATALOG_GAME_KEYS
+    .map((gameKey) => CATALOGO_JUEGOS[gameKey])
+    .filter(Boolean),
+);
+
+const INTEGRATED_GAME_SLUGS = new Set(
+  INTEGRATED_CATALOG_GAMES.map((game) => game.slug).filter(Boolean),
+);
+
+const loadCaminoArScreen = () => require('../features/games/camino-ar/CaminoARScreen').default;
+const loadMercadoInteligenteScreen = () =>
+  require('../features/games/mercado-inteligente/MercadoInteligenteScreen').default;
+const loadTren3DScreen = () => require('../features/games/tren-3d/Tren3DScreen').default;
+const loadRobotTallerScreen = () =>
+  require('../features/games/robot-taller/RobotTallerScreen').default;
+const loadObjetoPerdidoArScreen = () =>
+  require('../features/games/objeto-perdido-ar/ObjetoPerdidoARScreen').default;
 
 const normalizeSkillKey = (value = '') =>
   value
@@ -179,7 +203,7 @@ const buildActivityCopy = ({ profile, access, playState }) => {
     };
   }
 
-  if (access.estado === ESTADOS_ACCESO_JUEGO.disponible) {
+  if (access?.estado === ESTADOS_ACCESO_JUEGO.disponible) {
     return {
       title: profile.sesion_minijuego_titulo ?? 'Actividad asignada',
       text: 'Tu clase esta activa. Entra, observa el patron y completa la actividad.',
@@ -200,7 +224,7 @@ const buildActivityCopy = ({ profile, access, playState }) => {
 
   return {
     title: playState.title,
-    text: access.motivo || playState.message,
+    text: access?.motivo || playState.message,
     buttonLabel: playState.buttonLabel,
   };
 };
@@ -272,7 +296,7 @@ const buildActivityCardsFromSession = ({ accessBySlug, assignedGames, historical
   }));
 
   const historicalCards = historicalSessions.flatMap((session) =>
-    session.assignedGames.map((game) => ({
+    (session.assignedGames ?? []).map((game) => ({
       slug: game.slug,
       id: `history-${session.id}-${game.slug}`,
       title: game.title,
@@ -491,7 +515,7 @@ const normalizeAchievement = (achievement = {}) => ({
   unlocked: achievement.desbloqueado ?? achievement.unlocked ?? achievement.obtenido ?? true,
 });
 
-const buildProgressMetrics = ({ historicalSessions, results, skills, ranking }) => {
+const buildProgressMetrics = ({ historicalSessions, results, skills, ranking = [] }) => {
   const completedResults = results.filter((result) => TERMINAL_PARTICIPANT_STATES.has(result.status ?? result.estado));
   const uniqueGames = new Set(results.map(getResultGameSlug).filter(Boolean));
   const precisionValues = skills
@@ -576,7 +600,7 @@ const getSessionHitsCount = (session) =>
   );
 
 const getIntegratedGames = (games = []) =>
-  games.filter((game) => INTEGRATED_GAME_SLUGS.has(game.slug));
+  (Array.isArray(games) ? games : []).filter((game) => INTEGRATED_GAME_SLUGS.has(game.slug));
 
 const getIntegratedSessionGames = (session) => {
   const assignedGames = getIntegratedGames(session?.assignedGames ?? []);
@@ -595,7 +619,7 @@ const getIntegratedSessionGames = (session) => {
   return [...gamesBySlug.values()];
 };
 
-const buildSessionListCards = ({ activeSession, historicalSessions, ranking }) => {
+const buildSessionListCards = ({ activeSession, historicalSessions, ranking = [] }) => {
   const activeCard = activeSession
     ? [{
         ...activeSession,
@@ -643,6 +667,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const compact = height < 760;
   const fabScale = useRef(new Animated.Value(1)).current;
   const [activeGame, setActiveGame] = useState(null);
+  const [activeGameContext, setActiveGameContext] = useState(null);
   const [showGamePath, setShowGamePath] = useState(false);
   const [skillsExpanded, setSkillsExpanded] = useState(false);
   const [expandedSkillId, setExpandedSkillId] = useState(null);
@@ -676,6 +701,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const mercadoConfig = useMemo(() => obtenerConfiguracionBaseMercado(), []);
   const tren3DConfig = useMemo(() => obtenerConfiguracionBaseTren3D(), []);
   const robotTallerConfig = useMemo(() => obtenerConfiguracionBaseRobotTaller(), []);
+  const objetoPerdidoConfig = useMemo(() => obtenerConfiguracionBaseObjetoPerdidoAr(), []);
   const caminoArAccess = useMemo(
     () =>
       resolverAccesoJuegoDesdePerfil({
@@ -708,35 +734,55 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       }),
     [mercadoConfig.slug, studentProfile],
   );
+  const objetoPerdidoAccess = useMemo(
+    () =>
+      resolverAccesoJuegoDesdePerfil({
+        perfilEstudiante: studentProfile,
+        slugJuego: objetoPerdidoConfig.slug,
+      }),
+    [objetoPerdidoConfig.slug, studentProfile],
+  );
+  const buildSessionContextForGame = (slug, extraContext = {}) => ({
+    tokenEstudiante: studentSession?.token ?? null,
+    baseUrlApi: studentSession?.apiBaseUrl ?? null,
+    minijuegoId:
+      studentProfile?.sesion_minijuego_slug === slug
+        ? studentProfile?.sesion_minijuego_id ?? null
+        : null,
+    ...extraContext,
+  });
   const caminoArSessionContext = useMemo(
-    () => ({
-      tokenEstudiante: studentSession?.token ?? null,
-      baseUrlApi: studentSession?.apiBaseUrl ?? null,
-      minijuegoId: studentProfile?.sesion_minijuego_id ?? null,
-    }),
-    [studentProfile?.sesion_minijuego_id, studentSession?.apiBaseUrl, studentSession?.token],
+    () => buildSessionContextForGame(caminoArConfig.slug),
+    [
+      caminoArConfig.slug,
+      studentProfile?.sesion_minijuego_id,
+      studentProfile?.sesion_minijuego_slug,
+      studentSession?.apiBaseUrl,
+      studentSession?.token,
+    ],
   );
   const tren3DSessionContext = useMemo(
-    () => ({
-      tokenEstudiante: studentSession?.token ?? null,
-      baseUrlApi: studentSession?.apiBaseUrl ?? null,
-      minijuegoId: studentProfile?.sesion_minijuego_id ?? null,
-    }),
-    [studentProfile?.sesion_minijuego_id, studentSession?.apiBaseUrl, studentSession?.token],
+    () => buildSessionContextForGame(tren3DConfig.slug),
+    [
+      studentProfile?.sesion_minijuego_id,
+      studentProfile?.sesion_minijuego_slug,
+      studentSession?.apiBaseUrl,
+      studentSession?.token,
+      tren3DConfig.slug,
+    ],
   );
   const robotTallerSessionContext = useMemo(
-    () => ({
-      tokenEstudiante: studentSession?.token ?? null,
-      baseUrlApi: studentSession?.apiBaseUrl ?? null,
-      minijuegoId: studentProfile?.sesion_minijuego_id ?? null,
-    }),
-    [studentProfile?.sesion_minijuego_id, studentSession?.apiBaseUrl, studentSession?.token],
+    () => buildSessionContextForGame(robotTallerConfig.slug),
+    [
+      robotTallerConfig.slug,
+      studentProfile?.sesion_minijuego_id,
+      studentProfile?.sesion_minijuego_slug,
+      studentSession?.apiBaseUrl,
+      studentSession?.token,
+    ],
   );
   const mercadoSessionContext = useMemo(
-    () => ({
-      tokenEstudiante: studentSession?.token ?? null,
-      baseUrlApi: studentSession?.apiBaseUrl ?? null,
-      minijuegoId: studentProfile?.sesion_minijuego_id ?? null,
+    () => buildSessionContextForGame(mercadoConfig.slug, {
       nombreEstudiante: getStudentName(studentProfile, studentSession?.studentProfile),
       sesionModo: studentProfile?.sesion_modo ?? null,
       sesionPasoActual: studentProfile?.sesion_paso_actual ?? null,
@@ -744,7 +790,9 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       sesionNivelEnBloque: studentProfile?.sesion_nivel_en_bloque ?? null,
     }),
     [
+      mercadoConfig.slug,
       studentProfile?.sesion_minijuego_id,
+      studentProfile?.sesion_minijuego_slug,
       studentProfile?.sesion_modo,
       studentProfile?.sesion_nivel_en_bloque,
       studentProfile?.sesion_paso_actual,
@@ -752,6 +800,37 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       studentSession?.apiBaseUrl,
       studentSession?.studentProfile,
       studentSession?.token,
+    ],
+  );
+  const objetoPerdidoSessionContext = useMemo(
+    () => buildSessionContextForGame(objetoPerdidoConfig.slug),
+    [
+      objetoPerdidoConfig.slug,
+      studentProfile?.sesion_minijuego_id,
+      studentProfile?.sesion_minijuego_slug,
+      studentSession?.apiBaseUrl,
+      studentSession?.token,
+    ],
+  );
+  const sessionContextBySlug = useMemo(
+    () => ({
+      [caminoArConfig.slug]: caminoArSessionContext,
+      [mercadoConfig.slug]: mercadoSessionContext,
+      [objetoPerdidoConfig.slug]: objetoPerdidoSessionContext,
+      [robotTallerConfig.slug]: robotTallerSessionContext,
+      [tren3DConfig.slug]: tren3DSessionContext,
+    }),
+    [
+      caminoArConfig.slug,
+      caminoArSessionContext,
+      mercadoConfig.slug,
+      mercadoSessionContext,
+      objetoPerdidoConfig.slug,
+      objetoPerdidoSessionContext,
+      robotTallerConfig.slug,
+      robotTallerSessionContext,
+      tren3DConfig.slug,
+      tren3DSessionContext,
     ],
   );
   const accessBySlug = useMemo(
@@ -769,6 +848,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       }, {
         [caminoArConfig.slug]: caminoArAccess,
         [mercadoConfig.slug]: mercadoAccess,
+        [objetoPerdidoConfig.slug]: objetoPerdidoAccess,
         [tren3DConfig.slug]: tren3DAccess,
         [robotTallerConfig.slug]: robotTallerAccess,
       }),
@@ -778,6 +858,8 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       caminoArConfig.slug,
       mercadoAccess,
       mercadoConfig.slug,
+      objetoPerdidoAccess,
+      objetoPerdidoConfig.slug,
       robotTallerAccess,
       robotTallerConfig.slug,
       studentProfile,
@@ -786,8 +868,21 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     ],
   );
   const supportedGameSlugs = useMemo(
-    () => new Set([caminoArConfig.slug, mercadoConfig.slug, tren3DConfig.slug, robotTallerConfig.slug]),
-    [caminoArConfig.slug, mercadoConfig.slug, robotTallerConfig.slug, tren3DConfig.slug],
+    () =>
+      new Set([
+        caminoArConfig.slug,
+        mercadoConfig.slug,
+        objetoPerdidoConfig.slug,
+        tren3DConfig.slug,
+        robotTallerConfig.slug,
+      ]),
+    [
+      caminoArConfig.slug,
+      mercadoConfig.slug,
+      objetoPerdidoConfig.slug,
+      robotTallerConfig.slug,
+      tren3DConfig.slug,
+    ],
   );
   const currentGameAccess = accessBySlug[studentProfile?.sesion_minijuego_slug] ?? caminoArAccess;
   const activityCopy = useMemo(
@@ -819,7 +914,13 @@ export default function DashboardScreen({ studentSession, onLogout }) {
         supportedGameSlugs.has(game.slug) &&
         accessBySlug[game.slug]?.estado === ESTADOS_ACCESO_JUEGO.disponible,
     )?.slug ??
-    [caminoArConfig.slug, tren3DConfig.slug, robotTallerConfig.slug, mercadoConfig.slug].find(
+    [
+      caminoArConfig.slug,
+      tren3DConfig.slug,
+      robotTallerConfig.slug,
+      mercadoConfig.slug,
+      objetoPerdidoConfig.slug,
+    ].find(
       (slug) => accessBySlug[slug]?.estado === ESTADOS_ACCESO_JUEGO.disponible,
     ) ??
     null;
@@ -937,6 +1038,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     }
 
     setActiveGame(slug);
+    setActiveGameContext(sessionContextBySlug[slug] ?? null);
     setShowGamePath(false);
     return true;
   };
@@ -952,35 +1054,94 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const handlePathSkillPress = (skill) => {
     openActivityBySlug(skill.gameSlug);
   };
-const exitGame = () => {
-  setActiveGame(null);
-  void reloadDashboard();
-};
 
-const handleSkillDetailPress = (skill) => {
-  if (skill.gameSlug && skill.active) {
-    openActivityBySlug(skill.gameSlug);
-  }
-};
+  const exitGame = () => {
+    setActiveGame(null);
+    setActiveGameContext(null);
+    void reloadDashboard();
+  };
 
-const openActivitiesTab = () => {
-  setActiveTab(DASHBOARD_TABS.actividades);
-  setShowGamePath(false);
-  setSkillsExpanded(false);
-};
+  const handleSkillDetailPress = (skill) => {
+    if (skill.gameSlug && skill.active) {
+      openActivityBySlug(skill.gameSlug);
+    }
+  };
 
-const handleActivityDetailPress = () => {
-  setActiveTab(DASHBOARD_TABS.actividades);
-};
+  const openActivitiesTab = () => {
+    setActiveTab(DASHBOARD_TABS.actividades);
+    setShowGamePath(false);
+    setSkillsExpanded(false);
+  };
 
-const handleActivityActionPress = (activity) => {
-  if (activity.status === 'Activa' && activity.slug) {
-    openActivityBySlug(activity.slug);
-    return;
-  }
+  const handleActivityDetailPress = () => {
+    setActiveTab(DASHBOARD_TABS.actividades);
+  };
 
-  handleActivityDetailPress(activity);
-};
+  const handleActivityActionPress = (activity) => {
+    if (activity.status === 'Activa' && activity.slug) {
+      openActivityBySlug(activity.slug);
+      return;
+    }
+
+    handleActivityDetailPress(activity);
+  };
+
+  const activeGameScreen = useMemo(() => {
+    if (activeGame === caminoArConfig.slug) {
+      return {
+        ScreenComponent: loadCaminoArScreen(),
+        config: caminoArConfig,
+        sessionContext: activeGameContext ?? caminoArSessionContext,
+      };
+    }
+
+    if (activeGame === SLUG_TREN_3D) {
+      return {
+        ScreenComponent: loadTren3DScreen(),
+        config: tren3DConfig,
+        sessionContext: activeGameContext ?? tren3DSessionContext,
+      };
+    }
+
+    if (activeGame === robotTallerConfig.slug) {
+      return {
+        ScreenComponent: loadRobotTallerScreen(),
+        config: robotTallerConfig,
+        sessionContext: activeGameContext ?? robotTallerSessionContext,
+      };
+    }
+
+    if (activeGame === mercadoConfig.slug) {
+      return {
+        ScreenComponent: loadMercadoInteligenteScreen(),
+        config: mercadoConfig,
+        sessionContext: activeGameContext ?? mercadoSessionContext,
+      };
+    }
+
+    if (activeGame === objetoPerdidoConfig.slug) {
+      return {
+        ScreenComponent: loadObjetoPerdidoArScreen(),
+        config: objetoPerdidoConfig,
+        sessionContext: activeGameContext ?? objetoPerdidoSessionContext,
+      };
+    }
+
+    return null;
+  }, [
+    activeGame,
+    activeGameContext,
+    caminoArConfig,
+    caminoArSessionContext,
+    mercadoConfig,
+    mercadoSessionContext,
+    objetoPerdidoConfig,
+    objetoPerdidoSessionContext,
+    robotTallerConfig,
+    robotTallerSessionContext,
+    tren3DConfig,
+    tren3DSessionContext,
+  ]);
 
   if (!dashboardAccess.allowed) {
     return (
@@ -995,16 +1156,6 @@ const handleActivityActionPress = (activity) => {
     );
   }
 
-  if (activeGame === 'camino-ar') {
-    return (
-      <CaminoARScreen
-        onSalir={exitGame}
-        configuracionInicial={caminoArConfig}
-        contextoSesion={caminoArSessionContext}
-      />
-    );
-  }
-
   const selectDashboardTab = (nextTab) => {
     setActiveTab(nextTab);
     setShowGamePath(false);
@@ -1012,32 +1163,14 @@ const handleActivityActionPress = (activity) => {
     setExpandedSkillId(null);
   };
 
-  if (activeGame === SLUG_TREN_3D) {
-    return (
-      <Tren3DScreen
-        onSalir={exitGame}
-        configuracionInicial={tren3DConfig}
-        contextoSesion={tren3DSessionContext}
-      />
-    );
-  }
+  if (activeGameScreen) {
+    const { ScreenComponent, config, sessionContext } = activeGameScreen;
 
-  if (activeGame === robotTallerConfig.slug) {
     return (
-      <RobotTallerScreen
+      <ScreenComponent
         onSalir={exitGame}
-        configuracionInicial={robotTallerConfig}
-        contextoSesion={robotTallerSessionContext}
-      />
-    );
-  }
-
-  if (activeGame === mercadoConfig.slug) {
-    return (
-      <MercadoInteligenteScreen
-        onSalir={exitGame}
-        configuracionInicial={mercadoConfig}
-        contextoSesion={mercadoSessionContext}
+        configuracionInicial={config}
+        contextoSesion={sessionContext}
       />
     );
   }

@@ -17,13 +17,57 @@ const construirMetricasResultado = ({ resultado }) => [
   { etiqueta: 'Precision', valor: `${resultado.estadisticas.precisionPct}%` },
 ];
 
-const construirResumenCierreSesion = ({ respuestaFinalizacionSesion }) => {
+const construirResumenCierreSesion = ({ respuestaInicioSesion, respuestaFinalizacionSesion }) => {
   if (!respuestaFinalizacionSesion) return null;
   const logros = Array.isArray(respuestaFinalizacionSesion.logros_desbloqueados)
     ? respuestaFinalizacionSesion.logros_desbloqueados
     : [];
   const progreso = respuestaFinalizacionSesion.progreso_ruta ?? null;
-  return { logros, haySiguientePaso: Boolean(progreso?.haySiguientePaso), participanteEstado: progreso?.participanteEstado ?? null };
+  const siguientePaso = progreso?.siguientePaso ?? null;
+  const minijuegoActualId = Number(respuestaInicioSesion?.sesion?.minijuego_id ?? 0);
+  const siguienteMinijuegoId = Number(siguientePaso?.minijuego_id ?? 0);
+  const siguienteEsMismoJuego =
+    Boolean(siguientePaso) &&
+    minijuegoActualId > 0 &&
+    siguienteMinijuegoId > 0 &&
+    minijuegoActualId === siguienteMinijuegoId;
+
+  return {
+    logros,
+    haySiguientePaso: Boolean(progreso?.haySiguientePaso),
+    siguienteEsMismoJuego,
+    participanteEstado: progreso?.participanteEstado ?? null,
+  };
+};
+
+const construirAccionesResultado = ({ cierreSesion, continuarActividad, salirActividad }) => {
+  if (!cierreSesion) {
+    return {
+      accionContinuar: null,
+      etiquetaContinuar: null,
+      accionSalir: salirActividad,
+      etiquetaSalir: 'Volver al tablero',
+      sincronizandoCierre: true,
+    };
+  }
+
+  if (cierreSesion.haySiguientePaso && cierreSesion.siguienteEsMismoJuego) {
+    return {
+      accionContinuar: continuarActividad,
+      etiquetaContinuar: 'Siguiente nivel',
+      accionSalir: salirActividad,
+      etiquetaSalir: 'Volver al tablero',
+      sincronizandoCierre: false,
+    };
+  }
+
+  return {
+    accionContinuar: null,
+    etiquetaContinuar: null,
+    accionSalir: salirActividad,
+    etiquetaSalir: 'Volver al tablero',
+    sincronizandoCierre: false,
+  };
 };
 
 export const construirEscenaRobotTaller = ({
@@ -36,7 +80,12 @@ export const construirEscenaRobotTaller = ({
   reiniciarPartida,
 }) => {
   const resultadoVisible = Boolean(estado.resultado);
-  const cierreSesion = resultadoVisible ? construirResumenCierreSesion({ respuestaFinalizacionSesion }) : null;
+  const cierreSesion = resultadoVisible
+    ? construirResumenCierreSesion({ respuestaInicioSesion, respuestaFinalizacionSesion })
+    : null;
+  const accionesResultado = resultadoVisible
+    ? construirAccionesResultado({ cierreSesion, continuarActividad, salirActividad })
+    : null;
 
   return {
     encabezado: {
@@ -65,11 +114,11 @@ export const construirEscenaRobotTaller = ({
           titulo: estado.resultado.detalles.ensamblajeCompleto ? 'Robot armado' : 'Buen intento',
           metricas: construirMetricasResultado({ resultado: estado.resultado }),
           logros: cierreSesion?.logros ?? [],
-          accionContinuar: continuarActividad ?? null,
-          etiquetaContinuar: cierreSesion?.haySiguientePaso ? 'Siguiente Nivel' : 'Reintentar',
-          accionSalir: salirActividad,
-          etiquetaSalir: 'Volver al inicio',
-          sincronizandoCierre: false,
+          accionContinuar: accionesResultado?.accionContinuar ?? null,
+          etiquetaContinuar: accionesResultado?.etiquetaContinuar ?? null,
+          accionSalir: accionesResultado?.accionSalir ?? null,
+          etiquetaSalir: accionesResultado?.etiquetaSalir ?? null,
+          sincronizandoCierre: accionesResultado?.sincronizandoCierre ?? false,
         }
       : { visible: false },
   };

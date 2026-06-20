@@ -266,7 +266,7 @@ const construirAccionResultado = ({
     etiquetaSalir:
       cierreSesion.participanteEstado === 'abandonado'
         ? 'Salir'
-        : 'Volver al inicio',
+        : 'Volver al tablero',
     sincronizandoCierre: false,
   };
 };
