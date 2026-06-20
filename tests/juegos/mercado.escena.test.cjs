@@ -31,24 +31,6 @@ const {
 const {
   SESION_FINAL_ASSET_KIT,
 } = require('../../src/features/games/mercado-inteligente/presentacion/premium/interfaz/crearAssetsSesionFinal.js');
-test('Mercado conserva los fondos aprobados para juego y cierre de sesión', () => {
-  const fondosPath = path.resolve(
-    __dirname,
-    '../../src/features/games/mercado-inteligente/presentacion/premium/mercadoPremiumFondos.js',
-  );
-  const webViewPath = path.resolve(
-    __dirname,
-    '../../src/features/games/mercado-inteligente/presentacion/premium/MercadoPremiumWebView.jsx',
-  );
-  const fondosSource = fs.readFileSync(fondosPath, 'utf8');
-  const webViewSource = fs.readFileSync(webViewPath, 'utf8');
-
-  assert.match(fondosSource, /escenario-mercado-premium\.png/);
-  assert.match(fondosSource, /session-final-background-source\.png/);
-  assert.match(webViewSource, /<ImageBackground/);
-  assert.match(webViewSource, /FONDOS_MERCADO_PREMIUM\.sesionFinal/);
-  assert.match(webViewSource, /backgroundColor: 'transparent'/);
-});
 
 test('generarDocumentoMercadoPremium crea la Pantalla 1 premium con UI y bridge explicitos', () => {
   const configuracion = normalizarConfiguracionMercado({
@@ -74,12 +56,19 @@ test('generarDocumentoMercadoPremium crea la Pantalla 1 premium con UI y bridge 
   const html = generarDocumentoMercadoPremium({
     modeloVisual,
     estadoUi,
-    assets: { productos: {}, escena: {} },
+    assets: {
+      productos: {
+        [ronda.oferta[0].id]: ['file:///producto.glb'],
+      },
+      escena: {
+        escenario: ['file:///escenario-mercado-premium.png'],
+      },
+    },
   });
 
   assert.doesNotMatch(html, /cdn\.babylonjs\.com/);
   assert.doesNotMatch(html, /BABYLON/);
-  assert.match(html, /html,body\{background:transparent!important\}/);
+  assert.match(html, /escenario-mercado-premium\.png/);
   assert.match(html, /MERCADO_READY/);
   assert.match(html, /PRODUCT_TOGGLED/);
   assert.match(html, /UPDATE_GAME_STATE/);
@@ -332,7 +321,7 @@ test('generarDocumentoMercadoPremium crea la Pantalla 3 al finalizar la activida
   });
   const html = generarDocumentoMercadoPremium({
     estadoUi,
-    assets: { productos: {}, escena: {}, sesionFinal: {} },
+    assets: { productos: {}, escena: {} },
   });
 
   assert.equal(estadoUi.screen, 'session-result');
@@ -349,10 +338,6 @@ test('generarDocumentoMercadoPremium crea la Pantalla 3 al finalizar la activida
   assert.match(html, /Fallos: 1/i);
   assert.match(html, /Combo máx: x2/i);
   assert.match(html, /Finalizar y volver al tablero/i);
-  assert.match(html, /mercado-sesion-final__trofeo-svg/);
-  assert.match(html, /mercado-sesion-final__avatar-svg/);
-  assert.doesNotMatch(html, /<img/);
-  assert.doesNotMatch(html, /alt="Sin datos"/);
   assert.match(html, /data-mercado-action="continue"/);
   assert.doesNotMatch(html, /data-mercado-action="history"/);
   assert.doesNotMatch(html, /Siguiente nivel/i);

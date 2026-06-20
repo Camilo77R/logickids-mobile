@@ -1,11 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  ImageBackground,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import WebView from 'react-native-webview';
 
 import { fonts } from '../../../../../constants/theme';
@@ -18,7 +12,10 @@ import {
 import {
   prepararAssetsMercadoPremium,
 } from './mercadoPremiumAssets';
-import { FONDOS_MERCADO_PREMIUM } from './mercadoPremiumFondos';
+import {
+  MODELOS_ESCENA_MERCADO_PREMIUM,
+} from './mercadoPremiumModelos';
+import { MERCADO_SESION_FINAL_RASTER_MANIFEST } from './mercadoSesionFinalRasterManifest';
 import {
   crearScriptActualizarUiMercadoPremium,
   generarDocumentoMercadoPremium,
@@ -48,6 +45,8 @@ export default function MercadoPremiumWebView({
 
     prepararAssetsMercadoPremium({
       productos: modeloVisual.productos,
+      modelosEscena: MODELOS_ESCENA_MERCADO_PREMIUM,
+      sesionFinalManifest: MERCADO_SESION_FINAL_RASTER_MANIFEST,
     })
       .then((resultado) => {
         if (vigente) {
@@ -112,44 +111,28 @@ export default function MercadoPremiumWebView({
     );
   }
 
-  const fondoActual = estadoUi?.screen === 'session-result'
-    ? FONDOS_MERCADO_PREMIUM.sesionFinal
-    : FONDOS_MERCADO_PREMIUM.juego;
-
   return (
-    <ImageBackground
-      source={fondoActual}
-      resizeMode="cover"
-      style={styles.fondo}
-    >
-      <WebView
-        key={claveProductos}
-        ref={webViewRef}
-        source={{ html: documento }}
-        originWhitelist={['*']}
-        onMessage={manejarMensaje}
-        javaScriptEnabled
-        domStorageEnabled
-        style={styles.webView}
-        containerStyle={styles.webViewContainer}
-      />
-    </ImageBackground>
+    <WebView
+      key={claveProductos}
+      ref={webViewRef}
+      source={{ html: documento }}
+      originWhitelist={['*']}
+      onMessage={manejarMensaje}
+      javaScriptEnabled
+      domStorageEnabled
+      allowFileAccess
+      allowFileAccessFromFileURLs
+      allowUniversalAccessFromFileURLs
+      mixedContentMode="always"
+      style={styles.webView}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  fondo: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-  webViewContainer: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
   webView: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: '#8DE5F6',
   },
   cargando: {
     flex: 1,

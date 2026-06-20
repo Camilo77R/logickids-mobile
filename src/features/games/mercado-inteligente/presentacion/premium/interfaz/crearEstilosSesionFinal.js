@@ -1,7 +1,8 @@
 export function crearEstilosSesionFinal() {
   return `
-    .mercado-sesion-final{position:fixed;inset:0;z-index:35;display:block;overflow:hidden;pointer-events:none;color:#5a2f17;font-family:"Arial Rounded MT Bold","Cooper Black","Trebuchet MS",sans-serif;--safe-left:max(22px,env(safe-area-inset-left));--safe-right:max(22px,env(safe-area-inset-right));--safe-y:max(8px,env(safe-area-inset-top),env(safe-area-inset-bottom));background:transparent}
-    .mercado-sesion-final__stage{position:absolute;inset:0;width:100%;height:100%;overflow:hidden;background:transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+    .mercado-sesion-final{position:fixed;inset:0;z-index:35;display:block;overflow:hidden;pointer-events:none;color:#5a2f17;font-family:"Arial Rounded MT Bold","Cooper Black","Trebuchet MS",sans-serif;--safe-left:max(22px,env(safe-area-inset-left));--safe-right:max(22px,env(safe-area-inset-right));--safe-y:max(8px,env(safe-area-inset-top),env(safe-area-inset-bottom));background:#f4c46a}
+    .mercado-sesion-final__stage{position:absolute;inset:0;width:100%;height:100%;overflow:hidden;background:#f7ca72 var(--mercado-sesion-final-fondo,var(--mercado-escenario-fondo)) center/cover no-repeat;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+    .mercado-sesion-final__fondo-asset{position:absolute;inset:0;z-index:0;width:100%;height:100%;object-fit:cover;pointer-events:none;user-select:none;-webkit-user-drag:none}
     .mercado-sesion-final__velo{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(69,30,6,.08),rgba(58,27,8,.28));backdrop-filter:blur(2.8px);pointer-events:none}
     .mercado-sesion-final__velo::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 25%,rgba(255,233,94,.34),transparent 34%),radial-gradient(ellipse at 50% 82%,rgba(65,154,38,.18),transparent 30%)}
     .mercado-sesion-final .mercado-resultado__confeti-capa{z-index:11;opacity:.96}

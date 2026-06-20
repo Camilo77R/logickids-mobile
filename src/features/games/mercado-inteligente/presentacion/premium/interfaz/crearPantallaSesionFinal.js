@@ -4,6 +4,7 @@ import {
   crearBotonTableroSesionFinal,
   crearCelebracionSesionFinal,
   crearConfetiSesionFinal,
+  crearFondoSesionFinal,
   crearGloboMensajeSesionFinal,
   crearOverlayConfetiSesionFinal,
   crearResumenSesionFinal,
@@ -21,6 +22,7 @@ export function crearPantallaSesionFinal({
   return `
     <main class="mercado-sesion-final" data-mercado-screen="session-result">
       <div class="mercado-sesion-final__stage">
+        ${crearFondoSesionFinal(assets)}
         <div class="mercado-sesion-final__velo" aria-hidden="true"></div>
         <div class="mercado-resultado__confeti-capa" aria-hidden="true">${crearConfetiSesionFinal()}</div>
         ${crearOverlayConfetiSesionFinal(assets)}

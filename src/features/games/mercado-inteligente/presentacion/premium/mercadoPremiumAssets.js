@@ -1,11 +1,128 @@
+import { Asset } from 'expo-asset';
+import { File } from 'expo-file-system';
+
+const cacheFuentes = new Map();
+
+const agregarFuente = (fuentes, fuente) => {
+  if (typeof fuente === 'string' && fuente.length > 0 && !fuentes.includes(fuente)) {
+    fuentes.push(fuente);
+  }
+};
+
+const resolverFuentesSinCache = async ({ source, mimeType }) => {
+  const asset = Asset.fromModule(source);
+  await asset.downloadAsync();
+
+  const fuentes = [];
+
+  if (asset.localUri) {
+    try {
+      const contenido = await new File(asset.localUri).base64();
+      agregarFuente(fuentes, `data:${mimeType};base64,${contenido}`);
+    } catch {
+      // Si el archivo local no puede leerse, mantenemos los URI nativos como respaldo.
+    }
+  }
+
+  agregarFuente(fuentes, asset.localUri);
+  agregarFuente(fuentes, asset.uri);
+
+  return fuentes;
+};
+
+export const resolverFuentesModeloPremium = async (modelo) => {
+  if (!modelo?.source) {
+    return [];
+  }
+
+  if (!cacheFuentes.has(modelo.source)) {
+    cacheFuentes.set(
+      modelo.source,
+      resolverFuentesSinCache({
+        source: modelo.source,
+        mimeType: modelo.mimeType ?? 'model/gltf-binary',
+      }).catch((error) => {
+        cacheFuentes.delete(modelo.source);
+        throw error;
+      }),
+    );
+  }
+
+  return cacheFuentes.get(modelo.source);
+};
+
+const resolverEntradaRaster = async (entrada = {}) => {
+  if (!entrada.disponible || entrada.estado === 'descartado') {
+    return {
+      disponible: false,
+      estado: entrada.estado ?? 'pendiente',
+      fuentes: [],
+    };
+  }
+
+  try {
+    const fuentes = await resolverFuentesModeloPremium({
+      source: entrada.source,
+      mimeType: entrada.configuracion?.formatoRecomendado?.mimeType ?? 'image/png',
+    });
+
+    return {
+      disponible: fuentes.length > 0,
+      estado: entrada.estado ?? 'aprobado',
+      fuentes,
+    };
+  } catch (_) {
+    return {
+      disponible: false,
+      estado: 'pendiente',
+      fuentes: [],
+    };
+  }
+};
+
+const resolverGrupoRaster = async (grupo = {}) => {
+  const entradas = await Promise.all(
+    Object.entries(grupo).map(async ([id, entrada]) => [
+      id,
+      await resolverEntradaRaster(entrada),
+    ]),
+  );
+
+  return Object.fromEntries(entradas);
+};
+
+const prepararSesionFinal = async (manifest = {}) => ({
+  capas: await resolverGrupoRaster(manifest.capas),
+  iconos: await resolverGrupoRaster(manifest.iconos),
+  efectos: await resolverGrupoRaster(manifest.efectos),
+});
+
+const resolverEntradaEscena = async (modelo) => {
+  try {
+    return await resolverFuentesModeloPremium(modelo);
+  } catch (_) {
+    return [];
+  }
+};
+
 export const prepararAssetsMercadoPremium = async ({
   productos,
+  modelosEscena,
+  sesionFinalManifest,
 }) => {
   const productosPreparados = productos.map((producto) => [producto.id, []]);
+  const escenaPreparada = await Promise.all(
+    Object.entries(modelosEscena).map(async ([id, modelo]) => [
+      id,
+      await resolverEntradaEscena(modelo),
+    ]),
+  );
 
   return {
     productos: Object.fromEntries(productosPreparados),
-    escena: {},
-    sesionFinal: { capas: {}, iconos: {}, efectos: {} },
+    escena: Object.fromEntries(escenaPreparada),
+    sesionFinal: sesionFinalManifest
+      ? await prepararSesionFinal(sesionFinalManifest)
+      : { capas: {}, iconos: {}, efectos: {} },
   };
 };
