@@ -1,17 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import {
+  buildRankingView,
   buildProgressSummary,
   buildSkillStatsView,
 } from '../features/student-dashboard/studentDashboard.selectors';
 import { createStudentDashboardService } from '../services/studentDashboard.service';
+import { buildDashboardSessionState } from '../services/session.service';
+import { subscribeStudentRealtime } from '../services/studentRealtime.service';
 
 const PROFILE_REFRESH_INTERVAL_MS = 12000;
+const DASHBOARD_SAFETY_REFRESH_INTERVAL_MS = 30000;
 const TERMINAL_PARTICIPANT_STATES = new Set(['completado', 'abandonado', 'cerrado']);
 
 const EMPTY_DASHBOARD = {
   profile: null,
   achievements: [],
   stats: [],
+  games: [],
+  results: [],
+  skills: [],
+  ranking: [],
+  rankingSummary: null,
+  sessionState: {
+    activeSession: null,
+    historicalSessions: [],
+    assignedGames: [],
+  },
 };
 
 /**
@@ -99,7 +113,14 @@ export const resolvePlayState = (profile) => {
  * - deja el polling del estado del grupo lejos de la UI
  * - el screen solo compone datos ya listos para pintar
  */
-export const useStudentDashboard = (studentSession) => {
+export const useStudentDashboard = (
+  studentSession,
+  { onSessionExpired } = {},
+) => {
+  const isMountedRef = useRef(false);
+  const dashboardRequestInFlightRef = useRef(false);
+  const pendingDashboardRefreshRef = useRef(false);
+  const profileRefreshInFlightRef = useRef(false);
   const [dashboard, setDashboard] = useState({
     ...EMPTY_DASHBOARD,
     profile: studentSession?.studentProfile ?? null,
@@ -108,12 +129,20 @@ export const useStudentDashboard = (studentSession) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const service = studentSession
-    ? createStudentDashboardService(studentSession.apiBaseUrl, studentSession.token)
-    : null;
+  const service = useMemo(
+    () =>
+      studentSession
+        ? createStudentDashboardService(studentSession.apiBaseUrl, studentSession.token)
+        : null,
+    [studentSession?.apiBaseUrl, studentSession?.token],
+  );
 
   const loadDashboard = async ({ silent = false } = {}) => {
-    if (!service) return;
+    if (!service || dashboardRequestInFlightRef.current) {
+      return;
+    }
+
+    dashboardRequestInFlightRef.current = true;
 
     if (silent) {
       setIsRefreshing(true);
@@ -123,77 +152,163 @@ export const useStudentDashboard = (studentSession) => {
 
     try {
       const nextDashboard = await service.fetchDashboardData();
-      setDashboard(nextDashboard);
-      setErrorMessage('');
+      if (isMountedRef.current) {
+        setDashboard(nextDashboard);
+        setErrorMessage('');
+      }
     } catch (error) {
-      setErrorMessage(error.message || 'No pudimos cargar tu dashboard.');
+      if (isMountedRef.current) {
+        setErrorMessage(error.message || 'No pudimos cargar tu dashboard.');
+      }
     } finally {
-      if (silent) {
-        setIsRefreshing(false);
-      } else {
-        setIsLoading(false);
+      dashboardRequestInFlightRef.current = false;
+
+      if (isMountedRef.current) {
+        if (silent) {
+          setIsRefreshing(false);
+        } else {
+          setIsLoading(false);
+        }
+      }
+
+      if (pendingDashboardRefreshRef.current) {
+        pendingDashboardRefreshRef.current = false;
+        void loadDashboard({ silent: true });
       }
     }
   };
 
-  useEffect(() => {
-    let cancelled = false;
+  const requestDashboardReload = useEffectEvent(({ silent = true } = {}) => {
+    if (!service) {
+      return;
+    }
 
-    const boot = async () => {
-      if (!service) return;
-      setIsLoading(true);
+    if (dashboardRequestInFlightRef.current) {
+      pendingDashboardRefreshRef.current = true;
+      return;
+    }
 
-      try {
-        const nextDashboard = await service.fetchDashboardData();
-        if (!cancelled) {
-          setDashboard(nextDashboard);
-          setErrorMessage('');
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setErrorMessage(error.message || 'No pudimos cargar tu dashboard.');
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    };
+    void loadDashboard({ silent });
+  });
 
-    boot();
+  const refreshProfileSnapshot = useEffectEvent(async () => {
+    if (!service || profileRefreshInFlightRef.current || dashboardRequestInFlightRef.current) {
+      return;
+    }
 
-    const intervalId = setInterval(async () => {
-      if (!service) return;
+    profileRefreshInFlightRef.current = true;
 
-      try {
-        const freshProfile = await service.fetchProfile();
-        if (!cancelled) {
-          setDashboard((current) => ({
+    try {
+      const freshProfile = await service.fetchProfile();
+
+      if (isMountedRef.current) {
+        setDashboard((current) => {
+          const history = current.results.map((result) => result.raw).filter(Boolean);
+
+          return {
             ...current,
             profile: freshProfile,
-          }));
-        }
-      } catch {
-        // El polling no debe tumbar la UI; solo la recarga manual informa el error.
+            sessionState: buildDashboardSessionState({
+              profile: freshProfile,
+              history,
+              games: current.games,
+            }),
+          };
+        });
       }
-    }, PROFILE_REFRESH_INTERVAL_MS);
+    } catch {
+      // El polling de respaldo no debe tumbar la UI ni interrumpir la clase.
+    } finally {
+      profileRefreshInFlightRef.current = false;
+    }
+  });
+
+  const refreshDashboardFromRealtime = useEffectEvent(() => {
+    requestDashboardReload({ silent: true });
+  });
+
+  const handleRealtimeAuthError = useEffectEvent(() => {
+    onSessionExpired?.();
+  });
+
+  useEffect(() => {
+    isMountedRef.current = true;
 
     return () => {
-      cancelled = true;
-      clearInterval(intervalId);
+      isMountedRef.current = false;
     };
+  }, []);
+
+  useEffect(() => {
+    if (!service) {
+      dashboardRequestInFlightRef.current = false;
+      pendingDashboardRefreshRef.current = false;
+      profileRefreshInFlightRef.current = false;
+      setDashboard({
+        ...EMPTY_DASHBOARD,
+        profile: studentSession?.studentProfile ?? null,
+      });
+      setIsLoading(false);
+      setIsRefreshing(false);
+      setErrorMessage('');
+      return undefined;
+    }
+
+    void loadDashboard();
+    return undefined;
+  }, [service, studentSession?.studentProfile]);
+
+  useEffect(() => {
+    if (!studentSession?.apiBaseUrl || !studentSession?.token) {
+      return undefined;
+    }
+
+    return subscribeStudentRealtime({
+      baseUrl: studentSession.apiBaseUrl,
+      token: studentSession.token,
+      onAuthError: handleRealtimeAuthError,
+      onClassSessionChanged: refreshDashboardFromRealtime,
+      onRankingUpdated: refreshDashboardFromRealtime,
+      onStudentAccessChanged: refreshDashboardFromRealtime,
+    });
   }, [studentSession?.apiBaseUrl, studentSession?.token]);
+
+  useEffect(() => {
+    if (!service) {
+      return undefined;
+    }
+
+    const profileIntervalId = setInterval(() => {
+      void refreshProfileSnapshot();
+    }, PROFILE_REFRESH_INTERVAL_MS);
+
+    const dashboardIntervalId = setInterval(() => {
+      requestDashboardReload({ silent: true });
+    }, DASHBOARD_SAFETY_REFRESH_INTERVAL_MS);
+
+    return () => {
+      clearInterval(profileIntervalId);
+      clearInterval(dashboardIntervalId);
+    };
+  }, [service, refreshProfileSnapshot]);
 
   return {
     profile: dashboard.profile,
     achievements: dashboard.achievements,
+    ranking: dashboard.ranking,
+    rankingView: buildRankingView(dashboard.rankingSummary),
     stats: dashboard.stats,
+    games: dashboard.games,
+    results: dashboard.results,
+    skills: dashboard.skills,
+    rankingSummary: dashboard.rankingSummary,
+    sessionState: dashboard.sessionState,
     progressSummary: buildProgressSummary(dashboard.stats),
     skillStatsView: buildSkillStatsView(dashboard.stats),
     playState: resolvePlayState(dashboard.profile),
     isLoading,
     isRefreshing,
     errorMessage,
-    reloadDashboard: () => loadDashboard({ silent: true }),
+    reloadDashboard: () => requestDashboardReload({ silent: true }),
   };
 };

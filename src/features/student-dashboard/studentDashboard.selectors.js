@@ -5,6 +5,20 @@ const EMPTY_PROGRESS_SUMMARY = {
   bestSkill: null,
 };
 
+const EMPTY_RANKING_VIEW = {
+  hasRanking: false,
+  headline: 'Ranking del grupo',
+  subtitle: 'Se actualiza con resultados oficiales del backend.',
+  scopeLabel: 'Tu grupo',
+  status: 'waiting',
+  statusLabel: 'Esperando clase',
+  totalParticipantsLabel: '0 participantes',
+  top3: [],
+  rest: [],
+  myPosition: null,
+  emptyMessage: 'Tu tutor debe abrir una sesion de clase para mostrar posiciones.',
+};
+
 const toSafeNumber = (value, fallback = 0) => {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
@@ -29,6 +43,88 @@ const resolvePerformanceTone = (precision) => {
     label: 'Para practicar',
     accent: '#ff7e72',
   };
+};
+
+const resolveRankingHeadline = (scope = {}) => {
+  if (scope.sesion_ruta_nombre) {
+    return scope.sesion_ruta_nombre;
+  }
+
+  if (scope.sesion_minijuego_titulo) {
+    return scope.sesion_minijuego_titulo;
+  }
+
+  return 'Tu grupo';
+};
+
+const resolveRankingStatus = (ranking) => {
+  if (!ranking?.scope?.sesion_clase_id) {
+    return {
+      status: 'waiting',
+      label: 'Esperando clase',
+      subtitle: 'Aparece cuando tu tutor abre una sesion de clase.',
+      emptyMessage: 'Tu tutor debe abrir una sesion de clase para mostrar posiciones.',
+    };
+  }
+
+  const totalParticipants = Number(ranking?.totalParticipants ?? ranking?.total_participantes ?? 0);
+  const sessionStatus = ranking?.status ?? ranking?.scope?.sesion_estado ?? null;
+
+  if (!totalParticipants) {
+    if (sessionStatus === 'activa') {
+      return {
+        status: 'live',
+        label: 'En vivo',
+        subtitle: 'La clase ya abrio. El podio aparecera cuando lleguen resultados.',
+        emptyMessage: 'Cuando tu grupo registre resultados oficiales, veras el podio aqui.',
+      };
+    }
+
+    return {
+      status: 'final',
+      label: 'Ultima sesion',
+      subtitle: 'Todavia no hay puntajes oficiales para esta sesion.',
+      emptyMessage: 'Aun no hay resultados oficiales acumulados para mostrar.',
+    };
+  }
+
+  if (sessionStatus === 'activa') {
+    return {
+      status: 'live',
+      label: 'En vivo',
+      subtitle: 'Se actualiza en tiempo real cuando cambian los resultados.',
+      emptyMessage: '',
+    };
+  }
+
+  return {
+    status: 'final',
+    label: 'Ultima sesion',
+    subtitle: 'Estas viendo los resultados oficiales mas recientes de tu grupo.',
+    emptyMessage: '',
+  };
+};
+
+export const buildStudentInitials = (value = '') => {
+  const safeValue = String(value).trim();
+  if (!safeValue) {
+    return '';
+  }
+
+  const tokens = safeValue
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  if (!tokens.length) {
+    return '';
+  }
+
+  if (tokens.length === 1) {
+    return tokens[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${tokens[0][0] ?? ''}${tokens[1][0] ?? ''}`.toUpperCase();
 };
 
 export const buildProgressSummary = (stats = []) => {
@@ -103,5 +199,28 @@ export const buildSkillStatsView = (stats = []) => {
     strongestSkill,
     needsPracticeSkill,
     entries,
+  };
+};
+
+export const buildRankingView = (ranking) => {
+  const status = resolveRankingStatus(ranking);
+  const totalParticipants = Number(ranking?.totalParticipants ?? ranking?.total_participantes ?? 0);
+  const topEntries = ranking?.top ?? ranking?.top3 ?? [];
+  const allEntries = ranking?.entries ?? ranking?.resto ?? [];
+  const currentStudent = ranking?.currentStudent ?? ranking?.mi_posicion ?? null;
+
+  return {
+    ...EMPTY_RANKING_VIEW,
+    hasRanking: totalParticipants > 0 && topEntries.length > 0,
+    headline: 'Ranking del grupo',
+    subtitle: status.subtitle,
+    scopeLabel: resolveRankingHeadline(ranking?.scope),
+    status: status.status,
+    statusLabel: status.label,
+    totalParticipantsLabel: `${totalParticipants} participante${totalParticipants === 1 ? '' : 's'}`,
+    top3: topEntries,
+    rest: ranking?.rest ?? allEntries.slice(topEntries.length),
+    myPosition: currentStudent,
+    emptyMessage: status.emptyMessage,
   };
 };

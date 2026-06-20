@@ -3,6 +3,7 @@
 # dependencies
 node_modules/
 .npm-cache/
+npm-cache/
 
 # Expo
 .expo/
@@ -10,8 +11,9 @@ dist/
 web-build/
 
 # Native
-android/
-ios/
+/android/
+/ios/
+modules/expo-hand-tracker/android/build/
 *.orig.*
 *.jks
 *.p8
@@ -37,3 +39,6 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# juego-logica (orphaned web project - not part of the mobile app)
+juego-logica/

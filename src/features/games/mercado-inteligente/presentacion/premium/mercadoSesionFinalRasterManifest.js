@@ -118,7 +118,7 @@ export const MERCADO_SESION_FINAL_RASTER_MANIFEST = Object.freeze({
   capas: Object.freeze({
     fondo: crearEntradaRaster(
       CONFIGURACION_RASTER.fondo,
-      require('../../../../../../assets/images/mercado-inteligente/session-final/sources/session-final-clean-source.png'),
+      require('../../../../../../assets/images/mercado-inteligente/session-final/sources/session-final-background-source.png'),
     ),
     banner: crearEntradaRaster(
       CONFIGURACION_RASTER.banner,

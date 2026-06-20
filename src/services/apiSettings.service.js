@@ -36,6 +36,12 @@ export const isLoopbackApiBaseUrl = (value) => {
     return false;
   }
 
+  const configuredValue = resolveConfiguredApiBaseUrl();
+
+  if (configuredValue && normalizedValue === normalizeApiBaseUrl(configuredValue)) {
+    return false;
+  }
+
   try {
     const { hostname } = new URL(normalizedValue);
     return ['localhost', '127.0.0.1', '::1'].includes(hostname);

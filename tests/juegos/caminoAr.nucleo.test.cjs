@@ -267,7 +267,7 @@ test('construirEscenaCaminoAr usa resumen oficial, logros y progreso para el cie
   assert.equal(escena.resultado.metricas[0].valor, 25);
   assert.equal(escena.resultado.metricas[1].valor, 2);
   assert.equal(escena.resultado.logros.length, 1);
-  assert.equal(escena.resultado.etiquetaSalir, 'Volver al inicio');
+  assert.equal(escena.resultado.etiquetaSalir, 'Volver al tablero');
 });
 
 test('construirEscenaCaminoAr congela estrellas visuales mientras sincroniza cierre', () => {

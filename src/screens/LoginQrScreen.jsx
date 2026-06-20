@@ -14,6 +14,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import BrandBackground from '../components/BrandBackground';
 import PrimaryButton from '../components/PrimaryButton';
+import { resolveConfiguredApiBaseUrl } from '../config/api';
 import { colors, fonts, shadows, spacing } from '../constants/theme';
 
 const wideLogo = require('../../assets/branding/logo-logickids.png');
@@ -34,6 +35,7 @@ export default function LoginQrScreen({
   const { width, height } = Dimensions.get('window');
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [draftApiBaseUrl, setDraftApiBaseUrl] = useState(apiBaseUrl ?? '');
+  const canConfigureConnection = !resolveConfiguredApiBaseUrl();
   const ctaBottomPadding = insets.bottom + 14;
   const buttonSpace = 62 + ctaBottomPadding;
   const headerHeight = 60;
@@ -83,18 +85,22 @@ export default function LoginQrScreen({
             <Ionicons name="arrow-back" size={24} color={colors.purple} />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Configurar conexion"
-            activeOpacity={0.85}
-            onPress={() => {
-              setDraftApiBaseUrl(apiBaseUrl ?? '');
-              setSettingsVisible(true);
-            }}
-            style={styles.helpButton}
-          >
-            <Ionicons name="wifi" size={23} color={colors.white} />
-          </TouchableOpacity>
+          {canConfigureConnection ? (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Configurar conexion"
+              activeOpacity={0.85}
+              onPress={() => {
+                setDraftApiBaseUrl(apiBaseUrl ?? '');
+                setSettingsVisible(true);
+              }}
+              style={styles.helpButton}
+            >
+              <Ionicons name="wifi" size={23} color={colors.white} />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.headerSpacer} />
+          )}
         </View>
 
         <View
@@ -128,33 +134,35 @@ export default function LoginQrScreen({
             Usa tu codigo QR para acceder de forma segura y rapida.
           </Text>
 
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Revisar conexion del colegio"
-            activeOpacity={0.85}
-            onPress={() => {
-              setDraftApiBaseUrl(apiBaseUrl ?? '');
-              setSettingsVisible(true);
-            }}
-            style={[
-              styles.connectionPill,
-              needsApiConfiguration && styles.connectionPillWarning,
-            ]}
-          >
-            <Ionicons
-              name={needsApiConfiguration ? 'alert-circle' : 'wifi'}
-              size={18}
-              color={needsApiConfiguration ? colors.purpleDark : colors.white}
-            />
-            <Text
+          {canConfigureConnection ? (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Revisar conexion del colegio"
+              activeOpacity={0.85}
+              onPress={() => {
+                setDraftApiBaseUrl(apiBaseUrl ?? '');
+                setSettingsVisible(true);
+              }}
               style={[
-                styles.connectionPillText,
-                needsApiConfiguration && styles.connectionPillWarningText,
+                styles.connectionPill,
+                needsApiConfiguration && styles.connectionPillWarning,
               ]}
             >
-              {needsApiConfiguration ? 'Configura la conexion' : 'Conexion lista'}
-            </Text>
-          </TouchableOpacity>
+              <Ionicons
+                name={needsApiConfiguration ? 'alert-circle' : 'wifi'}
+                size={18}
+                color={needsApiConfiguration ? colors.purpleDark : colors.white}
+              />
+              <Text
+                style={[
+                  styles.connectionPillText,
+                  needsApiConfiguration && styles.connectionPillWarningText,
+                ]}
+              >
+                {needsApiConfiguration ? 'Configura la conexion' : 'Conexion lista'}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
 
           <View
             style={[
@@ -217,7 +225,7 @@ export default function LoginQrScreen({
         <Modal
           animationType="fade"
           transparent
-          visible={settingsVisible}
+          visible={canConfigureConnection && settingsVisible}
           onRequestClose={() => setSettingsVisible(false)}
         >
           <View style={styles.modalBackdrop}>
@@ -282,6 +290,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
     marginTop: 8,
+  },
+  headerSpacer: {
+    width: 46,
+    height: 46,
   },
   backButton: {
     width: 52,
