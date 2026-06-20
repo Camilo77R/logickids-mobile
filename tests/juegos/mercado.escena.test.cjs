@@ -31,6 +31,108 @@ const {
 const {
   SESION_FINAL_ASSET_KIT,
 } = require('../../src/features/games/mercado-inteligente/presentacion/premium/interfaz/crearAssetsSesionFinal.js');
+const {
+  resolverContinuidadNivelMercado,
+  resolverFlujoResultadoMercado,
+} = require('../../src/features/games/mercado-inteligente/aplicacion/mercadoPremiumFlujo.js');
+
+test('flujo de Mercado diferencia ruta y single sin duplicar pantallas', () => {
+  assert.equal(
+    resolverContinuidadNivelMercado({
+      modoSesion: 'path',
+      cierreDisponible: true,
+      haySiguientePaso: true,
+      siguienteEsMismoJuego: true,
+      nivel: 1,
+      totalNiveles: 5,
+    }),
+    false,
+  );
+  assert.equal(
+    resolverContinuidadNivelMercado({
+      modoSesion: 'single',
+      cierreDisponible: true,
+      haySiguientePaso: true,
+      siguienteEsMismoJuego: true,
+      nivel: 1,
+      totalNiveles: 3,
+    }),
+    true,
+  );
+  assert.deepEqual(
+    resolverFlujoResultadoMercado({
+      modoSesion: 'path',
+      puedeContinuarNivel: false,
+      haySiguientePasoRuta: true,
+    }),
+    {
+      mostrarResultadoNivel: true,
+      etiquetaAccionResultado: 'Continuar ruta',
+    },
+  );
+  assert.deepEqual(
+    resolverFlujoResultadoMercado({
+      modoSesion: 'path',
+      puedeContinuarNivel: false,
+      haySiguientePasoRuta: false,
+    }),
+    {
+      mostrarResultadoNivel: true,
+      etiquetaAccionResultado: 'Finalizar ruta',
+    },
+  );
+  assert.deepEqual(
+    resolverFlujoResultadoMercado({
+      modoSesion: 'single',
+      puedeContinuarNivel: true,
+    }),
+    {
+      mostrarResultadoNivel: true,
+      etiquetaAccionResultado: '¡Siguiente nivel!',
+    },
+  );
+  assert.deepEqual(
+    resolverFlujoResultadoMercado({
+      modoSesion: 'single',
+      puedeContinuarNivel: false,
+    }),
+    {
+      mostrarResultadoNivel: false,
+      etiquetaAccionResultado: null,
+    },
+  );
+});
+
+test('ruta muestra resumen de misión y continúa al siguiente paso', () => {
+  const configuracion = normalizarConfiguracionMercado();
+  const ronda = generarRondaMercado({ configuracion, indiceRonda: 0 });
+  const modeloVisual = crearModeloVisualNivelMercado({
+    ronda,
+    nivel: 1,
+    totalNiveles: 5,
+    seleccionadosIds: ronda.oferta.slice(0, 2).map(({ id }) => id),
+    mensaje: 'Actividad completada.',
+    estrellas: 3,
+    combo: 1,
+    aciertos: 1,
+    errores: 0,
+  });
+  const flujo = resolverFlujoResultadoMercado({
+    modoSesion: 'path',
+    haySiguientePasoRuta: true,
+  });
+  const estadoUi = crearEstadoUiMercadoPremium({
+    modeloVisual,
+    completado: true,
+    tieneSiguienteNivel: false,
+    mostrarResultadoNivel: flujo.mostrarResultadoNivel,
+    etiquetaAccionResultado: flujo.etiquetaAccionResultado,
+  });
+
+  assert.equal(estadoUi.screen, 'result');
+  assert.equal(estadoUi.sessionResult, null);
+  assert.equal(estadoUi.result.primaryLabel, 'Continuar ruta');
+});
 
 test('generarDocumentoMercadoPremium crea la Pantalla 1 premium con UI y bridge explicitos', () => {
   const configuracion = normalizarConfiguracionMercado({
