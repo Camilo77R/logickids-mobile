@@ -13,6 +13,9 @@ import {
   prepararAssetsMercadoPremium,
 } from './mercadoPremiumAssets';
 import {
+  debePosponerRenderSesionFinalMercado,
+} from './mercadoPremiumActualizacion';
+import {
   MODELOS_ESCENA_MERCADO_PREMIUM,
 } from './mercadoPremiumModelos';
 import { MERCADO_SESION_FINAL_RASTER_MANIFEST } from './mercadoSesionFinalRasterManifest';
@@ -78,7 +81,7 @@ export default function MercadoPremiumWebView({
   );
 
   useEffect(() => {
-    if (!escenaLista) {
+    if (!escenaLista || debePosponerRenderSesionFinalMercado(estadoUi)) {
       return;
     }
 

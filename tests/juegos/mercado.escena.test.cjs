@@ -35,6 +35,33 @@ const {
   resolverContinuidadNivelMercado,
   resolverFlujoResultadoMercado,
 } = require('../../src/features/games/mercado-inteligente/aplicacion/mercadoPremiumFlujo.js');
+const {
+  debePosponerRenderSesionFinalMercado,
+} = require('../../src/features/games/mercado-inteligente/presentacion/premium/mercadoPremiumActualizacion.js');
+
+test('Pantalla 3 espera el cierre estable para montar sus assets una sola vez', () => {
+  assert.equal(
+    debePosponerRenderSesionFinalMercado({
+      screen: 'session-result',
+      sessionResult: { primaryVisible: false },
+    }),
+    true,
+  );
+  assert.equal(
+    debePosponerRenderSesionFinalMercado({
+      screen: 'session-result',
+      sessionResult: { primaryVisible: true },
+    }),
+    false,
+  );
+  assert.equal(
+    debePosponerRenderSesionFinalMercado({
+      screen: 'result',
+      result: { primaryVisible: false },
+    }),
+    false,
+  );
+});
 
 test('flujo de Mercado diferencia ruta y single sin duplicar pantallas', () => {
   assert.equal(
