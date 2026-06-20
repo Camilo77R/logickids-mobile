@@ -44,7 +44,7 @@ const crearImagenRasterSesionFinal = ({ className, fuente, alt = '' }) => {
     <img
       class="${atributoSeguro(className)}"
       src="${atributoSeguro(fuente)}"
-      alt="${textoSeguro(alt)}"
+      alt="${atributoSeguro(alt)}"
       draggable="false"
     />
   `;
@@ -107,9 +107,6 @@ export const crearConfetiSesionFinal = () =>
     const variante = (indice % CONFETI_VARIANTES) + 1;
     return `<i class="mercado-resultado__confeti mercado-resultado__confeti--${variante}" aria-hidden="true"></i>`;
   }).join('');
-
-export const crearFondoSesionFinal = (assets = {}) =>
-  crearCapaAssetSesionFinal(assets?.capas?.fondo, 'mercado-sesion-final__fondo-asset', '');
 
 export const crearOverlayConfetiSesionFinal = (assets = {}) =>
   crearCapaAssetSesionFinal(assets?.efectos?.confeti, 'mercado-sesion-final__confeti-premium', '');
