@@ -8,6 +8,7 @@ import {
 
 const DIFICULTAD_MINIMA = 1;
 const DIFICULTAD_MAXIMA = 4;
+const PRODUCTOS_VISIBLES_MAXIMOS = 6;
 
 const CONFIGURACION_BASE = Object.freeze({
   slug: SLUG_MERCADO,
@@ -33,6 +34,16 @@ const asegurarEnteroPositivo = (valor, respaldo) => {
   const numero = Number(valor);
 
   if (!Number.isInteger(numero) || numero <= 0) {
+    return respaldo;
+  }
+
+  return numero;
+};
+
+const asegurarEnteroNoNegativo = (valor, respaldo) => {
+  const numero = Number(valor);
+
+  if (!Number.isInteger(numero) || numero < 0) {
     return respaldo;
   }
 
@@ -86,9 +97,12 @@ export const normalizarConfiguracionMercado = (entrada = {}) => {
         configuracionEntrada.presupuestoMonedas,
         configuracionBase.presupuestoMonedas,
       ),
-      cantidadProductosVisibles: asegurarEnteroPositivo(
-        configuracionEntrada.cantidadProductosVisibles,
-        configuracionBase.cantidadProductosVisibles,
+      cantidadProductosVisibles: Math.min(
+        PRODUCTOS_VISIBLES_MAXIMOS,
+        asegurarEnteroPositivo(
+          configuracionEntrada.cantidadProductosVisibles,
+          configuracionBase.cantidadProductosVisibles,
+        ),
       ),
       cantidadObjetivos: asegurarEnteroPositivo(
         configuracionEntrada.cantidadObjetivos,
@@ -104,7 +118,7 @@ export const normalizarConfiguracionMercado = (entrada = {}) => {
         configuracionEntrada.modoObjetivo,
         configuracionBase.modoObjetivo,
       ),
-      ayudasDisponibles: asegurarEnteroPositivo(
+      ayudasDisponibles: asegurarEnteroNoNegativo(
         configuracionEntrada.ayudasDisponibles,
         configuracionBase.ayudasDisponibles,
       ),
@@ -128,6 +142,8 @@ export const resolverConfiguracionMercadoDesdeBackend = ({
   return normalizarConfiguracionMercado({
     ...configuracionLocal,
     dificultad: gameConfig.dificultad ?? respuestaInicioSesion?.sesion?.dificultad,
+    fuenteAdaptacion:
+      gameConfig.adaptacion?.fuente ?? configuracionLocal.fuenteAdaptacion,
     rondasPorPartida: gameConfig.rondas_por_partida,
     configuracion: {
       ...configuracionLocal.configuracion,

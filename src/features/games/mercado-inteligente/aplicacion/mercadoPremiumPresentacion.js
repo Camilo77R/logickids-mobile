@@ -110,6 +110,7 @@ export const crearModeloVisualNivelMercado = ({
   ronda,
   nivel,
   totalNiveles,
+  dificultad,
   seleccionadosIds,
   mensaje,
   estrellas,
@@ -123,6 +124,7 @@ export const crearModeloVisualNivelMercado = ({
   return {
     nivel,
     totalNiveles,
+    dificultad,
     mision: {
       texto: ronda.objetivo.textoGuia,
       cantidadObjetivo: obtenerCantidadObjetivoMercado(ronda),

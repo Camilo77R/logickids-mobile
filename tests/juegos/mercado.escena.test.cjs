@@ -80,6 +80,46 @@ test('generarDocumentoMercadoPremium crea la Pantalla 1 premium con UI y bridge 
   assert.match(html, new RegExp(ronda.oferta[0].nombre));
 });
 
+test('Mision con seis productos conserva Comprar y separa los extremos del total', () => {
+  const configuracion = normalizarConfiguracionMercado({
+    configuracion: {
+      cantidadProductosVisibles: 9,
+      cantidadObjetivos: 3,
+      presupuestoMonedas: 18,
+    },
+  });
+  const ronda = generarRondaMercado({ configuracion, indiceRonda: 0 });
+  const modeloVisual = crearModeloVisualNivelMercado({
+    ronda,
+    nivel: 3,
+    totalNiveles: 4,
+    seleccionadosIds: ronda.oferta.slice(0, 3).map(({ id }) => id),
+    mensaje: ronda.objetivo.textoGuia,
+    estrellas: 0,
+    combo: 0,
+  });
+  const estadoUi = crearEstadoUiMercadoPremium({
+    modeloVisual,
+    nombreJugador: 'Laura',
+  });
+  const html = generarDocumentoMercadoPremium({
+    modeloVisual,
+    estadoUi,
+    assets: { productos: {}, escena: {} },
+  });
+  const estilos = crearEstilosMercado();
+
+  assert.equal(configuracion.configuracion.cantidadProductosVisibles, 6);
+  assert.equal(ronda.oferta.length, 6);
+  assert.match(html, /mercado-escaparate--6/);
+  assert.match(html, /data-mercado-action="buy"/);
+  assert.doesNotMatch(html, /data-mercado-action="buy" disabled/);
+  assert.match(estilos, /mercado-escaparate--6 \.mercado-producto:nth-child\(6\)\{grid-column:4\}/);
+  assert.match(estilos, /\.mercado-total\{[^}]*pointer-events:none/);
+  assert.match(estilos, /\.mercado-acciones\{[^}]*z-index:4/);
+  assert.match(estilos, /\.mercado-tarea__estado\{display:block/);
+});
+
 test('generarDocumentoMercadoPremium crea la Pantalla 2 con el resultado real del nivel', () => {
   const configuracion = normalizarConfiguracionMercado();
   const ronda = generarRondaMercado({ configuracion, indiceRonda: 0 });

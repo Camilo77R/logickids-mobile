@@ -30,10 +30,11 @@ const crearProducto = (producto) => `
 `;
 
 export function crearEscaparateProductos({ products = [] } = {}) {
-  const productos = Array.isArray(products) ? products : [];
+  const productos = Array.isArray(products) ? products.slice(0, 6) : [];
+  const claseCantidad = `mercado-escaparate--${productos.length}`;
 
   return `
-    <section class="mercado-escaparate" aria-label="Productos del mercado">
+    <section class="mercado-escaparate ${claseCantidad}" aria-label="Productos del mercado">
       ${productos.map(crearProducto).join('')}
     </section>
   `;

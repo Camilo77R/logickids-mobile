@@ -479,6 +479,7 @@ export const useMercadoPremiumController = ({
         ronda: estado.ronda,
         nivel,
         totalNiveles,
+        dificultad: configuracionActiva.dificultad,
         seleccionadosIds: estado.seleccionadosIds,
         mensaje: estado.mensaje,
         estrellas,
@@ -486,7 +487,7 @@ export const useMercadoPremiumController = ({
         aciertos: estado.aciertos,
         errores: estado.errores,
       }),
-    [estado, estrellas, nivel, totalNiveles],
+    [configuracionActiva.dificultad, estado, estrellas, nivel, totalNiveles],
   );
   const resumenActividadVisible = useMemo(
     () =>

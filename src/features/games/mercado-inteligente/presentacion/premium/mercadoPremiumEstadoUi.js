@@ -96,7 +96,7 @@ export const crearEstadoUiMercadoPremium = ({
     },
     player: {
       name: nombreJugador,
-      levelLabel: `Nivel ${modeloVisual.nivel}`,
+      levelLabel: `Mision ${modeloVisual.nivel} de ${modeloVisual.totalNiveles} · Dificultad ${modeloVisual.dificultad}`,
       coins: modeloVisual.mision.presupuesto,
       avatarLabel: nombreJugador.slice(0, 1).toUpperCase(),
     },

@@ -68,6 +68,79 @@ test('resolverConfiguracionMercadoDesdeBackend adapta game_config al formato loc
   assert.deepEqual(configuracion.configuracion.categoriasPermitidas, ['verduras', 'lacteos']);
 });
 
+test('resolverConfiguracionMercadoDesdeBackend permite dificultad maxima sin ayudas', () => {
+  const configuracion = resolverConfiguracionMercadoDesdeBackend({
+    respuestaInicioSesion: {
+      sesion: { dificultad: 4 },
+      game_config: {
+        dificultad: 4,
+        ayudas_disponibles: 0,
+        adaptacion: { fuente: 'reglas' },
+      },
+    },
+  });
+
+  assert.equal(configuracion.dificultad, 4);
+  assert.equal(configuracion.configuracion.ayudasDisponibles, 0);
+  assert.equal(configuracion.fuenteAdaptacion, 'reglas');
+});
+
+test('los retos avanzados de categoria y presupuesto exacto siempre tienen solucion', () => {
+  const configuracionCategoria = normalizarConfiguracionMercado({
+    dificultad: 3,
+    configuracion: {
+      presupuestoMonedas: 18,
+      cantidadProductosVisibles: 6,
+      cantidadObjetivos: 3,
+      categoriasPermitidas: ['frutas', 'verduras'],
+      precioMin: 2,
+      precioMax: 6,
+      modoObjetivo: MODOS_OBJETIVO_MERCADO.categoriaObjetivo,
+    },
+  });
+  const configuracionExacta = normalizarConfiguracionMercado({
+    dificultad: 4,
+    configuracion: {
+      presupuestoMonedas: 24,
+      cantidadProductosVisibles: 6,
+      cantidadObjetivos: 3,
+      categoriasPermitidas: ['frutas', 'verduras', 'lacteos', 'panaderia'],
+      precioMin: 2,
+      precioMax: 8,
+      modoObjetivo: MODOS_OBJETIVO_MERCADO.presupuestoExacto,
+      ayudasDisponibles: 0,
+    },
+  });
+
+  for (let indiceRonda = 0; indiceRonda < 4; indiceRonda += 1) {
+    const rondaCategoria = generarRondaMercado({
+      configuracion: configuracionCategoria,
+      indiceRonda,
+    });
+    const productosCategoria = rondaCategoria.oferta
+      .filter((producto) => producto.categoria === rondaCategoria.objetivo.categoriaObjetivo)
+      .slice(0, rondaCategoria.objetivo.cantidadObjetivos);
+    const resultadoCategoria = evaluarSeleccionMercado({
+      ronda: rondaCategoria,
+      productosSeleccionadosIds: productosCategoria.map((producto) => producto.id),
+    });
+
+    assert.equal(productosCategoria.length, 3);
+    assert.equal(resultadoCategoria.exito, true);
+
+    const rondaExacta = generarRondaMercado({
+      configuracion: configuracionExacta,
+      indiceRonda,
+    });
+    const resultadoExacto = evaluarSeleccionMercado({
+      ronda: rondaExacta,
+      productosSeleccionadosIds: rondaExacta.oferta.slice(0, 3).map((producto) => producto.id),
+    });
+
+    assert.equal(resultadoExacto.exito, true);
+  }
+});
+
 test('generarOfertaMercado y generarRondaMercado producen estructuras deterministas', () => {
   const configuracion = normalizarConfiguracionMercado({
     configuracion: {
