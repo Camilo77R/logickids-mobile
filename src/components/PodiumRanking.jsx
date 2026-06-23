@@ -4,7 +4,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SvgUri } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -12,13 +12,6 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { colors, fonts, shadows, spacing } from '../constants/theme';
-
-const PODIUM_BACKGROUND = '#F5F5F5';
-
-const getRankingAvatarUri = (studentName) => {
-  const safeName = encodeURIComponent(studentName?.trim() || 'Student');
-  return `https://api.dicebear.com/7.x/adventurer/svg?seed=${safeName}&backgroundColor=${PODIUM_BACKGROUND.replace('#', '')}`;
-};
 
 export default function PodiumRanking({ data = null, ranking = [] }) {
   const normalizedData = useMemo(() => {
@@ -69,8 +62,6 @@ export default function PodiumRanking({ data = null, ranking = [] }) {
     }
 
     const nameForDisplay = item.name || item.studentName || 'Student';
-    const avatarUrl = getRankingAvatarUri(nameForDisplay);
-
     return (
       <Animated.View style={[styles.item, animStyle, { height }]}>
         <Text style={styles.medal}>
@@ -78,10 +69,10 @@ export default function PodiumRanking({ data = null, ranking = [] }) {
         </Text>
 
         <View style={[styles.avatarContainer, isFirst && styles.avatarContainerFirst]}>
-          <SvgUri
-            uri={avatarUrl}
-            width={isFirst ? 60 : 50}
-            height={isFirst ? 60 : 50}
+          <Ionicons
+            name="happy"
+            size={isFirst ? 34 : 28}
+            color={colors.purple}
           />
         </View>
 

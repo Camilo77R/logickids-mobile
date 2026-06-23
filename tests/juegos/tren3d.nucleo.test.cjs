@@ -3,8 +3,10 @@ const assert = require('node:assert/strict');
 
 const {
   calcularAdaptacionInterNivel,
+  debeFinalizarIntentoTren3D,
   generarPatronNivel,
   normalizarConfiguracionTren3D,
+  resolverNivelesPorModoTren3D,
 } = require('../../src/features/games/tren-3d/tren3dConfiguracion.js');
 const {
   calcularPuntaje,
@@ -32,6 +34,44 @@ test('normalizarConfiguracionTren3D limita dificultad y conserva defaults seguro
   assert.equal(configuracion.slug, SLUG_TREN_3D);
   assert.equal(configuracion.nivelesPorPartida, 4);
   assert.equal(configuracion.vagonesPorNivel, 10);
+});
+
+test('modo ruta limita Tren a exactamente un nivel por intento', () => {
+  const nivelesRuta = resolverNivelesPorModoTren3D({
+    nivelesPorPartida: 4,
+    sesionModo: 'ruta',
+  });
+
+  assert.equal(nivelesRuta, 1);
+  assert.equal(debeFinalizarIntentoTren3D({
+    nivelActual: 1,
+    nivelesPorPartida: nivelesRuta,
+  }), true);
+  assert.equal(resolverNivelesPorModoTren3D({
+    nivelesPorPartida: 7,
+    sesionModo: 'path',
+  }), 1);
+});
+
+test('modo single conserva los niveles configurados por el tutor', () => {
+  const nivelesSingle = resolverNivelesPorModoTren3D({
+    nivelesPorPartida: 3,
+    sesionModo: 'single',
+  });
+
+  assert.equal(nivelesSingle, 3);
+  assert.equal(debeFinalizarIntentoTren3D({
+    nivelActual: 1,
+    nivelesPorPartida: nivelesSingle,
+  }), false);
+  assert.equal(debeFinalizarIntentoTren3D({
+    nivelActual: 3,
+    nivelesPorPartida: nivelesSingle,
+  }), true);
+  assert.equal(resolverNivelesPorModoTren3D({
+    nivelesPorPartida: 6,
+    sesionModo: null,
+  }), 6);
 });
 
 test('generarPatronNivel crea patrones deterministas por dificultad', () => {

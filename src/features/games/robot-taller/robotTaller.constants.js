@@ -4,6 +4,8 @@ export const FASES_ENSAMBLAGE = Object.freeze({
   completado: 'completado',
 });
 
+export const SLUG_ROBOT_TALLER = 'robot-logico';
+
 export const MODO_PRESENTACION_ROBOT_TALLER = 'logica-3d';
 
 export const PARTES_ROBOT = Object.freeze([

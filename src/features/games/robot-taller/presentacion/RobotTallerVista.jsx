@@ -77,6 +77,7 @@ export default function RobotTallerVista({
   agarrarParte, moverParte, soltarParte, reiniciarPartida,
   finalizarPorTiempo, permitirReinicioManual = false,
   prepararPartida, preparandoPartida = false,
+  tiempoRestanteInicialMs = null,
   modoQuiz, preguntaActual, feedbackQuiz, responderQuiz,
   problemaMatematico, mostrarModalMatematica,
   manejarCorrectaMatematica, manejarIncorrectaMatematica,
@@ -85,8 +86,19 @@ export default function RobotTallerVista({
 }) {
   const [enPausa, setEnPausa] = useState(false);
   const [mostrarInstrucciones, setMostrarInstrucciones] = useState(true);
-  const [tiempoInicio, setTiempoInicio] = useState(null);
-  const [tiempoRestanteMs, setTiempoRestanteMs] = useState(configuracion?.configuracion?.tiempoLimiteMs ?? 300000);
+  const tiempoLimiteMs = configuracion?.configuracion?.tiempoLimiteMs
+    ?? NIVELES[1].tiempoLimiteMs;
+  const resolverTiempoInicial = useCallback(() => {
+    if (tiempoRestanteInicialMs == null) {
+      return tiempoLimiteMs;
+    }
+
+    const tiempoRestaurado = Number(tiempoRestanteInicialMs);
+    return Number.isFinite(tiempoRestaurado) && tiempoRestaurado >= 0
+      ? Math.min(tiempoRestaurado, tiempoLimiteMs)
+      : tiempoLimiteMs;
+  }, [tiempoLimiteMs, tiempoRestanteInicialMs]);
+  const [tiempoRestanteMs, setTiempoRestanteMs] = useState(resolverTiempoInicial);
   const timerRef = useRef(null);
   const tiempoAgotadoNotificadoRef = useRef(false);
   const finalizarPorTiempoRef = useRef(finalizarPorTiempo);
@@ -96,16 +108,19 @@ export default function RobotTallerVista({
   const mathTargetId = problemaMatematico?.idParte ?? null;
 
   useEffect(() => {
-    if (estado.fase === 'completado' || estado.fase === 'explotado') {
-      setTiempoInicio(null);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setTiempoRestanteMs(resolverTiempoInicial());
+    tiempoAgotadoNotificadoRef.current = false;
+  }, [resolverTiempoInicial]);
+
+  useEffect(() => {
+    if (estado.fase === 'completado' || mostrarInstrucciones || enPausa) {
       if (timerRef.current) clearInterval(timerRef.current);
       return;
     }
-    if (!tiempoInicio) {
-      setTiempoInicio(Date.now());
-      setTiempoRestanteMs(configuracion?.configuracion?.tiempoLimiteMs ?? 300000);
-    }
-    if (enPausa) { if (timerRef.current) clearInterval(timerRef.current); return; }
     timerRef.current = setInterval(() => {
       setTiempoRestanteMs((prev) => {
         if (prev <= 0) { clearInterval(timerRef.current); return 0; }
@@ -113,7 +128,7 @@ export default function RobotTallerVista({
       });
     }, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [estado.fase, enPausa, configuracion?.configuracion?.tiempoLimiteMs]);
+  }, [estado.fase, enPausa, mostrarInstrucciones, tiempoRestanteInicialMs]);
 
   useEffect(() => {
     finalizarPorTiempoRef.current = finalizarPorTiempo;
@@ -137,8 +152,9 @@ export default function RobotTallerVista({
 
   const handleReiniciar = useCallback(() => {
     setMostrarInstrucciones(true);
+    setTiempoRestanteMs(tiempoLimiteMs);
     reiniciarPartida();
-  }, [reiniciarPartida]);
+  }, [reiniciarPartida, tiempoLimiteMs]);
 
   const handleComenzar = useCallback(async () => {
     if (preparandoPartida) {

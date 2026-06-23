@@ -9,6 +9,12 @@ import {
   obtenerPiezasPorNivel,
 } from './robotTallerMotor';
 import { PARTES_ROBOT, FASES_ENSAMBLAGE, PIEZAS_ALTERNATIVAS, DATOS_FUNCION_PIEZA, EXPLICACIONES_ERROR, DATOS_PROBLEMA_MATEMATICO, obtenerPartesRobot, obtenerNombreRobot } from './robotTaller.constants';
+import { GAME_CHECKPOINT_PHASES } from '../core/useGameCheckpoint';
+import {
+  createRobotTallerCheckpointState,
+  parseRobotTallerCheckpointState,
+  restoreRobotTallerCheckpointState,
+} from './aplicacion/robotTallerCheckpoint';
 
 const construirEstadoInicial = (nivel, idMision) => {
   const piezas = obtenerPiezasPorNivel(nivel, idMision);
@@ -71,7 +77,11 @@ const ejecutarObservadorSeguro = (observador, carga) => {
   Promise.resolve().then(() => observador(carga)).catch(() => null);
 };
 
-export const useRobotTallerControlador = (configuracionInicial, observadores = {}) => {
+export const useRobotTallerControlador = (
+  configuracionInicial,
+  observadores = {},
+  checkpointRuntime = null,
+) => {
   const configuracion = useMemo(
     () => normalizarConfiguracionRobotTaller(configuracionInicial),
     [configuracionInicial],
@@ -85,18 +95,28 @@ export const useRobotTallerControlador = (configuracionInicial, observadores = {
   const marcaInicioRef = useRef(null);
   const ultimaPosicionGrabadaRef = useRef({});
   const finalizadoRef = useRef(false);
+  const observadoresRef = useRef(observadores);
+  const checkpointSessionRef = useRef(null);
+  const ultimaFirmaLogicaCheckpointRef = useRef(null);
+  const omitirAutoguardadoDeHidratacionRef = useRef(false);
+  const finalizacionPendienteRef = useRef(null);
 
   const [preguntaActual, setPreguntaActual] = useState(null);
   const [feedbackQuiz, setFeedbackQuiz] = useState(null);
   const [problemaMatematico, setProblemaMatematico] = useState(null);
   const [feedbackMatematica, setFeedbackMatematica] = useState(null);
   const [mostrarModalMatematica, setMostrarModalMatematica] = useState(false);
+  const [tiempoRestanteRestauradoMs, setTiempoRestanteRestauradoMs] = useState(null);
   const estadoRefMath = useRef(problemaMatematico);
   const primerProblemaGeneradoRef = useRef(false);
 
   useEffect(() => {
     estadoRef.current = estado;
   }, [estado]);
+
+  useEffect(() => {
+    observadoresRef.current = observadores;
+  }, [observadores]);
 
   useEffect(() => {
     if (estado.fase === FASES_ENSAMBLAGE.explotado && !estado.resultado && !primerProblemaGeneradoRef.current) {
@@ -115,6 +135,145 @@ export const useRobotTallerControlador = (configuracionInicial, observadores = {
     const extras = configuracion.nivel >= 3 ? [...PIEZAS_ALTERNATIVAS] : [];
     return [...partesBase, ...extras];
   }, [configuracion.nivel, partesBase]);
+
+  const checkpointPhase = checkpointRuntime?.phase ?? null;
+  const checkpointSessionId = checkpointRuntime?.sessionId ?? null;
+  const checkpointState = checkpointRuntime?.checkpointState ?? null;
+  const saveCheckpoint = checkpointRuntime?.saveCheckpoint ?? null;
+
+  const calcularTiempoTranscurridoMs = useCallback(() => (
+    marcaInicioRef.current ? Math.max(0, Date.now() - marcaInicioRef.current) : 0
+  ), []);
+
+  useEffect(() => {
+    if (
+      !checkpointSessionId ||
+      checkpointPhase !== GAME_CHECKPOINT_PHASES.ready ||
+      checkpointSessionRef.current === checkpointSessionId
+    ) {
+      return;
+    }
+
+    checkpointSessionRef.current = checkpointSessionId;
+    const parsed = parseRobotTallerCheckpointState(checkpointState, configuracion);
+
+    if (!parsed) {
+      ultimaFirmaLogicaCheckpointRef.current = null;
+      setTiempoRestanteRestauradoMs(null);
+      return;
+    }
+
+    const resultadoRestaurado = parsed.pendingFinalization
+      ? {
+          ...construirResumenPartidaEnsamblaje({
+            exito: parsed.contadorEnsambladas >= partesBase.length,
+            configuracion,
+            partesEnsambladas: parsed.contadorEnsambladas,
+            tiempoTranscurridoMs: parsed.tiempoTranscurridoMs,
+            partesBase,
+          }),
+          finalizacionSesion: parsed.pendingFinalization,
+        }
+      : null;
+    const restored = restoreRobotTallerCheckpointState({
+      checkpoint: parsed,
+      configuracion,
+      definicionesPiezas: todasLasPiezasDef,
+      resultado: resultadoRestaurado,
+    });
+
+    if (!restored) {
+      ultimaFirmaLogicaCheckpointRef.current = null;
+      setTiempoRestanteRestauradoMs(null);
+      return;
+    }
+
+    estadoRef.current = restored.estado;
+    intentosRef.current = restored.intentosMatematicos;
+    finalizacionPendienteRef.current = restored.pendingFinalization;
+    marcaInicioRef.current = restored.tiempoTranscurridoMs > 0
+      ? Date.now() - restored.tiempoTranscurridoMs
+      : null;
+    finalizadoRef.current = Boolean(restored.pendingFinalization);
+    primerProblemaGeneradoRef.current = Boolean(
+      restored.problemaMatematico || restored.pendingFinalization,
+    );
+    omitirAutoguardadoDeHidratacionRef.current = true;
+    ultimaFirmaLogicaCheckpointRef.current = JSON.stringify({
+      ...parsed,
+      tiempoTranscurridoMs: 0,
+    });
+
+    setEstado(restored.estado);
+    setPreguntaActual(restored.preguntaActual);
+    setFeedbackQuiz(null);
+    setProblemaMatematico(restored.problemaMatematico);
+    setFeedbackMatematica(null);
+    setMostrarModalMatematica(restored.mostrarModalMatematica);
+    setTiempoRestanteRestauradoMs(restored.tiempoRestanteMs);
+
+    if (restored.pendingFinalization) {
+      ejecutarObservadorSeguro(
+        observadoresRef.current.alReanudarFinalizacion,
+        restored.pendingFinalization,
+      );
+    }
+  }, [
+    checkpointPhase,
+    checkpointSessionId,
+    checkpointState,
+    configuracion,
+    partesBase,
+    todasLasPiezasDef,
+  ]);
+
+  useEffect(() => {
+    if (
+      !checkpointSessionId ||
+      checkpointPhase !== GAME_CHECKPOINT_PHASES.ready ||
+      checkpointSessionRef.current !== checkpointSessionId ||
+      typeof saveCheckpoint !== 'function'
+    ) {
+      return;
+    }
+
+    if (omitirAutoguardadoDeHidratacionRef.current) {
+      omitirAutoguardadoDeHidratacionRef.current = false;
+      return;
+    }
+
+    const snapshot = createRobotTallerCheckpointState({
+      configuracion,
+      estado,
+      intentosMatematicos: intentosRef.current,
+      mostrarModalMatematica,
+      pendingFinalization: finalizacionPendienteRef.current,
+      preguntaActual,
+      problemaMatematico,
+      tiempoTranscurridoMs: calcularTiempoTranscurridoMs(),
+    });
+    const logicalSignature = JSON.stringify({
+      ...snapshot,
+      tiempoTranscurridoMs: 0,
+    });
+
+    if (logicalSignature === ultimaFirmaLogicaCheckpointRef.current) {
+      return;
+    }
+
+    ultimaFirmaLogicaCheckpointRef.current = logicalSignature;
+    saveCheckpoint(snapshot);
+  }, [
+    calcularTiempoTranscurridoMs,
+    checkpointPhase,
+    checkpointSessionId,
+    configuracion,
+    estado,
+    mostrarModalMatematica,
+    preguntaActual,
+    problemaMatematico,
+    saveCheckpoint,
+  ]);
 
   const generarPreguntaMatematica = useCallback((idEspecifico) => {
     const est = estadoRef.current;
@@ -338,11 +497,15 @@ export const useRobotTallerControlador = (configuracionInicial, observadores = {
   const reiniciarPartida = useCallback(() => {
     marcaInicioRef.current = null;
     finalizadoRef.current = false;
+    finalizacionPendienteRef.current = null;
+    ultimaFirmaLogicaCheckpointRef.current = null;
+    omitirAutoguardadoDeHidratacionRef.current = false;
     primerProblemaGeneradoRef.current = false;
     setFeedbackQuiz(null);
     setPreguntaActual(null);
     setProblemaMatematico(null);
     setMostrarModalMatematica(false);
+    setTiempoRestanteRestauradoMs(null);
     setEstado(construirEstadoInicial(configuracion.nivel, configuracion.idMision));
   }, [configuracion.nivel, configuracion.idMision]);
 
@@ -364,23 +527,60 @@ export const useRobotTallerControlador = (configuracionInicial, observadores = {
     const tiempoTranscurridoMs = marcaInicioRef.current
       ? Date.now() - marcaInicioRef.current
       : 0;
-    const resultado = construirResumenPartidaEnsamblaje({
+    const resultadoBase = construirResumenPartidaEnsamblaje({
       exito,
       configuracion,
       partesEnsambladas: estadoActual.contadorEnsambladas,
       tiempoTranscurridoMs,
       partesBase,
     });
-    setEstado((previo) => ({
-      ...previo,
+    const finalizacionIdentificada =
+      observadoresRef.current.alPrepararFinalizacion?.(
+        resultadoBase.finalizacionSesion,
+      ) ?? resultadoBase.finalizacionSesion;
+    const resultado = {
+      ...resultadoBase,
+      finalizacionSesion: finalizacionIdentificada,
+    };
+    const estadoFinal = {
+      ...estadoActual,
       fase: FASES_ENSAMBLAGE.completado,
       parteAgarrada: null,
       resultado,
       mensaje: exito ? 'Robot armado correctamente.' : 'Sigue intentando.',
-    }));
+    };
+
+    finalizacionPendienteRef.current = finalizacionIdentificada;
+    estadoRef.current = estadoFinal;
+    setEstado(estadoFinal);
     setPreguntaActual(null);
     setFeedbackQuiz(null);
-    ejecutarObservadorSeguro(observadores.alFinalizarPartida, resultado);
+    setProblemaMatematico(null);
+    setFeedbackMatematica(null);
+    setMostrarModalMatematica(false);
+
+    if (
+      checkpointSessionRef.current === checkpointSessionId &&
+      typeof saveCheckpoint === 'function'
+    ) {
+      const pendingSnapshot = createRobotTallerCheckpointState({
+        configuracion,
+        estado: estadoFinal,
+        intentosMatematicos: intentosRef.current,
+        mostrarModalMatematica: false,
+        pendingFinalization: finalizacionIdentificada,
+        preguntaActual: null,
+        problemaMatematico: null,
+        tiempoTranscurridoMs,
+      });
+      ultimaFirmaLogicaCheckpointRef.current = JSON.stringify({
+        ...pendingSnapshot,
+        tiempoTranscurridoMs: 0,
+      });
+      saveCheckpoint(pendingSnapshot);
+    }
+
+    ejecutarObservadorSeguro(observadoresRef.current.alFinalizarPartida, resultado);
   };
 
   const agarrarParte = useCallback((idParte, posicionInicial = null) => {
@@ -563,5 +763,6 @@ export const useRobotTallerControlador = (configuracionInicial, observadores = {
     manejarIncorrectaMatematica,
     partesBase,
     temaNombre,
+    tiempoRestanteRestauradoMs,
   };
 };

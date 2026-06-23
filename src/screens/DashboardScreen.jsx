@@ -11,7 +11,6 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SvgUri } from 'react-native-svg';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { obtenerConfiguracionBaseCaminoAr } from '../features/games/camino-ar/caminoArConfiguracion';
@@ -105,27 +104,6 @@ const getGameIcon = (slug = '') => {
 
 const getStudentName = (profile, fallbackProfile) =>
   profile?.nombre || profile?.name || fallbackProfile?.nombre || fallbackProfile?.name || 'Estudiante';
-
-const getStudentAvatarSeed = (profile, fallbackProfile) => {
-  const rawSeed =
-    profile?.nombre ||
-    profile?.name ||
-    fallbackProfile?.nombre ||
-    fallbackProfile?.name ||
-    profile?.id ||
-    profile?.estudiante_id ||
-    profile?.studentId ||
-    fallbackProfile?.id ||
-    fallbackProfile?.estudiante_id ||
-    fallbackProfile?.studentId;
-
-  return String(rawSeed || 'Estudiante');
-};
-
-const getFrontendAvatarUri = (profile, fallbackProfile) => {
-  const seed = encodeURIComponent(getStudentAvatarSeed(profile, fallbackProfile));
-  return `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}&backgroundColor=${DASHBOARD_BACKGROUND.replace('#', '')}`;
-};
 
 const getStudentAvatarColor = (profile, fallbackProfile) =>
   profile?.color_avatar || profile?.avatarColor || fallbackProfile?.color_avatar || fallbackProfile?.avatarColor || colors.white;
@@ -742,9 +720,29 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       }),
     [objetoPerdidoConfig.slug, studentProfile],
   );
-  const buildSessionContextForGame = (slug, extraContext = {}) => ({
+  const commonSessionIdentity = useMemo(() => ({
     tokenEstudiante: studentSession?.token ?? null,
     baseUrlApi: studentSession?.apiBaseUrl ?? null,
+    sesionClaseId: studentProfile?.sesion_clase_id ?? null,
+    sesionModo: studentProfile?.sesion_modo ?? null,
+    sesionRutaId: studentProfile?.sesion_ruta_id ?? null,
+    sesionPasoActual: studentProfile?.sesion_paso_actual ?? null,
+    sesionBloqueActual: studentProfile?.sesion_bloque_actual ?? null,
+    sesionNivelEnBloque: studentProfile?.sesion_nivel_en_bloque ?? null,
+    sesionTotalPasos: studentProfile?.sesion_total_pasos ?? null,
+  }), [
+    studentProfile?.sesion_bloque_actual,
+    studentProfile?.sesion_clase_id,
+    studentProfile?.sesion_modo,
+    studentProfile?.sesion_nivel_en_bloque,
+    studentProfile?.sesion_paso_actual,
+    studentProfile?.sesion_ruta_id,
+    studentProfile?.sesion_total_pasos,
+    studentSession?.apiBaseUrl,
+    studentSession?.token,
+  ]);
+  const buildSessionContextForGame = (slug, extraContext = {}) => ({
+    ...commonSessionIdentity,
     minijuegoId:
       studentProfile?.sesion_minijuego_slug === slug
         ? studentProfile?.sesion_minijuego_id ?? null
@@ -753,64 +751,31 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   });
   const caminoArSessionContext = useMemo(
     () => buildSessionContextForGame(caminoArConfig.slug),
-    [
-      caminoArConfig.slug,
-      studentProfile?.sesion_minijuego_id,
-      studentProfile?.sesion_minijuego_slug,
-      studentSession?.apiBaseUrl,
-      studentSession?.token,
-    ],
+    [caminoArConfig.slug, commonSessionIdentity, studentProfile?.sesion_minijuego_id, studentProfile?.sesion_minijuego_slug],
   );
   const tren3DSessionContext = useMemo(
     () => buildSessionContextForGame(tren3DConfig.slug),
-    [
-      studentProfile?.sesion_minijuego_id,
-      studentProfile?.sesion_minijuego_slug,
-      studentSession?.apiBaseUrl,
-      studentSession?.token,
-      tren3DConfig.slug,
-    ],
+    [commonSessionIdentity, studentProfile?.sesion_minijuego_id, studentProfile?.sesion_minijuego_slug, tren3DConfig.slug],
   );
   const robotTallerSessionContext = useMemo(
     () => buildSessionContextForGame(robotTallerConfig.slug),
-    [
-      robotTallerConfig.slug,
-      studentProfile?.sesion_minijuego_id,
-      studentProfile?.sesion_minijuego_slug,
-      studentSession?.apiBaseUrl,
-      studentSession?.token,
-    ],
+    [commonSessionIdentity, robotTallerConfig.slug, studentProfile?.sesion_minijuego_id, studentProfile?.sesion_minijuego_slug],
   );
   const mercadoSessionContext = useMemo(
     () => buildSessionContextForGame(mercadoConfig.slug, {
       nombreEstudiante: getStudentName(studentProfile, studentSession?.studentProfile),
-      sesionModo: studentProfile?.sesion_modo ?? null,
-      sesionPasoActual: studentProfile?.sesion_paso_actual ?? null,
-      sesionTotalPasos: studentProfile?.sesion_total_pasos ?? null,
-      sesionNivelEnBloque: studentProfile?.sesion_nivel_en_bloque ?? null,
     }),
     [
+      commonSessionIdentity,
       mercadoConfig.slug,
       studentProfile?.sesion_minijuego_id,
       studentProfile?.sesion_minijuego_slug,
-      studentProfile?.sesion_modo,
-      studentProfile?.sesion_nivel_en_bloque,
-      studentProfile?.sesion_paso_actual,
-      studentProfile?.sesion_total_pasos,
-      studentSession?.apiBaseUrl,
       studentSession?.studentProfile,
-      studentSession?.token,
     ],
   );
   const objetoPerdidoSessionContext = useMemo(
     () => buildSessionContextForGame(objetoPerdidoConfig.slug),
-    [
-      objetoPerdidoConfig.slug,
-      studentProfile?.sesion_minijuego_id,
-      studentProfile?.sesion_minijuego_slug,
-      studentSession?.apiBaseUrl,
-      studentSession?.token,
-    ],
+    [commonSessionIdentity, objetoPerdidoConfig.slug, studentProfile?.sesion_minijuego_id, studentProfile?.sesion_minijuego_slug],
   );
   const sessionContextBySlug = useMemo(
     () => ({
@@ -867,6 +832,16 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       tren3DConfig.slug,
     ],
   );
+
+  useEffect(() => {
+    if (
+      activeGame &&
+      accessBySlug[activeGame]?.estado !== ESTADOS_ACCESO_JUEGO.disponible
+    ) {
+      setActiveGame(null);
+      setActiveGameContext(null);
+    }
+  }, [accessBySlug, activeGame]);
   const supportedGameSlugs = useMemo(
     () =>
       new Set([
@@ -905,7 +880,6 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   );
 
   const firstName = getStudentName(studentProfile, studentSession?.studentProfile).split(' ')[0];
-  const avatarUri = getFrontendAvatarUri(studentProfile, studentSession?.studentProfile);
   const avatarColor = getStudentAvatarColor(studentProfile, studentSession?.studentProfile);
   const gradeLabel = getGradeLabel(studentProfile);
   const availableGameSlug =
@@ -1192,7 +1166,6 @@ export default function DashboardScreen({ studentSession, onLogout }) {
           {activeTab === DASHBOARD_TABS.mapa && !showGamePath ? (
             <StudentHeader
               avatarColor={avatarColor}
-              avatarUri={avatarUri}
               firstName={firstName}
               gradeLabel={gradeLabel}
               isRefreshing={isRefreshing}
@@ -1215,7 +1188,6 @@ export default function DashboardScreen({ studentSession, onLogout }) {
               canContinue={Boolean(availableGameSlug)}
               attemptsLabel={attemptsLabel}
               avatarColor={avatarColor}
-              avatarUri={avatarUri}
               gradeLabel={gradeLabel}
               lastSession={lastSession}
               onLogout={onLogout}
@@ -1359,7 +1331,7 @@ function SectionTitle({ title, subtitle, action, actionIcon, onAction }) {
   );
 }
 
-function StudentHeader({ avatarColor, avatarUri, firstName, gradeLabel, isRefreshing, onPress }) {
+function StudentHeader({ avatarColor, firstName, gradeLabel, isRefreshing, onPress }) {
   return (
     <TouchableOpacity
       accessibilityRole="button"
@@ -1368,7 +1340,7 @@ function StudentHeader({ avatarColor, avatarUri, firstName, gradeLabel, isRefres
       onPress={onPress}
       style={styles.header}
     >
-      <AvatarImage avatarColor={avatarColor} avatarUri={avatarUri} size={58} iconSize={30} />
+      <AvatarImage avatarColor={avatarColor} size={58} iconSize={30} />
       <View style={styles.greeting}>
         <Text style={styles.title}>Hola, {firstName}!</Text>
         <Text style={styles.subtitle}>
@@ -1379,21 +1351,17 @@ function StudentHeader({ avatarColor, avatarUri, firstName, gradeLabel, isRefres
   );
 }
 
-function AvatarImage({ avatarColor, avatarUri, size, iconSize }) {
+function AvatarImage({ avatarColor, size, iconSize }) {
   const avatarStyle = {
     width: size,
     height: size,
     borderRadius: size / 2,
-    backgroundColor: avatarUri ? DASHBOARD_BACKGROUND : avatarColor,
+    backgroundColor: avatarColor,
   };
 
   return (
     <View style={[styles.avatar, avatarStyle]}>
-      {avatarUri ? (
-        <SvgUri uri={avatarUri} width={size} height={size} />
-      ) : (
-        <Ionicons name="happy" size={iconSize} color={colors.purple} />
-      )}
+      <Ionicons name="happy" size={iconSize} color={colors.purple} />
     </View>
   );
 }

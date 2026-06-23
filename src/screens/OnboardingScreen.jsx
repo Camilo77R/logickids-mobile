@@ -44,6 +44,7 @@ function WelcomeVideoPlayer({ source }) {
       nativeControls={false}
       allowsFullscreen={false}
       allowsPictureInPicture={false}
+      surfaceType="textureView"
     />
   );
 }
