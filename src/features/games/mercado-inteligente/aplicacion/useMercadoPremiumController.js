@@ -28,6 +28,10 @@ import {
   resolverResultadoNivelParaResumenMercado,
 } from './mercadoPremiumSesion.mapper';
 import {
+  resolverContinuidadNivelMercado,
+  resolverFlujoResultadoMercado,
+} from './mercadoPremiumFlujo';
+import {
   ESTADOS_PERSISTENCIA_MERCADO,
   useSesionMercado,
 } from './useSesionMercado';
@@ -574,10 +578,19 @@ export const useMercadoPremiumController = ({
     respuestaInicio,
     respuestaFinalizacion,
   });
-  const puedeContinuarNivel =
-    siguientePasoSesion.cierreDisponible
-      ? siguientePasoSesion.haySiguientePaso && siguientePasoSesion.siguienteEsMismoJuego
-      : nivel < totalNiveles;
+  const puedeContinuarNivel = resolverContinuidadNivelMercado({
+    modoSesion: contextoSesion?.sesionModo,
+    cierreDisponible: siguientePasoSesion.cierreDisponible,
+    haySiguientePaso: siguientePasoSesion.haySiguientePaso,
+    siguienteEsMismoJuego: siguientePasoSesion.siguienteEsMismoJuego,
+    nivel,
+    totalNiveles,
+  });
+  const flujoResultado = resolverFlujoResultadoMercado({
+    modoSesion: contextoSesion?.sesionModo,
+    puedeContinuarNivel,
+    haySiguientePasoRuta: siguientePasoSesion.haySiguientePaso,
+  });
   const estrellasOficiales = Number(
     respuestaFinalizacion?.resumen_oficial?.estrellas_obtenidas,
   );
@@ -667,6 +680,7 @@ export const useMercadoPremiumController = ({
       : null,
     modeloVisual,
     puedeContinuarNivel,
+    flujoResultado,
     feedbackEscena: estado.feedbackEscena,
     resultado: estado.resultado,
     resumenActividad: resumenActividadVisible,

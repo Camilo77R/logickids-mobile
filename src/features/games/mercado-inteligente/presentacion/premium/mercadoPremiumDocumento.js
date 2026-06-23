@@ -25,6 +25,9 @@ const resolverFondoSesionFinal = (assets) =>
 const crearScriptBridgePremium = () => `
   (function () {
     const root = document.getElementById('mercado-ui');
+    let actualizacionPendiente = null;
+    let htmlPendiente = '';
+    let ultimoHtmlAplicado = null;
 
     const enviar = (type, payload = {}) => {
       try {
@@ -69,7 +72,19 @@ const crearScriptBridgePremium = () => `
         } catch (_) {}
       },
       updateUi(html) {
-        root.innerHTML = html;
+        const siguienteHtml = String(html ?? '');
+        if (siguienteHtml === ultimoHtmlAplicado) return;
+
+        htmlPendiente = siguienteHtml;
+        if (actualizacionPendiente !== null) return;
+
+        actualizacionPendiente = requestAnimationFrame(() => {
+          actualizacionPendiente = null;
+          if (htmlPendiente === ultimoHtmlAplicado) return;
+
+          ultimoHtmlAplicado = htmlPendiente;
+          root.innerHTML = htmlPendiente;
+        });
       },
     };
 
