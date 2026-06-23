@@ -49,22 +49,25 @@ export const crearEstadoUiMercadoPremium = ({
   bloqueado = false,
   completado = false,
   tieneSiguienteNivel = false,
+  mostrarResultadoNivel = tieneSiguienteNivel,
+  etiquetaAccionResultado = null,
   resultado = null,
   resumenActividad = null,
   sincronizandoResultado = false,
   errorSincronizacionResultado = null,
 }) => {
-  const result = completado && tieneSiguienteNivel
+  const result = completado && mostrarResultadoNivel
     ? crearResultadoUiMercadoPremium({
         modeloVisual,
         resultado,
         nombreJugador,
         tieneSiguienteNivel,
+        etiquetaAccionResultado,
         sincronizandoResultado,
         errorSincronizacionResultado,
       })
     : null;
-  const sessionResult = completado && !tieneSiguienteNivel
+  const sessionResult = completado && !mostrarResultadoNivel
     ? crearSesionFinalUiMercadoPremium({
         resumenActividad,
         nombreJugador,

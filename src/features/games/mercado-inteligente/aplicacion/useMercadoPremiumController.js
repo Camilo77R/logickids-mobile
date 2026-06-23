@@ -28,9 +28,18 @@ import {
   resolverResultadoNivelParaResumenMercado,
 } from './mercadoPremiumSesion.mapper';
 import {
+  resolverContinuidadNivelMercado,
+  resolverFlujoResultadoMercado,
+} from './mercadoPremiumFlujo';
+import {
   ESTADOS_PERSISTENCIA_MERCADO,
   useSesionMercado,
 } from './useSesionMercado';
+import {
+  createMercadoCheckpointHydrationBarrier,
+  createMercadoCheckpointState,
+  parseMercadoCheckpointState,
+} from './mercadoCheckpoint';
 
 const FASES_MERCADO_PREMIUM = Object.freeze({
   preparando: 'preparando',
@@ -112,9 +121,12 @@ export const useMercadoPremiumController = ({
     persistenciaRemotaHabilitada,
     prepararNuevaRonda,
     prepararRonda,
+    identificarFinalizacion,
     reintentarFinalizacion,
+    reanudarFinalizacion,
     respuestaFinalizacion,
     respuestaInicio,
+    checkpoint,
   } = sesionMercado;
   const feedback = useMercadoFeedback();
   const inicioPartidaRef = useRef(Date.now());
@@ -124,10 +136,125 @@ export const useMercadoPremiumController = ({
   const preparacionIdRef = useRef(0);
   const faseActualRef = useRef(FASES_MERCADO_PREMIUM.preparando);
   const estrellasResultadoRef = useRef(null);
+  const checkpointSessionRef = useRef(null);
+  const lastCheckpointJsonRef = useRef(null);
+  const pendingFinalizationRef = useRef(null);
+  const hydrationBarrierRef = useRef(createMercadoCheckpointHydrationBarrier());
 
   useEffect(() => {
     faseActualRef.current = estado.fase;
   }, [estado.fase]);
+
+  useEffect(() => {
+    const sessionId = persistencia.sesionId;
+    if (!sessionId || checkpoint.phase !== 'ready' || checkpointSessionRef.current === sessionId) {
+      return;
+    }
+
+    const restored = parseMercadoCheckpointState(checkpoint.checkpointState);
+    checkpointSessionRef.current = sessionId;
+
+    if (!restored) {
+      lastCheckpointJsonRef.current = null;
+      pendingFinalizationRef.current = null;
+      hydrationBarrierRef.current.clear();
+      return;
+    }
+
+    const pendingFinalization = restored.pendingFinalization
+      ? identificarFinalizacion(restored.pendingFinalization)
+      : null;
+    const restoredResult = restored.resultado && pendingFinalization
+      ? {
+          ...restored.resultado,
+          finalizacionSesion: pendingFinalization,
+        }
+      : restored.resultado;
+    const normalizedRestored = createMercadoCheckpointState({
+      configuracion: restored.configuracion,
+      estado: {
+        ...restored,
+        resultado: restoredResult,
+      },
+      resumenActividad: restored.resumenActividad,
+      pendingFinalization,
+    });
+
+    pendingFinalizationRef.current = pendingFinalization;
+    lastCheckpointJsonRef.current = JSON.stringify(normalizedRestored);
+    hydrationBarrierRef.current.begin({
+      sessionId,
+      checkpointState: normalizedRestored,
+    });
+    setConfiguracionActiva(restored.configuracion);
+    setResumenActividad(restored.resumenActividad ?? crearResumenActividadMercado());
+    setEstado((previous) => ({
+      ...previous,
+      fase: restored.fase,
+      ronda: restored.ronda,
+      seleccionadosIds: restored.seleccionadosIds,
+      aciertos: restored.aciertos,
+      errores: restored.errores,
+      comboActual: restored.comboActual,
+      comboMaximo: restored.comboMaximo,
+      ayudasUsadas: restored.ayudasUsadas,
+      tuvoErrorAntesDeAcierto: restored.tuvoErrorAntesDeAcierto,
+      resultado: restoredResult,
+      feedbackEscena: null,
+      mensaje: restored.ronda?.objetivo?.textoGuia ?? previous.mensaje,
+    }));
+    finalizadoRef.current = restored.fase === FASES_MERCADO_PREMIUM.completado;
+
+    if (pendingFinalization) {
+      if (JSON.stringify(restored) !== JSON.stringify(normalizedRestored)) {
+        checkpoint.saveCheckpoint(normalizedRestored);
+      }
+      void reanudarFinalizacion(pendingFinalization);
+    }
+  }, [
+    checkpoint.checkpointState,
+    checkpoint.phase,
+    identificarFinalizacion,
+    persistencia.sesionId,
+    reanudarFinalizacion,
+  ]);
+
+  useEffect(() => {
+    const sessionId = persistencia.sesionId;
+    if (
+      !sessionId ||
+      checkpoint.phase !== 'ready' ||
+      checkpointSessionRef.current !== sessionId
+    ) {
+      return;
+    }
+
+    const snapshot = createMercadoCheckpointState({
+      configuracion: configuracionActiva,
+      estado,
+      resumenActividad,
+      pendingFinalization: pendingFinalizationRef.current,
+    });
+    const serialized = JSON.stringify(snapshot);
+
+    if (hydrationBarrierRef.current.blocksAutosave({
+      sessionId,
+      checkpointState: snapshot,
+    })) {
+      return;
+    }
+
+    if (serialized !== lastCheckpointJsonRef.current) {
+      lastCheckpointJsonRef.current = serialized;
+      checkpoint.saveCheckpoint(snapshot);
+    }
+  }, [
+    checkpoint,
+    configuracionActiva,
+    estado,
+    persistencia.sesionId,
+    resumenActividad,
+  ]);
 
   const prepararNivel = useCallback(async () => {
     // Protege el resultado visible frente a refrescos de persistencia o re-render de sesión.
@@ -143,6 +270,8 @@ export const useMercadoPremiumController = ({
     finalizadoRef.current = false;
     continuandoNivelRef.current = false;
     estrellasResultadoRef.current = null;
+    pendingFinalizationRef.current = null;
+    hydrationBarrierRef.current.clear();
     inicioPartidaRef.current = Date.now();
 
     setEstado((previo) => ({
@@ -236,7 +365,7 @@ export const useMercadoPremiumController = ({
 
     finalizadoRef.current = true;
     estrellasResultadoRef.current = calcularEstrellasVisualesMercado(resumenEstado);
-    const resultado = construirResumenPartidaMercado({
+    const resultadoBase = construirResumenPartidaMercado({
       configuracion: configuracionActiva,
       aciertos: resumenEstado.aciertos,
       errores: resumenEstado.errores,
@@ -246,6 +375,29 @@ export const useMercadoPremiumController = ({
       ayudasUsadas: resumenEstado.ayudasUsadas,
       estado: estadoFinal,
     });
+    const finalizacionIdentificada = persistenciaRemotaHabilitada
+      ? identificarFinalizacion(resultadoBase.finalizacionSesion)
+      : resultadoBase.finalizacionSesion;
+    const resultado = {
+      ...resultadoBase,
+      finalizacionSesion: finalizacionIdentificada,
+    };
+
+    if (persistenciaRemotaHabilitada && persistencia.sesionId) {
+      pendingFinalizationRef.current = finalizacionIdentificada;
+      const pendingSnapshot = createMercadoCheckpointState({
+        configuracion: configuracionActiva,
+        estado: {
+          ...resumenEstado,
+          fase: FASES_MERCADO_PREMIUM.completado,
+          resultado,
+        },
+        resumenActividad,
+        pendingFinalization: finalizacionIdentificada,
+      });
+      lastCheckpointJsonRef.current = JSON.stringify(pendingSnapshot);
+      checkpoint.saveCheckpoint(pendingSnapshot);
+    }
 
     observadoresJuego.alFinalizarPartida(resultado);
 
@@ -257,7 +409,15 @@ export const useMercadoPremiumController = ({
         resultado,
       }));
     }
-  }, [configuracionActiva, observadoresJuego]);
+  }, [
+    checkpoint,
+    configuracionActiva,
+    identificarFinalizacion,
+    observadoresJuego,
+    persistencia.sesionId,
+    persistenciaRemotaHabilitada,
+    resumenActividad,
+  ]);
 
   const alternarProducto = useCallback((productoId) => {
     setEstado((previo) => {
@@ -418,10 +578,19 @@ export const useMercadoPremiumController = ({
     respuestaInicio,
     respuestaFinalizacion,
   });
-  const puedeContinuarNivel =
-    siguientePasoSesion.cierreDisponible
-      ? siguientePasoSesion.haySiguientePaso && siguientePasoSesion.siguienteEsMismoJuego
-      : nivel < totalNiveles;
+  const puedeContinuarNivel = resolverContinuidadNivelMercado({
+    modoSesion: contextoSesion?.sesionModo,
+    cierreDisponible: siguientePasoSesion.cierreDisponible,
+    haySiguientePaso: siguientePasoSesion.haySiguientePaso,
+    siguienteEsMismoJuego: siguientePasoSesion.siguienteEsMismoJuego,
+    nivel,
+    totalNiveles,
+  });
+  const flujoResultado = resolverFlujoResultadoMercado({
+    modoSesion: contextoSesion?.sesionModo,
+    puedeContinuarNivel,
+    haySiguientePasoRuta: siguientePasoSesion.haySiguientePaso,
+  });
   const estrellasOficiales = Number(
     respuestaFinalizacion?.resumen_oficial?.estrellas_obtenidas,
   );
@@ -501,7 +670,7 @@ export const useMercadoPremiumController = ({
   );
 
   return {
-    fase: estado.fase,
+    fase: checkpoint.isHydrating ? FASES_MERCADO_PREMIUM.preparando : estado.fase,
     sincronizandoResultado:
       estado.fase === FASES_MERCADO_PREMIUM.completado &&
       !resultadoSincronizado &&
@@ -511,6 +680,7 @@ export const useMercadoPremiumController = ({
       : null,
     modeloVisual,
     puedeContinuarNivel,
+    flujoResultado,
     feedbackEscena: estado.feedbackEscena,
     resultado: estado.resultado,
     resumenActividad: resumenActividadVisible,

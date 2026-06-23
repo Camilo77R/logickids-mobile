@@ -5,6 +5,7 @@ import {
   buildSkillStatsView,
 } from '../features/student-dashboard/studentDashboard.selectors';
 import { createStudentDashboardService } from '../services/studentDashboard.service';
+import { isAuthenticationError } from '../services/http.service';
 import { buildDashboardSessionState } from '../services/session.service';
 import { subscribeStudentRealtime } from '../services/studentRealtime.service';
 
@@ -67,26 +68,26 @@ export const resolvePlayState = (profile) => {
     };
   }
 
-  if (!profile.sesion_activa) {
-    if (TERMINAL_PARTICIPANT_STATES.has(profile.sesion_participante_estado)) {
-      return {
-        canPlay: false,
-        status: 'completed-session',
-        title:
-          profile.sesion_participante_estado === 'completado'
-            ? 'Actividad completada'
-            : 'Actividad cerrada',
-        message:
-          profile.sesion_participante_estado === 'completado'
-            ? 'Ya terminaste tu actividad actual. Espera una nueva sesion o revisa tu progreso.'
-            : 'Esta actividad ya no esta disponible para este estudiante.',
-        buttonLabel:
-          profile.sesion_participante_estado === 'completado'
-            ? 'Actividad completada'
-            : 'Actividad cerrada',
-      };
-    }
+  if (TERMINAL_PARTICIPANT_STATES.has(profile.sesion_participante_estado)) {
+    return {
+      canPlay: false,
+      status: 'completed-session',
+      title:
+        profile.sesion_participante_estado === 'completado'
+          ? 'Actividad completada'
+          : 'Actividad cerrada',
+      message:
+        profile.sesion_participante_estado === 'completado'
+          ? 'Ya terminaste tu actividad actual. Espera una nueva sesion o revisa tu progreso.'
+          : 'Esta actividad ya no esta disponible para este estudiante.',
+      buttonLabel:
+        profile.sesion_participante_estado === 'completado'
+          ? 'Actividad completada'
+          : 'Actividad cerrada',
+    };
+  }
 
+  if (!profile.sesion_activa) {
     return {
       canPlay: false,
       status: 'waiting-tutor',
@@ -157,6 +158,11 @@ export const useStudentDashboard = (
         setErrorMessage('');
       }
     } catch (error) {
+      if (isAuthenticationError(error)) {
+        onSessionExpired?.();
+        return;
+      }
+
       if (isMountedRef.current) {
         setErrorMessage(error.message || 'No pudimos cargar tu dashboard.');
       }
@@ -216,7 +222,11 @@ export const useStudentDashboard = (
           };
         });
       }
-    } catch {
+    } catch (error) {
+      if (isAuthenticationError(error)) {
+        onSessionExpired?.();
+      }
+
       // El polling de respaldo no debe tumbar la UI ni interrumpir la clase.
     } finally {
       profileRefreshInFlightRef.current = false;

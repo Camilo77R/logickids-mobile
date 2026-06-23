@@ -7,6 +7,7 @@ const {
 const {
   MODO_PRESENTACION_ROBOT_TALLER,
   PARTES_ROBOT,
+  FASES_ENSAMBLAGE,
 } = require('../../src/features/games/robot-taller/robotTaller.constants.js');
 const {
   TIPOS_EVENTO_SESION,
@@ -17,6 +18,12 @@ const {
   construirEventoEnsamblaje,
   detectarSnap,
 } = require('../../src/features/games/robot-taller/robotTallerMotor.js');
+const {
+  calcularTiempoRestanteRobotTaller,
+  createRobotTallerCheckpointState,
+  parseRobotTallerCheckpointState,
+  restoreRobotTallerCheckpointState,
+} = require('../../src/features/games/robot-taller/aplicacion/robotTallerCheckpoint.js');
 
 test('normalizarConfiguracionRobotTaller usa defaults seguros y valida modo de presentacion', () => {
   const configuracion = normalizarConfiguracionRobotTaller({
@@ -109,4 +116,164 @@ test('construirResumenPartidaEnsamblaje penaliza partes faltantes', () => {
   assert.equal(resultado.estadisticas.errores, 4);
   assert.equal(resultado.detalles.totalPartes, 7);
   assert.equal(resultado.detalles.ensamblajeCompleto, false);
+});
+
+test('checkpoint de Robot Logico hace round-trip del estado logico allowlisted', () => {
+  const configuracion = normalizarConfiguracionRobotTaller({
+    dificultad: 2,
+    nivel: 1,
+  });
+  const estado = {
+    fase: FASES_ENSAMBLAGE.ensamblando,
+    partes: PARTES_ROBOT.map((parte, index) => ({
+      id: parte.id,
+      posicion: index === 1 ? [99, 99, 99] : parte.posicionExplotada,
+      rotacion: [1, 2, 3],
+      ensamblada: index === 0,
+      agarrada: index === 1,
+      bloqueado: index > 1,
+      bloqueadoPorMatematicas: index > 1,
+    })),
+    parteAgarrada: PARTES_ROBOT[1].id,
+    contadorEnsambladas: 999,
+    ordenActual: 1,
+    mensaje: 'Este texto visual no pertenece al checkpoint.',
+    eventosSesion: [{ tipo: 'no-persistir' }],
+  };
+  const pendingFinalization = {
+    puntaje: 15,
+    aciertos: 1,
+    errores: 6,
+    combo_maximo: 1,
+    dificultad: 2,
+    estado: 'completado',
+    finalization_id: 'finalization-robot-1',
+    campo_no_permitido: true,
+  };
+
+  const checkpoint = createRobotTallerCheckpointState({
+    configuracion,
+    estado,
+    preguntaActual: {
+      parteCorrectaId: 'torso',
+      opciones: [
+        { id: 'torso', nombre: 'No se persiste' },
+        { id: 'cabeza', nombre: 'Tampoco se persiste' },
+      ],
+    },
+    problemaMatematico: {
+      idParte: 'torso',
+      operador: '+',
+      a: 2,
+      b: 3,
+      respuesta: 5,
+      timestamp: Date.now(),
+    },
+    mostrarModalMatematica: true,
+    intentosMatematicos: { torso: 2, pieza_inventada: 500 },
+    tiempoTranscurridoMs: 42000,
+    pendingFinalization,
+  });
+  const parsed = parseRobotTallerCheckpointState(checkpoint, configuracion);
+  const restored = restoreRobotTallerCheckpointState({
+    checkpoint,
+    configuracion,
+    definicionesPiezas: PARTES_ROBOT,
+    resultado: { contrato: 'resultado-juego-v1' },
+  });
+
+  assert.deepEqual(parsed, checkpoint);
+  assert.equal(checkpoint.contadorEnsambladas, 1);
+  assert.equal(Object.hasOwn(checkpoint.partes[0], 'posicion'), false);
+  assert.equal(Object.hasOwn(checkpoint, 'mensaje'), false);
+  assert.equal(Object.hasOwn(checkpoint, 'eventosSesion'), false);
+  assert.deepEqual(checkpoint.intentosMatematicos, { torso: 2 });
+  assert.deepEqual(checkpoint.preguntaActual, {
+    parteCorrectaId: 'torso',
+    opcionesIds: ['torso', 'cabeza'],
+  });
+  assert.equal(checkpoint.pendingFinalization.finalization_id, 'finalization-robot-1');
+  assert.equal(Object.hasOwn(checkpoint.pendingFinalization, 'campo_no_permitido'), false);
+
+  assert.equal(restored.estado.fase, FASES_ENSAMBLAGE.completado);
+  assert.equal(restored.estado.parteAgarrada, null);
+  assert.deepEqual(restored.estado.partes[0].posicion, PARTES_ROBOT[0].posicionObjetivo);
+  assert.deepEqual(restored.estado.partes[1].posicion, PARTES_ROBOT[1].posicionExplotada);
+  assert.equal(restored.estado.partes[1].agarrada, false);
+  assert.deepEqual(restored.preguntaActual.opciones.map((opcion) => opcion.id), [
+    'torso',
+    'cabeza',
+  ]);
+  assert.equal(restored.problemaMatematico.timestamp, undefined);
+  assert.equal(restored.pendingFinalization.finalization_id, 'finalization-robot-1');
+});
+
+test('checkpoint de Robot Logico rechaza piezas desconocidas y otra configuracion', () => {
+  const configuracion = normalizarConfiguracionRobotTaller({ dificultad: 2, nivel: 1 });
+  const checkpoint = createRobotTallerCheckpointState({
+    configuracion,
+    estado: {
+      fase: FASES_ENSAMBLAGE.explotado,
+      partes: PARTES_ROBOT.map((parte) => ({
+        id: parte.id,
+        ensamblada: false,
+        bloqueado: true,
+        bloqueadoPorMatematicas: true,
+      })),
+      ordenActual: 0,
+    },
+  });
+
+  assert.equal(
+    parseRobotTallerCheckpointState(checkpoint, { ...configuracion, nivel: 2 }),
+    null,
+  );
+  assert.equal(
+    parseRobotTallerCheckpointState({
+      ...checkpoint,
+      partes: [{
+        id: 'pieza_inventada',
+        ensamblada: false,
+        bloqueado: false,
+        bloqueadoPorMatematicas: false,
+      }],
+    }, configuracion),
+    null,
+  );
+});
+
+test('checkpoint de Robot Logico restaura el tiempo restante real', () => {
+  const configuracion = normalizarConfiguracionRobotTaller({
+    dificultad: 2,
+    nivel: 1,
+    configuracion: { tiempoLimiteMs: 120000 },
+  });
+  const checkpoint = createRobotTallerCheckpointState({
+    configuracion,
+    estado: {
+      fase: FASES_ENSAMBLAGE.ensamblando,
+      partes: PARTES_ROBOT.map((parte) => ({
+        id: parte.id,
+        ensamblada: false,
+        bloqueado: true,
+        bloqueadoPorMatematicas: true,
+      })),
+      ordenActual: 0,
+    },
+    tiempoTranscurridoMs: 45000,
+  });
+  const restored = restoreRobotTallerCheckpointState({
+    checkpoint,
+    configuracion,
+    definicionesPiezas: PARTES_ROBOT,
+  });
+
+  assert.equal(restored.tiempoRestanteMs, 75000);
+  assert.equal(
+    calcularTiempoRestanteRobotTaller({
+      tiempoLimiteMs: 120000,
+      tiempoTranscurridoMs: 150000,
+    }),
+    0,
+  );
 });

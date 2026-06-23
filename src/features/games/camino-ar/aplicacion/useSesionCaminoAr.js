@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { crearClienteSesionesJuego } from '../../core/clienteSesionesJuego';
+import { createMobileGameOperationTracker } from '../../core/gameOperationIdentity.runtime';
+import { useGameCheckpoint } from '../../core/useGameCheckpoint';
+import { SLUG_CAMINO_AR } from '../caminoAr.constants';
+import { createCaminoArCheckpointState } from './caminoArCheckpoint';
 
 export const MODOS_PERSISTENCIA_CAMINO_AR = Object.freeze({
   local: 'local',
@@ -78,12 +82,24 @@ export const useSesionCaminoAr = ({ configuracion, contextoSesion }) => {
 
   const sesionIdRef = useRef(null);
   const respuestaInicioRef = useRef(null);
+  const finalizacionPendienteRef = useRef(null);
   const colaOperacionesRef = useRef(Promise.resolve());
+  const operationTrackerRef = useRef(null);
+  operationTrackerRef.current ??= createMobileGameOperationTracker();
+  const checkpoint = useGameCheckpoint({
+    client: clienteSesionesJuego,
+    enabled: persistenciaRemotaHabilitada,
+    gameSlug: SLUG_CAMINO_AR,
+    sessionId: persistencia.sesionId,
+    studentToken: contextoNormalizado.tokenEstudiante,
+  });
 
   useEffect(() => {
     sesionIdRef.current = null;
     respuestaInicioRef.current = null;
+    finalizacionPendienteRef.current = null;
     colaOperacionesRef.current = Promise.resolve();
+    operationTrackerRef.current.resetAttempt();
     setPersistencia(construirPersistenciaInicial(modoPersistencia));
   }, [
     modoPersistencia,
@@ -121,6 +137,7 @@ export const useSesionCaminoAr = ({ configuracion, contextoSesion }) => {
         tokenEstudiante: contextoNormalizado.tokenEstudiante,
         minijuegoId: contextoNormalizado.minijuegoId,
         dificultad: dificultadSolicitada,
+        attemptId: operationTrackerRef.current.getAttemptId(),
       });
 
       const sesionId = respuestaInicio?.sesion?.id ?? null;
@@ -158,6 +175,7 @@ export const useSesionCaminoAr = ({ configuracion, contextoSesion }) => {
       return Promise.resolve();
     }
 
+    const eventoIdentificado = operationTrackerRef.current.decorateEvent(evento);
     return encadenarOperacion(async () => {
       setPersistencia((previo) => ({
         ...previo,
@@ -180,7 +198,7 @@ export const useSesionCaminoAr = ({ configuracion, contextoSesion }) => {
         await clienteSesionesJuego.registrarEvento({
           tokenEstudiante: contextoNormalizado.tokenEstudiante,
           sesionId,
-          evento,
+          evento: eventoIdentificado,
         });
 
         setPersistencia((previo) => ({
@@ -200,11 +218,21 @@ export const useSesionCaminoAr = ({ configuracion, contextoSesion }) => {
     });
   };
 
+  const prepararFinalizacion = (finalizacionSesion) => {
+    if (normalizarTextoOpcional(finalizacionSesion?.finalization_id)) {
+      return finalizacionSesion;
+    }
+
+    return operationTrackerRef.current.decorateFinalization(finalizacionSesion);
+  };
+
   const finalizarSesionRemota = (finalizacionSesion) => {
     if (!clienteSesionesJuego || !persistenciaRemotaHabilitada) {
       return Promise.resolve();
     }
 
+    const finalizacionIdentificada = prepararFinalizacion(finalizacionSesion);
+    finalizacionPendienteRef.current = finalizacionIdentificada;
     return encadenarOperacion(async () => {
       setPersistencia((previo) => ({
         ...previo,
@@ -213,6 +241,7 @@ export const useSesionCaminoAr = ({ configuracion, contextoSesion }) => {
       }));
 
       try {
+        await checkpoint.flushCheckpoint();
         const respuestaInicio = await iniciarSesionRemota(configuracion.dificultad);
         const sesionId = respuestaInicio?.sesion?.id ?? sesionIdRef.current;
 
@@ -223,10 +252,13 @@ export const useSesionCaminoAr = ({ configuracion, contextoSesion }) => {
         const respuestaFinalizacion = await clienteSesionesJuego.finalizarSesion({
           tokenEstudiante: contextoNormalizado.tokenEstudiante,
           sesionId,
-          finalizacion: finalizacionSesion,
+          finalizacion: finalizacionIdentificada,
         });
 
         sesionIdRef.current = null;
+        finalizacionPendienteRef.current = null;
+        operationTrackerRef.current.clearFinalization();
+        checkpoint.markTerminal();
 
         setPersistencia((previo) => ({
           ...previo,
@@ -244,6 +276,13 @@ export const useSesionCaminoAr = ({ configuracion, contextoSesion }) => {
     });
   };
 
+  const reintentarFinalizacion = () => {
+    const finalizacionPendiente = finalizacionPendienteRef.current;
+    return finalizacionPendiente
+      ? finalizarSesionRemota(finalizacionPendiente)
+      : Promise.resolve();
+  };
+
   const observadoresJuego = {
     alIniciarPartida: () => {
       // La ronda local debe arrancar solo cuando el backend ya preparo la sesion.
@@ -254,6 +293,16 @@ export const useSesionCaminoAr = ({ configuracion, contextoSesion }) => {
       }
 
       void registrarEventoRemoto(evento);
+    },
+    alPrepararFinalizacion: prepararFinalizacion,
+    alGuardarCheckpoint: ({ estado, pendingFinalization = null }) => {
+      if (!persistenciaRemotaHabilitada || !persistencia.sesionId) {
+        return;
+      }
+
+      checkpoint.saveCheckpoint(
+        createCaminoArCheckpointState({ estado, pendingFinalization }),
+      );
     },
     alFinalizarPartida: (resultado) => {
       if (!persistenciaRemotaHabilitada) {
@@ -266,16 +315,22 @@ export const useSesionCaminoAr = ({ configuracion, contextoSesion }) => {
 
   const prepararRonda = useCallback(async (dificultadSolicitada) => {
     if (!persistenciaRemotaHabilitada) {
-      return true;
+      return { lista: true, respuestaInicio: null };
     }
 
     const respuestaInicio = await iniciarSesionRemota(dificultadSolicitada);
-    return Boolean(respuestaInicio?.sesion?.id ?? sesionIdRef.current);
+    return {
+      lista: Boolean(respuestaInicio?.sesion?.id ?? sesionIdRef.current),
+      respuestaInicio,
+    };
   }, [iniciarSesionRemota, persistenciaRemotaHabilitada]);
 
   const prepararNuevaRonda = useCallback(() => {
+    checkpoint.markTerminal();
     sesionIdRef.current = null;
     respuestaInicioRef.current = null;
+    finalizacionPendienteRef.current = null;
+    operationTrackerRef.current.resetAttempt();
     setPersistencia((previo) => ({
       ...previo,
       estado: ESTADOS_PERSISTENCIA_CAMINO_AR.inactiva,
@@ -285,7 +340,7 @@ export const useSesionCaminoAr = ({ configuracion, contextoSesion }) => {
       respuestaInicio: null,
       respuestaFinalizacion: null,
     }));
-  }, []);
+  }, [checkpoint]);
 
   return {
     persistencia,
@@ -295,5 +350,8 @@ export const useSesionCaminoAr = ({ configuracion, contextoSesion }) => {
     respuestaFinalizacion: persistencia.respuestaFinalizacion,
     prepararRonda,
     prepararNuevaRonda,
+    reintentarFinalizacion,
+    reanudarFinalizacion: finalizarSesionRemota,
+    checkpoint,
   };
 };

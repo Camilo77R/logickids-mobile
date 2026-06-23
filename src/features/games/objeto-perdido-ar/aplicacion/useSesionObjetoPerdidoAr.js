@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { crearClienteSesionesJuego } from '../../core/clienteSesionesJuego';
+import { createMobileGameOperationTracker } from '../../core/gameOperationIdentity.runtime';
+import { useGameCheckpoint } from '../../core/useGameCheckpoint';
+import { SLUG_OBJETO_PERDIDO_AR } from '../objetoPerdidoAr.constants';
+import { parseObjetoPerdidoArCheckpointState } from './objetoPerdidoArCheckpoint';
 
 export const MODOS_PERSISTENCIA_OBJETO_PERDIDO_AR = Object.freeze({
   local: 'local',
@@ -78,12 +82,26 @@ export const useSesionObjetoPerdidoAr = ({ configuracion, contextoSesion }) => {
 
   const sesionIdRef = useRef(null);
   const respuestaInicioRef = useRef(null);
+  const finalizacionPendienteRef = useRef(null);
+  const checkpointReanudadoRef = useRef(null);
   const colaOperacionesRef = useRef(Promise.resolve());
+  const operationTrackerRef = useRef(null);
+  operationTrackerRef.current ??= createMobileGameOperationTracker();
+  const checkpoint = useGameCheckpoint({
+    client: clienteSesionesJuego,
+    enabled: persistenciaRemotaHabilitada,
+    gameSlug: SLUG_OBJETO_PERDIDO_AR,
+    sessionId: persistencia.sesionId,
+    studentToken: contextoNormalizado.tokenEstudiante,
+  });
 
   useEffect(() => {
     sesionIdRef.current = null;
     respuestaInicioRef.current = null;
+    finalizacionPendienteRef.current = null;
+    checkpointReanudadoRef.current = null;
     colaOperacionesRef.current = Promise.resolve();
+    operationTrackerRef.current.resetAttempt();
     setPersistencia(construirPersistenciaInicial(modoPersistencia));
   }, [
     modoPersistencia,
@@ -121,6 +139,7 @@ export const useSesionObjetoPerdidoAr = ({ configuracion, contextoSesion }) => {
         tokenEstudiante: contextoNormalizado.tokenEstudiante,
         minijuegoId: contextoNormalizado.minijuegoId,
         dificultad: dificultadSolicitada,
+        attemptId: operationTrackerRef.current.getAttemptId(),
       });
 
       const sesionId = respuestaInicio?.sesion?.id ?? null;
@@ -158,6 +177,7 @@ export const useSesionObjetoPerdidoAr = ({ configuracion, contextoSesion }) => {
       return Promise.resolve();
     }
 
+    const eventoIdentificado = operationTrackerRef.current.decorateEvent(evento);
     return encadenarOperacion(async () => {
       setPersistencia((previo) => ({
         ...previo,
@@ -170,6 +190,7 @@ export const useSesionObjetoPerdidoAr = ({ configuracion, contextoSesion }) => {
       }));
 
       try {
+        await checkpoint.flushCheckpoint();
         const respuestaInicio = await iniciarSesionRemota(configuracion.dificultad);
         const sesionId = respuestaInicio?.sesion?.id ?? sesionIdRef.current;
 
@@ -180,7 +201,7 @@ export const useSesionObjetoPerdidoAr = ({ configuracion, contextoSesion }) => {
         await clienteSesionesJuego.registrarEvento({
           tokenEstudiante: contextoNormalizado.tokenEstudiante,
           sesionId,
-          evento,
+          evento: eventoIdentificado,
         });
 
         setPersistencia((previo) => ({
@@ -200,11 +221,21 @@ export const useSesionObjetoPerdidoAr = ({ configuracion, contextoSesion }) => {
     });
   };
 
+  const prepararFinalizacionIdempotente = (finalizacionSesion) => {
+    if (normalizarTextoOpcional(finalizacionSesion?.finalization_id)) {
+      return finalizacionSesion;
+    }
+
+    return operationTrackerRef.current.decorateFinalization(finalizacionSesion);
+  };
+
   const finalizarSesionRemota = (finalizacionSesion) => {
     if (!clienteSesionesJuego || !persistenciaRemotaHabilitada) {
       return Promise.resolve();
     }
 
+    const finalizacionIdentificada = prepararFinalizacionIdempotente(finalizacionSesion);
+    finalizacionPendienteRef.current = finalizacionIdentificada;
     return encadenarOperacion(async () => {
       setPersistencia((previo) => ({
         ...previo,
@@ -223,10 +254,13 @@ export const useSesionObjetoPerdidoAr = ({ configuracion, contextoSesion }) => {
         const respuestaFinalizacion = await clienteSesionesJuego.finalizarSesion({
           tokenEstudiante: contextoNormalizado.tokenEstudiante,
           sesionId,
-          finalizacion: finalizacionSesion,
+          finalizacion: finalizacionIdentificada,
         });
 
         sesionIdRef.current = null;
+        finalizacionPendienteRef.current = null;
+        operationTrackerRef.current.clearFinalization();
+        checkpoint.markTerminal();
 
         setPersistencia((previo) => ({
           ...previo,
@@ -244,6 +278,39 @@ export const useSesionObjetoPerdidoAr = ({ configuracion, contextoSesion }) => {
     });
   };
 
+  const persistirYFinalizar = ({ checkpointState, resultado }) => {
+    const finalizacion = prepararFinalizacionIdempotente(resultado.finalizacionSesion);
+    const checkpointFinal = {
+      ...checkpointState,
+      pendingFinalization: finalizacion,
+    };
+
+    checkpoint.saveCheckpoint(checkpointFinal);
+    return checkpoint.flushCheckpoint().then(() => finalizarSesionRemota(finalizacion));
+  };
+
+  useEffect(() => {
+    const sessionId = persistencia.sesionId;
+    if (
+      !sessionId ||
+      checkpoint.phase !== 'ready' ||
+      checkpointReanudadoRef.current === sessionId
+    ) {
+      return;
+    }
+
+    checkpointReanudadoRef.current = sessionId;
+    const restored = parseObjetoPerdidoArCheckpointState(checkpoint.checkpointState);
+    if (restored?.pendingFinalization) {
+      finalizacionPendienteRef.current = restored.pendingFinalization;
+      void finalizarSesionRemota(restored.pendingFinalization);
+    }
+  }, [
+    checkpoint.checkpointState,
+    checkpoint.phase,
+    persistencia.sesionId,
+  ]);
+
   const observadoresJuego = {
     alIniciarPartida: () => {
       // La ronda local debe arrancar solo cuando el backend ya preparo la sesion.
@@ -255,12 +322,19 @@ export const useSesionObjetoPerdidoAr = ({ configuracion, contextoSesion }) => {
 
       void registrarEventoRemoto(evento);
     },
-    alFinalizarPartida: (resultado) => {
+    alGuardarCheckpoint: (checkpointState) => {
+      if (!persistenciaRemotaHabilitada || !persistencia.sesionId) {
+        return false;
+      }
+
+      return checkpoint.saveCheckpoint(checkpointState);
+    },
+    alFinalizarPartida: (cierre) => {
       if (!persistenciaRemotaHabilitada) {
         return;
       }
 
-      void finalizarSesionRemota(resultado.finalizacionSesion);
+      void persistirYFinalizar(cierre);
     },
   };
 
@@ -274,8 +348,12 @@ export const useSesionObjetoPerdidoAr = ({ configuracion, contextoSesion }) => {
   }, [iniciarSesionRemota, persistenciaRemotaHabilitada]);
 
   const prepararNuevaRonda = useCallback(() => {
+    checkpoint.markTerminal();
     sesionIdRef.current = null;
     respuestaInicioRef.current = null;
+    finalizacionPendienteRef.current = null;
+    checkpointReanudadoRef.current = null;
+    operationTrackerRef.current.resetAttempt();
     setPersistencia((previo) => ({
       ...previo,
       estado: ESTADOS_PERSISTENCIA_OBJETO_PERDIDO_AR.inactiva,
@@ -285,7 +363,7 @@ export const useSesionObjetoPerdidoAr = ({ configuracion, contextoSesion }) => {
       respuestaInicio: null,
       respuestaFinalizacion: null,
     }));
-  }, []);
+  }, [checkpoint]);
 
   return {
     persistencia,
@@ -295,5 +373,6 @@ export const useSesionObjetoPerdidoAr = ({ configuracion, contextoSesion }) => {
     respuestaFinalizacion: persistencia.respuestaFinalizacion,
     prepararRonda,
     prepararNuevaRonda,
+    checkpoint,
   };
 };

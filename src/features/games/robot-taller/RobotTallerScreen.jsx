@@ -28,6 +28,7 @@ export default function RobotTallerScreen({
   const controlador = useRobotTallerControlador(
     configuracionEfectiva,
     sesionRobotTaller.observadoresJuego,
+    sesionRobotTaller.checkpoint,
   );
 
   const prepararPartida = useCallback(async () => {
@@ -88,6 +89,7 @@ export default function RobotTallerScreen({
       permitirReinicioManual={!sesionRobotTaller.persistenciaRemotaHabilitada}
       prepararPartida={prepararPartida}
       preparandoPartida={preparandoPartida}
+      tiempoRestanteInicialMs={controlador.tiempoRestanteRestauradoMs}
       modoQuiz={controlador.modoQuiz}
       preguntaActual={controlador.preguntaActual}
       feedbackQuiz={controlador.feedbackQuiz}

@@ -3,6 +3,10 @@ import {
   resolveConfiguredApiBaseUrl,
   resolveDefaultApiBaseUrl,
 } from '../config/api';
+import {
+  canConfigureApiAtRuntime,
+  requiresHttpsApi,
+} from '../config/runtimeEnvironment';
 
 const API_BASE_URL_STORAGE_KEY = 'logickids.mobile.apiBaseUrl';
 
@@ -14,7 +18,10 @@ export const normalizeApiBaseUrl = (value) => {
   return value.trim().replace(/\/+$/, '');
 };
 
-export const isValidApiBaseUrl = (value) => {
+export const isValidApiBaseUrl = (
+  value,
+  { requireHttps = requiresHttpsApi() } = {},
+) => {
   const normalizedValue = normalizeApiBaseUrl(value);
 
   if (!normalizedValue) {
@@ -23,7 +30,11 @@ export const isValidApiBaseUrl = (value) => {
 
   try {
     const url = new URL(normalizedValue);
-    return ['http:', 'https:'].includes(url.protocol) && url.pathname.replace(/\/$/, '').endsWith('/api');
+    const allowedProtocol = requireHttps
+      ? url.protocol === 'https:'
+      : ['http:', 'https:'].includes(url.protocol);
+
+    return allowedProtocol && url.pathname.replace(/\/$/, '').endsWith('/api');
   } catch (_error) {
     return false;
   }
@@ -54,7 +65,15 @@ export const loadApiBaseUrlSetting = async () => {
   const configuredValue = resolveConfiguredApiBaseUrl();
 
   if (configuredValue) {
+    if (!isValidApiBaseUrl(configuredValue)) {
+      throw new Error('La build no tiene configurada una URL HTTPS valida para la API.');
+    }
+
     return configuredValue;
+  }
+
+  if (!canConfigureApiAtRuntime()) {
+    return '';
   }
 
   const storedValue = normalizeApiBaseUrl(
@@ -69,9 +88,13 @@ export const loadApiBaseUrlSetting = async () => {
 };
 
 export const saveApiBaseUrlSetting = async (value) => {
+  if (!canConfigureApiAtRuntime()) {
+    throw new Error('La conexion del servidor no se puede modificar en esta version.');
+  }
+
   const normalizedValue = normalizeApiBaseUrl(value);
 
-  if (!isValidApiBaseUrl(normalizedValue)) {
+  if (!isValidApiBaseUrl(normalizedValue, { requireHttps: false })) {
     throw new Error('La URL debe iniciar con http:// o https:// y terminar en /api.');
   }
 

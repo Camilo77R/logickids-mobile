@@ -205,6 +205,7 @@ export const generarHtmlMotorBabylon = (parametrosIniciales, opciones = {}) => {
             colorSolicitado: esperado.colorId,
             figuraIngresada: estado.seleccion.figuraId,
             colorIngresado: estado.seleccion.colorId,
+            tiempoNivelMs: ahora - estado.inicioNivelMs,
             nivelCompletado: nivelCompletado
           });
 
@@ -241,6 +242,37 @@ export const generarHtmlMotorBabylon = (parametrosIniciales, opciones = {}) => {
           estado.seleccion = null;
           dibujarNivel();
           
+          if (grupoTren) {
+            grupoTren.position.x = inicioRecorridoX;
+            estadoTren = 'entrando';
+          }
+        };
+
+        window.restaurarNivel = function (params) {
+          var restaurados = Array.isArray(params.vagonesResueltos)
+            ? params.vagonesResueltos
+            : [];
+
+          estado.patron = Array.isArray(params.patron) ? params.patron : [];
+          estado.dificultad = params.dificultad || 1;
+          estado.velocidadTren = params.velocidadTren || 1;
+          estado.completados = {};
+          restaurados.forEach(function (indice) {
+            if (Number.isInteger(indice) && indice >= 0 && indice < estado.patron.length) {
+              estado.completados[indice] = true;
+            }
+          });
+          estado.totalCompletados = Object.keys(estado.completados).length;
+          estado.aciertos = Math.max(0, Number(params.aciertosNivel) || 0);
+          estado.errores = Math.max(0, Number(params.erroresNivel) || 0);
+          estado.combo = Math.max(0, Number(params.comboActual) || 0);
+          estado.comboMaximo = Math.max(estado.combo, Number(params.comboMaximoNivel) || 0);
+          estado.inicioNivelMs = Date.now() - Math.max(0, Number(params.tiempoNivelMs) || 0);
+          estado.ultimaJugadaMs = Date.now();
+          estado.nivelReportado = false;
+          estado.seleccion = null;
+          dibujarNivel();
+
           if (grupoTren) {
             grupoTren.position.x = inicioRecorridoX;
             estadoTren = 'entrando';
