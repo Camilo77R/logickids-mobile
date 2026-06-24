@@ -5,7 +5,7 @@
     "slug": "logickids",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/branding/logo-logickids-badge.png",
+    "icon": "./assets/branding/app-icon.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash.png",
@@ -23,8 +23,9 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/branding/logo-logickids-badge.png",
-        "backgroundColor": "#FAF3FF"
+        "foregroundImage": "./assets/branding/app-icon-foreground.png",
+        "monochromeImage": "./assets/branding/app-icon-monochrome.png",
+        "backgroundColor": "#8E35D5"
       },
       "package": "com.camilosr.logickidsmobile"
     },
