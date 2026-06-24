@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -21,6 +21,7 @@ import {
   SLUG_TREN_3D,
 } from '../features/games/tren-3d/tren3d.constants';
 import { CATALOGO_JUEGOS } from '../features/games/core/catalogoJuegos';
+import { shouldCloseActiveGame } from '../features/games/core/activeGameLifecycle';
 import { obtenerConfiguracionBaseRobotTaller } from '../features/games/robot-taller/robotTallerConfiguracion';
 import {
   ESTADOS_ACCESO_JUEGO,
@@ -28,7 +29,9 @@ import {
 } from '../features/games/core/resolverAccesoJuego';
 import { useStudentDashboard } from '../hooks/useStudentDashboard';
 import PodiumRanking from '../components/PodiumRanking';
+import StudentAvatar from '../components/StudentAvatar';
 import { colors, fonts, shadows, spacing } from '../constants/theme';
+import { resolveStudentAvatarUri } from '../services/studentAvatar.service';
 import GamePathScreen from './GamePathScreen';
 import ProfileNinoScreen from './ProfileNinoScreen';
 
@@ -646,6 +649,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const fabScale = useRef(new Animated.Value(1)).current;
   const [activeGame, setActiveGame] = useState(null);
   const [activeGameContext, setActiveGameContext] = useState(null);
+  const [activeGameResultVisible, setActiveGameResultVisible] = useState(false);
   const [showGamePath, setShowGamePath] = useState(false);
   const [skillsExpanded, setSkillsExpanded] = useState(false);
   const [expandedSkillId, setExpandedSkillId] = useState(null);
@@ -834,14 +838,17 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   );
 
   useEffect(() => {
-    if (
-      activeGame &&
-      accessBySlug[activeGame]?.estado !== ESTADOS_ACCESO_JUEGO.disponible
-    ) {
+    if (activeGame && shouldCloseActiveGame({
+      accessState: accessBySlug[activeGame]?.estado,
+      participantState: studentProfile?.sesion_participante_estado,
+      resultVisible: activeGameResultVisible,
+      sessionActive: studentProfile?.sesion_activa,
+    })) {
       setActiveGame(null);
       setActiveGameContext(null);
+      setActiveGameResultVisible(false);
     }
-  }, [accessBySlug, activeGame]);
+  }, [accessBySlug, activeGame, activeGameResultVisible, studentProfile]);
   const supportedGameSlugs = useMemo(
     () =>
       new Set([
@@ -880,6 +887,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   );
 
   const firstName = getStudentName(studentProfile, studentSession?.studentProfile).split(' ')[0];
+  const avatarUri = resolveStudentAvatarUri(studentProfile, studentSession?.studentProfile);
   const avatarColor = getStudentAvatarColor(studentProfile, studentSession?.studentProfile);
   const gradeLabel = getGradeLabel(studentProfile);
   const availableGameSlug =
@@ -1013,6 +1021,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
 
     setActiveGame(slug);
     setActiveGameContext(sessionContextBySlug[slug] ?? null);
+    setActiveGameResultVisible(false);
     setShowGamePath(false);
     return true;
   };
@@ -1032,8 +1041,13 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const exitGame = () => {
     setActiveGame(null);
     setActiveGameContext(null);
+    setActiveGameResultVisible(false);
     void reloadDashboard();
   };
+
+  const handleGameResultVisible = useCallback(() => {
+    setActiveGameResultVisible(true);
+  }, []);
 
   const handleSkillDetailPress = (skill) => {
     if (skill.gameSlug && skill.active) {
@@ -1143,6 +1157,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     return (
       <ScreenComponent
         onSalir={exitGame}
+        onResultadoVisible={handleGameResultVisible}
         configuracionInicial={config}
         contextoSesion={sessionContext}
       />
@@ -1166,6 +1181,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
           {activeTab === DASHBOARD_TABS.mapa && !showGamePath ? (
             <StudentHeader
               avatarColor={avatarColor}
+              avatarUri={avatarUri}
               firstName={firstName}
               gradeLabel={gradeLabel}
               isRefreshing={isRefreshing}
@@ -1188,6 +1204,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
               canContinue={Boolean(availableGameSlug)}
               attemptsLabel={attemptsLabel}
               avatarColor={avatarColor}
+              avatarUri={avatarUri}
               gradeLabel={gradeLabel}
               lastSession={lastSession}
               onLogout={onLogout}
@@ -1331,7 +1348,7 @@ function SectionTitle({ title, subtitle, action, actionIcon, onAction }) {
   );
 }
 
-function StudentHeader({ avatarColor, firstName, gradeLabel, isRefreshing, onPress }) {
+function StudentHeader({ avatarColor, avatarUri, firstName, gradeLabel, isRefreshing, onPress }) {
   return (
     <TouchableOpacity
       accessibilityRole="button"
@@ -1340,7 +1357,12 @@ function StudentHeader({ avatarColor, firstName, gradeLabel, isRefreshing, onPre
       onPress={onPress}
       style={styles.header}
     >
-      <AvatarImage avatarColor={avatarColor} size={58} iconSize={30} />
+      <StudentAvatar
+        backgroundColor={avatarColor}
+        iconSize={30}
+        size={58}
+        uri={avatarUri}
+      />
       <View style={styles.greeting}>
         <Text style={styles.title}>Hola, {firstName}!</Text>
         <Text style={styles.subtitle}>
@@ -1348,21 +1370,6 @@ function StudentHeader({ avatarColor, firstName, gradeLabel, isRefreshing, onPre
         </Text>
       </View>
     </TouchableOpacity>
-  );
-}
-
-function AvatarImage({ avatarColor, size, iconSize }) {
-  const avatarStyle = {
-    width: size,
-    height: size,
-    borderRadius: size / 2,
-    backgroundColor: avatarColor,
-  };
-
-  return (
-    <View style={[styles.avatar, avatarStyle]}>
-      <Ionicons name="happy" size={iconSize} color={colors.purple} />
-    </View>
   );
 }
 
