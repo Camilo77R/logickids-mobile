@@ -1,6 +1,11 @@
-import { QR_LOGIN_PATH } from '../config/apiContract';
+import {
+  QR_LOGIN_PATH,
+  STUDENT_DEVICE_SESSION_PATH,
+  STUDENT_PROFILE_PATH,
+} from '../config/apiContract';
 import {
   buildJsonHeaders,
+  createNetworkError,
   normalizeBaseUrl,
   parseJsonResponse,
 } from './http.service';
@@ -17,7 +22,7 @@ export const createStudentAccessService = (baseUrl) => {
   const apiBaseUrl = normalizeBaseUrl(baseUrl);
 
   return {
-    async loginByQr(qrToken) {
+    async loginByQr(qrToken, { installationId, appVersion } = {}) {
       const endpoint = `${apiBaseUrl}${QR_LOGIN_PATH}`;
       let response;
 
@@ -25,11 +30,51 @@ export const createStudentAccessService = (baseUrl) => {
         response = await fetch(endpoint, {
           method: 'POST',
           headers: buildJsonHeaders(),
-          body: JSON.stringify({ qr_token: qrToken.trim() }),
+          body: JSON.stringify({
+            qr_token: qrToken.trim(),
+            installation_id: installationId,
+            app_version: appVersion,
+          }),
         });
       } catch (error) {
-        throw new Error(
-          `No se pudo conectar con ${endpoint}. Verifica la URL de la API y que el backend esté encendido en la misma red.`
+        throw createNetworkError(
+          'No pudimos conectar con el colegio. Revisa tu conexion e intentalo de nuevo.',
+          error,
+        );
+      }
+
+      return parseJsonResponse(response);
+    },
+
+    async fetchProfile(token) {
+      let response;
+
+      try {
+        response = await fetch(`${apiBaseUrl}${STUDENT_PROFILE_PATH}`, {
+          headers: buildJsonHeaders(token),
+        });
+      } catch (error) {
+        throw createNetworkError(
+          'No pudimos verificar tu sesion. Revisa tu conexion e intentalo de nuevo.',
+          error,
+        );
+      }
+
+      return parseJsonResponse(response);
+    },
+
+    async logout(token) {
+      let response;
+
+      try {
+        response = await fetch(`${apiBaseUrl}${STUDENT_DEVICE_SESSION_PATH}`, {
+          method: 'DELETE',
+          headers: buildJsonHeaders(token),
+        });
+      } catch (error) {
+        throw createNetworkError(
+          'Necesitamos conexion para cerrar la sesion de forma segura.',
+          error,
         );
       }
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useObjetoPerdidoArControlador } from './useObjetoPerdidoArControlador';
 import { useSesionObjetoPerdidoAr } from './aplicacion/useSesionObjetoPerdidoAr';
 import { resolverConfiguracionObjetoPerdidoArDesdeBackend } from './objetoPerdidoArConfiguracion';
@@ -10,6 +10,9 @@ export default function ObjetoPerdidoARScreen({
   contextoSesion,
 }) {
   const [preparandoPartida, setPreparandoPartida] = useState(false);
+  const inicioPendienteRef = useRef(false);
+  const tableroDisponibleRef = useRef(() => false);
+  const checkpointReintentadoRef = useRef(false);
   const sesionObjetoPerdido = useSesionObjetoPerdidoAr({
     configuracion: configuracionInicial,
     contextoSesion,
@@ -25,6 +28,11 @@ export default function ObjetoPerdidoARScreen({
   const controlador = useObjetoPerdidoArControlador(
     configuracionEfectiva,
     sesionObjetoPerdido.observadoresJuego,
+    {
+      phase: sesionObjetoPerdido.checkpoint.phase,
+      sessionId: sesionObjetoPerdido.persistencia.sesionId,
+      state: sesionObjetoPerdido.checkpoint.checkpointState,
+    },
   );
 
   const iniciarActividad = useCallback(async ({ tableroDisponible } = {}) => {
@@ -36,6 +44,8 @@ export default function ObjetoPerdidoARScreen({
     }
 
     setPreparandoPartida(true);
+    tableroDisponibleRef.current = tableroSigueListo;
+    checkpointReintentadoRef.current = false;
 
     try {
       const partidaLista = await sesionObjetoPerdido.prepararRonda(
@@ -46,9 +56,16 @@ export default function ObjetoPerdidoARScreen({
         return;
       }
 
+      if (sesionObjetoPerdido.persistenciaRemotaHabilitada) {
+        inicioPendienteRef.current = true;
+        return;
+      }
+
       controlador.iniciarPartida();
     } finally {
-      setPreparandoPartida(false);
+      if (!inicioPendienteRef.current) {
+        setPreparandoPartida(false);
+      }
     }
   }, [
     configuracionInicial.dificultad,
@@ -56,6 +73,34 @@ export default function ObjetoPerdidoARScreen({
     preparandoPartida,
     sesionObjetoPerdido,
   ]);
+
+  useEffect(() => {
+    if (!inicioPendienteRef.current) {
+      return;
+    }
+
+    if (sesionObjetoPerdido.checkpoint.phase === 'error') {
+      if (!checkpointReintentadoRef.current) {
+        checkpointReintentadoRef.current = true;
+        void sesionObjetoPerdido.checkpoint.retryCheckpoint();
+        return;
+      }
+
+      inicioPendienteRef.current = false;
+      setPreparandoPartida(false);
+      return;
+    }
+
+    if (sesionObjetoPerdido.checkpoint.phase !== 'ready') {
+      return;
+    }
+
+    inicioPendienteRef.current = false;
+    if (tableroDisponibleRef.current()) {
+      controlador.iniciarPartida();
+    }
+    setPreparandoPartida(false);
+  }, [controlador, sesionObjetoPerdido.checkpoint.phase]);
 
   const reiniciarActividad = useCallback(async ({ tableroDisponible } = {}) => {
     const tableroSigueListo =

@@ -43,21 +43,21 @@ export const resolverAccesoJuegoDesdePerfil = ({ perfilEstudiante, slugJuego }) 
     };
   }
 
-  if (!perfilEstudiante.sesion_activa) {
-    if (ES_ESTADO_TERMINAL_PARTICIPANTE.has(perfilEstudiante.sesion_participante_estado)) {
-      return {
-        estado: ESTADOS_ACCESO_JUEGO.bloqueado,
-        motivo:
-          perfilEstudiante.sesion_participante_estado === 'completado'
-            ? 'Ya completaste tu actividad actual.'
-            : 'Tu actividad actual ya fue cerrada para este estudiante.',
-        juegoHabilitadoSlug: perfilEstudiante.sesion_minijuego_slug ?? null,
-        juegoHabilitadoTitulo: perfilEstudiante.sesion_minijuego_titulo ?? null,
-        grupoId: perfilEstudiante.grupo_id,
-        grupoNombre: perfilEstudiante.grupo_nombre ?? null,
-      };
-    }
+  if (ES_ESTADO_TERMINAL_PARTICIPANTE.has(perfilEstudiante.sesion_participante_estado)) {
+    return {
+      estado: ESTADOS_ACCESO_JUEGO.bloqueado,
+      motivo:
+        perfilEstudiante.sesion_participante_estado === 'completado'
+          ? 'Ya completaste tu actividad actual.'
+          : 'Tu actividad actual ya fue cerrada para este estudiante.',
+      juegoHabilitadoSlug: perfilEstudiante.sesion_minijuego_slug ?? null,
+      juegoHabilitadoTitulo: perfilEstudiante.sesion_minijuego_titulo ?? null,
+      grupoId: perfilEstudiante.grupo_id,
+      grupoNombre: perfilEstudiante.grupo_nombre ?? null,
+    };
+  }
 
+  if (!perfilEstudiante.sesion_activa) {
     return {
       estado: ESTADOS_ACCESO_JUEGO.bloqueado,
       motivo: 'Tu tutor aun no ha abierto una sesion para este grupo.',

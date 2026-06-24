@@ -41,14 +41,19 @@ export const normalizeRankingEntry = (entry = {}, index = 0) => {
     stars: entry.stars ?? entry.estrellas ?? entry.estrellas_obtenidas ?? entry.estrellas_totales ?? null,
     finishedSessions: entry.finishedSessions ?? entry.sesiones_finalizadas ?? 0,
     isCurrentStudent: Boolean(entry.isCurrentStudent ?? entry.es_estudiante_actual ?? entry.actual ?? entry.es_mi_posicion),
-    avatar: entry.avatar ?? entry.color_avatar ?? null,
-    avatarColor: entry.avatarColor ?? entry.color_avatar ?? null,
+    avatar: entry.avatar ?? entry.profile?.avatar ?? null,
+    avatarColor: entry.avatarColor ?? entry.avatar_color ?? entry.color_avatar ?? null,
     photoURL: entry.photoURL ?? null,
     photo: entry.photo ?? null,
     image: entry.image ?? null,
     profileImage: entry.profileImage ?? null,
     imagenPerfil: entry.imagenPerfil ?? null,
-    avatarUrl: entry.avatarUrl ?? null,
+    avatarUrl:
+      entry.avatarUrl ??
+      entry.avatar_url ??
+      entry.profile?.avatarUrl ??
+      entry.profile?.avatar_url ??
+      null,
     profile: entry.profile ?? {},
     raw: entry,
   };

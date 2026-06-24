@@ -1,19 +1,10 @@
-const construirHeadersJson = (token) => ({
-  'Content-Type': 'application/json',
-  ...(token ? { Authorization: `Bearer ${token}` } : {}),
-});
+import {
+  buildJsonHeaders,
+  normalizeBaseUrl,
+  parseJsonResponse,
+} from '../../../services/http.service';
 
-const normalizarBaseUrl = (baseUrl) => baseUrl.trim().replace(/\/+$/, '');
-
-const parsearRespuesta = async (response) => {
-  const json = await response.json().catch(() => null);
-
-  if (!response.ok || !json?.success) {
-    throw new Error(json?.message ?? `Fallo HTTP ${response.status}`);
-  }
-
-  return json.data;
-};
+const construirHeadersJson = buildJsonHeaders;
 
 /**
  * Cliente genérico de sesiones de juego basado en el contrato real del backend.
@@ -24,20 +15,28 @@ const parsearRespuesta = async (response) => {
  * igual.
  */
 export const crearClienteSesionesJuego = (baseUrl) => {
-  const apiBaseUrl = normalizarBaseUrl(baseUrl);
+  const apiBaseUrl = normalizeBaseUrl(baseUrl);
 
   return {
-    async iniciarSesion({ tokenEstudiante, minijuegoId, dificultad }) {
+    async iniciarSesion({
+      tokenEstudiante,
+      minijuegoId,
+      dificultad,
+      modoDificultad,
+      attemptId,
+    }) {
       const response = await fetch(`${apiBaseUrl}/sesiones/iniciar`, {
         method: 'POST',
         headers: construirHeadersJson(tokenEstudiante),
         body: JSON.stringify({
           minijuego_id: minijuegoId,
+          attempt_id: attemptId,
+          ...(modoDificultad ? { modo_dificultad: modoDificultad } : {}),
           ...(dificultad != null ? { dificultad } : {}),
         }),
       });
 
-      return parsearRespuesta(response);
+      return parseJsonResponse(response);
     },
 
     async registrarEvento({ tokenEstudiante, sesionId, evento }) {
@@ -47,7 +46,7 @@ export const crearClienteSesionesJuego = (baseUrl) => {
         body: JSON.stringify(evento),
       });
 
-      return parsearRespuesta(response);
+      return parseJsonResponse(response);
     },
 
     async finalizarSesion({ tokenEstudiante, sesionId, finalizacion }) {
@@ -57,7 +56,38 @@ export const crearClienteSesionesJuego = (baseUrl) => {
         body: JSON.stringify(finalizacion),
       });
 
-      return parsearRespuesta(response);
+      return parseJsonResponse(response);
+    },
+
+    async obtenerCheckpoint({ tokenEstudiante, sesionId }) {
+      const response = await fetch(`${apiBaseUrl}/sesiones/${sesionId}/checkpoint`, {
+        headers: construirHeadersJson(tokenEstudiante),
+      });
+
+      const data = await parseJsonResponse(response);
+      return {
+        checkpoint: data?.state ?? {},
+        revision: Number(data?.version) || 0,
+        updatedAt: data?.updated_at ?? null,
+      };
+    },
+
+    async guardarCheckpoint({ tokenEstudiante, sesionId, revision, checkpoint }) {
+      const response = await fetch(`${apiBaseUrl}/sesiones/${sesionId}/checkpoint`, {
+        method: 'PUT',
+        headers: construirHeadersJson(tokenEstudiante),
+        body: JSON.stringify({
+          expected_version: revision,
+          state: checkpoint,
+        }),
+      });
+
+      const data = await parseJsonResponse(response);
+      return {
+        checkpoint: data?.state ?? {},
+        revision: Number(data?.version) || 0,
+        updatedAt: data?.updated_at ?? null,
+      };
     },
   };
 };

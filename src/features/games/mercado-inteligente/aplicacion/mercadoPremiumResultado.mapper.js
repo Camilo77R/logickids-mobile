@@ -23,6 +23,7 @@ export const crearResultadoUiMercadoPremium = ({
   resultado,
   nombreJugador,
   tieneSiguienteNivel,
+  etiquetaAccionResultado,
   sincronizandoResultado,
   errorSincronizacionResultado,
 }) => {
@@ -55,9 +56,9 @@ export const crearResultadoUiMercadoPremium = ({
     primaryVisible: !sincronizandoResultado || Boolean(errorSincronizacionResultado),
     primaryLabel: errorSincronizacionResultado
       ? 'Reintentar guardado'
-      : tieneSiguienteNivel
+      : etiquetaAccionResultado ?? (tieneSiguienteNivel
         ? '¡Siguiente nivel!'
-        : 'Volver al tablero',
+        : 'Volver al tablero'),
     primaryAction: errorSincronizacionResultado ? 'retry-save' : 'continue',
     primaryDisabled: sincronizandoResultado,
     syncLabel: errorSincronizacionResultado

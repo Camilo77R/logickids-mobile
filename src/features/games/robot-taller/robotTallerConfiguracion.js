@@ -1,7 +1,11 @@
-import { MODO_PRESENTACION_ROBOT_TALLER, NIVELES } from './robotTaller.constants';
+import {
+  MODO_PRESENTACION_ROBOT_TALLER,
+  NIVELES,
+  SLUG_ROBOT_TALLER,
+} from './robotTaller.constants';
 
 const CONFIGURACION_BASE = Object.freeze({
-  slug: 'robot-logico',
+  slug: SLUG_ROBOT_TALLER,
   titulo: 'Robot Lógico',
   dificultad: 2,
   fuenteAdaptacion: 'base',

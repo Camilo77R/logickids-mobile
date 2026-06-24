@@ -1,11 +1,11 @@
 {
   "expo": {
     "owner": "logickids-sena-org-v2",
-    "name": "logickidsMobile",
+    "name": "LogicKids",
     "slug": "logickids",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/branding/app-icon.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash.png",
@@ -23,8 +23,9 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/branding/app-icon-foreground.png",
+        "monochromeImage": "./assets/branding/app-icon-monochrome.png",
+        "backgroundColor": "#8E35D5"
       },
       "package": "com.camilosr.logickidsmobile"
     },
@@ -59,7 +60,14 @@
       "expo-font",
       "expo-video",
       "expo-audio",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true
+        }
+      ],
+      "./plugins/withAndroidBackupHardening"
     ],
     "web": {
       "favicon": "./assets/favicon.png"

@@ -6,6 +6,12 @@ import {
   construirResumenObjetoPerdidoAr,
   crearRondaObjetoPerdidoAr,
 } from './objetoPerdidoArMotor';
+import {
+  createObjetoPerdidoArCheckpointState,
+  restoreObjetoPerdidoArLogicalState,
+} from './aplicacion/objetoPerdidoArCheckpoint';
+
+const CHECKPOINT_TIME_SLICE_MS = 5000;
 
 const construirEstadoInicial = (configuracion) => ({
   fase: ESTADOS_OBJETO_PERDIDO_AR.listo,
@@ -25,6 +31,24 @@ const construirEstadoInicial = (configuracion) => ({
   objetoActivoId: null,
 });
 
+const aplicarRestauracionLogica = ({ estadoPrevio, fase, mensaje, restauracion }) => ({
+  ...estadoPrevio,
+  fase,
+  rondaActual: restauracion.rondaActual,
+  numeroRonda: restauracion.numeroRonda,
+  tiempoRestanteMs: restauracion.tiempoRestanteMs,
+  ayudasRestantes: restauracion.ayudasRestantes,
+  resumenRonda: restauracion.resumenRonda,
+  resultado: restauracion.resultado,
+  aciertos: restauracion.aciertos,
+  errores: restauracion.errores,
+  ayudasUsadas: restauracion.ayudasUsadas,
+  comboActual: restauracion.comboActual,
+  comboMaximo: restauracion.comboMaximo,
+  objetoActivoId: null,
+  mensaje,
+});
+
 const ejecutarObservadorSeguro = (observador, carga) => {
   if (typeof observador !== 'function') {
     return;
@@ -35,7 +59,11 @@ const ejecutarObservadorSeguro = (observador, carga) => {
     .catch(() => null);
 };
 
-export const useObjetoPerdidoArControlador = (configuracionInicial, observadores = {}) => {
+export const useObjetoPerdidoArControlador = (
+  configuracionInicial,
+  observadores = {},
+  checkpointRemoto = {},
+) => {
   const configuracion = useMemo(
     () => normalizarConfiguracionObjetoPerdidoAr(configuracionInicial),
     [configuracionInicial],
@@ -46,6 +74,14 @@ export const useObjetoPerdidoArControlador = (configuracionInicial, observadores
   const temporizadoresRef = useRef([]);
   const inicioPartidaRef = useRef(null);
   const inicioRondaRef = useRef(null);
+  const restauracionPendienteRef = useRef(null);
+  const checkpointSessionRef = useRef(null);
+  const ultimoCheckpointJsonRef = useRef(null);
+  const guardarCheckpointRef = useRef(observadores.alGuardarCheckpoint);
+
+  useEffect(() => {
+    guardarCheckpointRef.current = observadores.alGuardarCheckpoint;
+  }, [observadores.alGuardarCheckpoint]);
 
   const limpiarTemporizadores = () => {
     temporizadoresRef.current.forEach((temporizador) => clearTimeout(temporizador));
@@ -92,15 +128,25 @@ export const useObjetoPerdidoArControlador = (configuracionInicial, observadores
       tiempoTranscurridoMs,
     });
 
-    setEstado((previo) => ({
-      ...previo,
+    const estadoFinal = {
+      ...estadoActual,
       fase: ESTADOS_OBJETO_PERDIDO_AR.completado,
       resultado: resultadoCalculado,
       objetoActivoId: null,
       mensaje: motivo,
-    }));
+    };
+    const checkpointState = createObjetoPerdidoArCheckpointState({
+      estado: estadoFinal,
+      pendingFinalization: resultadoCalculado.finalizacionSesion,
+      tiempoTranscurridoMs,
+    });
 
-    ejecutarObservadorSeguro(observadores.alFinalizarPartida, resultadoCalculado);
+    setEstado(estadoFinal);
+
+    ejecutarObservadorSeguro(observadores.alFinalizarPartida, {
+      checkpointState,
+      resultado: resultadoCalculado,
+    });
   };
 
   const iniciarCuentaRegresiva = (tiempoInicialMs) => {
@@ -168,6 +214,29 @@ export const useObjetoPerdidoArControlador = (configuracionInicial, observadores
     ejecutarObservadorSeguro(observadores.alIniciarPartida, {
       configuracionPartida: configuracion,
     });
+
+    const restauracion = restauracionPendienteRef.current;
+    if (restauracion) {
+      restauracionPendienteRef.current = null;
+      inicioPartidaRef.current = Date.now() - restauracion.tiempoTranscurridoMs;
+      inicioRondaRef.current = Date.now();
+
+      setEstado((previo) => aplicarRestauracionLogica({
+        estadoPrevio: previo,
+        fase: restauracion.faseReanudacion,
+        mensaje:
+          restauracion.faseReanudacion === ESTADOS_OBJETO_PERDIDO_AR.jugando
+            ? restauracion.rondaActual.mision
+            : previo.mensaje,
+        restauracion,
+      }));
+
+      if (restauracion.faseReanudacion === ESTADOS_OBJETO_PERDIDO_AR.jugando) {
+        iniciarCuentaRegresiva(restauracion.tiempoRestanteMs);
+      }
+      return;
+    }
+
     iniciarRonda(1);
   };
 
@@ -176,6 +245,8 @@ export const useObjetoPerdidoArControlador = (configuracionInicial, observadores
     detenerCuentaRegresiva();
     inicioPartidaRef.current = null;
     inicioRondaRef.current = null;
+    restauracionPendienteRef.current = null;
+    ultimoCheckpointJsonRef.current = null;
     setEstado(construirEstadoInicial(configuracion));
   };
 
@@ -348,6 +419,96 @@ export const useObjetoPerdidoArControlador = (configuracionInicial, observadores
   useEffect(() => {
     estadoRef.current = estado;
   }, [estado]);
+
+  useEffect(() => {
+    const sessionId = checkpointRemoto.sessionId;
+    if (
+      !sessionId ||
+      checkpointRemoto.phase !== 'ready' ||
+      checkpointSessionRef.current === sessionId
+    ) {
+      return;
+    }
+
+    checkpointSessionRef.current = sessionId;
+    const restored = restoreObjetoPerdidoArLogicalState(checkpointRemoto.state);
+    if (!restored) {
+      ultimoCheckpointJsonRef.current = null;
+      return;
+    }
+
+    limpiarTemporizadores();
+    detenerCuentaRegresiva();
+    ultimoCheckpointJsonRef.current = JSON.stringify(checkpointRemoto.state);
+    inicioPartidaRef.current = Date.now() - restored.tiempoTranscurridoMs;
+
+    if (restored.pendingFinalization) {
+      setEstado((previo) => aplicarRestauracionLogica({
+        estadoPrevio: previo,
+        fase: ESTADOS_OBJETO_PERDIDO_AR.completado,
+        mensaje: previo.mensaje,
+        restauracion: restored,
+      }));
+      return;
+    }
+
+    restauracionPendienteRef.current = restored;
+    setEstado((previo) => aplicarRestauracionLogica({
+      estadoPrevio: previo,
+      fase: ESTADOS_OBJETO_PERDIDO_AR.buscandoSuperficie,
+      mensaje: 'Vuelve a localizar una superficie para continuar la misma ronda.',
+      restauracion: restored,
+    }));
+  }, [
+    checkpointRemoto.phase,
+    checkpointRemoto.sessionId,
+    checkpointRemoto.state,
+  ]);
+
+  const checkpointTimeSlice = Math.ceil(
+    estado.tiempoRestanteMs / CHECKPOINT_TIME_SLICE_MS,
+  );
+
+  useEffect(() => {
+    if (
+      typeof guardarCheckpointRef.current !== 'function' ||
+      !estado.rondaActual ||
+      ![
+        ESTADOS_OBJETO_PERDIDO_AR.jugando,
+        ESTADOS_OBJETO_PERDIDO_AR.rondaCompletada,
+      ].includes(estado.fase)
+    ) {
+      return;
+    }
+
+    const tiempoTranscurridoMs = inicioPartidaRef.current
+      ? Date.now() - inicioPartidaRef.current
+      : 0;
+    const checkpointState = createObjetoPerdidoArCheckpointState({
+      estado,
+      tiempoTranscurridoMs,
+    });
+    const serialized = JSON.stringify(checkpointState);
+
+    if (serialized === ultimoCheckpointJsonRef.current) {
+      return;
+    }
+
+    ultimoCheckpointJsonRef.current = serialized;
+    ejecutarObservadorSeguro(guardarCheckpointRef.current, checkpointState);
+  }, [
+    checkpointTimeSlice,
+    estado.aciertos,
+    estado.ayudasRestantes,
+    estado.ayudasUsadas,
+    estado.comboActual,
+    estado.comboMaximo,
+    estado.errores,
+    estado.fase,
+    estado.numeroRonda,
+    estado.resumenRonda,
+    estado.rondaActual,
+  ]);
 
   return {
     configuracion,
