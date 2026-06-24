@@ -4,6 +4,9 @@ const assert = require('node:assert/strict');
 const {
   normalizeSessionRanking,
 } = require('../../src/services/ranking.service.js');
+const {
+  resolveStudentAvatarUri,
+} = require('../../src/services/studentAvatar.service.js');
 
 test('normalizeSessionRanking acepta entries como fuente primaria del backend', () => {
   const ranking = normalizeSessionRanking({
@@ -27,4 +30,25 @@ test('normalizeSessionRanking acepta entries como fuente primaria del backend', 
   assert.equal(ranking.top[0].studentName, 'Ana');
   assert.equal(ranking.entries[3].isCurrentStudent, true);
   assert.equal(ranking.totalParticipants, 4);
+});
+
+test('ranking conserva avatar del backend y usa la misma identidad visual que el perfil', () => {
+  const [entry] = normalizeSessionRanking({
+    entries: [
+      {
+        estudiante_id: 11,
+        estudiante_nombre: 'Ana Gomez',
+        avatar_url: 'https://cdn.example.com/avatars/ana.svg',
+        color_avatar: '#F3E8FA',
+      },
+    ],
+  }).entries;
+
+  assert.equal(entry.avatarUrl, 'https://cdn.example.com/avatars/ana.svg');
+  assert.equal(entry.avatarColor, '#F3E8FA');
+  assert.equal(resolveStudentAvatarUri(entry), entry.avatarUrl);
+  assert.equal(
+    resolveStudentAvatarUri({ studentName: 'Ana Gomez', studentId: 11 }),
+    resolveStudentAvatarUri({ nombre: 'Ana Gomez', id: 11 }),
+  );
 });

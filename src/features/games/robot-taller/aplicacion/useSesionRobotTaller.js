@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { crearClienteSesionesJuego } from '../../core/clienteSesionesJuego';
+import { createMobileGameOperationTracker } from '../../core/gameOperationIdentity.runtime';
+import { useGameCheckpoint } from '../../core/useGameCheckpoint';
+import { SLUG_ROBOT_TALLER } from '../robotTaller.constants';
 
 export const MODOS_PERSISTENCIA_ROBOT_TALLER = Object.freeze({
   local: 'local',
@@ -75,12 +78,24 @@ export const useSesionRobotTaller = ({ configuracion, contextoSesion }) => {
 
   const sesionIdRef = useRef(null);
   const respuestaInicioRef = useRef(null);
+  const finalizacionPendienteRef = useRef(null);
   const colaOperacionesRef = useRef(Promise.resolve());
+  const operationTrackerRef = useRef(null);
+  operationTrackerRef.current ??= createMobileGameOperationTracker();
+  const checkpoint = useGameCheckpoint({
+    client: clienteSesionesJuego,
+    enabled: persistenciaRemotaHabilitada,
+    gameSlug: SLUG_ROBOT_TALLER,
+    sessionId: persistencia.sesionId,
+    studentToken: contextoNormalizado.tokenEstudiante,
+  });
 
   useEffect(() => {
     sesionIdRef.current = null;
     respuestaInicioRef.current = null;
+    finalizacionPendienteRef.current = null;
     colaOperacionesRef.current = Promise.resolve();
+    operationTrackerRef.current.resetAttempt();
     setPersistencia(construirPersistenciaInicial(modoPersistencia));
   }, [
     modoPersistencia,
@@ -114,6 +129,7 @@ export const useSesionRobotTaller = ({ configuracion, contextoSesion }) => {
         tokenEstudiante: contextoNormalizado.tokenEstudiante,
         minijuegoId: contextoNormalizado.minijuegoId,
         dificultad: dificultadSolicitada,
+        attemptId: operationTrackerRef.current.getAttemptId(),
       });
       const sesionId = respuestaInicio?.sesion?.id ?? null;
       sesionIdRef.current = sesionId;
@@ -146,6 +162,7 @@ export const useSesionRobotTaller = ({ configuracion, contextoSesion }) => {
     if (!clienteSesionesJuego || !persistenciaRemotaHabilitada) {
       return Promise.resolve();
     }
+    const eventoIdentificado = operationTrackerRef.current.decorateEvent(evento);
     return encadenarOperacion(async () => {
       setPersistencia((previo) => ({
         ...previo,
@@ -157,6 +174,7 @@ export const useSesionRobotTaller = ({ configuracion, contextoSesion }) => {
         error: null,
       }));
       try {
+        await checkpoint.flushCheckpoint();
         const respuestaInicio = await iniciarSesionRemota(configuracion.dificultad);
         const sesionId = respuestaInicio?.sesion?.id ?? sesionIdRef.current;
         if (!sesionId) {
@@ -165,7 +183,7 @@ export const useSesionRobotTaller = ({ configuracion, contextoSesion }) => {
         await clienteSesionesJuego.registrarEvento({
           tokenEstudiante: contextoNormalizado.tokenEstudiante,
           sesionId,
-          evento,
+          evento: eventoIdentificado,
         });
         setPersistencia((previo) => ({
           ...previo,
@@ -184,10 +202,20 @@ export const useSesionRobotTaller = ({ configuracion, contextoSesion }) => {
     });
   };
 
+  const prepararFinalizacion = (finalizacionSesion) => {
+    if (typeof finalizacionSesion?.finalization_id === 'string') {
+      return finalizacionSesion;
+    }
+
+    return operationTrackerRef.current.decorateFinalization(finalizacionSesion);
+  };
+
   const finalizarSesionRemota = (finalizacionSesion) => {
     if (!clienteSesionesJuego || !persistenciaRemotaHabilitada) {
       return Promise.resolve();
     }
+    const finalizacionIdentificada = prepararFinalizacion(finalizacionSesion);
+    finalizacionPendienteRef.current = finalizacionIdentificada;
     return encadenarOperacion(async () => {
       setPersistencia((previo) => ({
         ...previo,
@@ -195,6 +223,7 @@ export const useSesionRobotTaller = ({ configuracion, contextoSesion }) => {
         error: null,
       }));
       try {
+        await checkpoint.flushCheckpoint();
         const respuestaInicio = await iniciarSesionRemota(configuracion.dificultad);
         const sesionId = respuestaInicio?.sesion?.id ?? sesionIdRef.current;
         if (!sesionId) {
@@ -203,9 +232,12 @@ export const useSesionRobotTaller = ({ configuracion, contextoSesion }) => {
         const respuestaFinalizacion = await clienteSesionesJuego.finalizarSesion({
           tokenEstudiante: contextoNormalizado.tokenEstudiante,
           sesionId,
-          finalizacion: finalizacionSesion,
+          finalizacion: finalizacionIdentificada,
         });
         sesionIdRef.current = null;
+        finalizacionPendienteRef.current = null;
+        operationTrackerRef.current.clearFinalization();
+        checkpoint.markTerminal();
         setPersistencia((previo) => ({
           ...previo,
           estado: ESTADOS_PERSISTENCIA_ROBOT_TALLER.finalizada,
@@ -222,8 +254,20 @@ export const useSesionRobotTaller = ({ configuracion, contextoSesion }) => {
     });
   };
 
+  const reintentarFinalizacion = () => {
+    if (!finalizacionPendienteRef.current) {
+      return Promise.resolve();
+    }
+
+    return finalizarSesionRemota(finalizacionPendienteRef.current);
+  };
+
   const observadoresJuego = {
     alIniciarPartida: () => {},
+    alPrepararFinalizacion: prepararFinalizacion,
+    alReanudarFinalizacion: (finalizacionPendiente) => {
+      void finalizarSesionRemota(finalizacionPendiente);
+    },
     alRegistrarEvento: (evento) => {
       if (!persistenciaRemotaHabilitada) {
         return;
@@ -247,8 +291,11 @@ export const useSesionRobotTaller = ({ configuracion, contextoSesion }) => {
   }, [iniciarSesionRemota, persistenciaRemotaHabilitada]);
 
   const prepararNuevaRonda = useCallback(() => {
+    checkpoint.markTerminal();
     sesionIdRef.current = null;
     respuestaInicioRef.current = null;
+    finalizacionPendienteRef.current = null;
+    operationTrackerRef.current.resetAttempt();
     setPersistencia((previo) => ({
       ...previo,
       estado: ESTADOS_PERSISTENCIA_ROBOT_TALLER.inactiva,
@@ -258,7 +305,7 @@ export const useSesionRobotTaller = ({ configuracion, contextoSesion }) => {
       respuestaInicio: null,
       respuestaFinalizacion: null,
     }));
-  }, []);
+  }, [checkpoint]);
 
   return {
     persistencia,
@@ -268,5 +315,8 @@ export const useSesionRobotTaller = ({ configuracion, contextoSesion }) => {
     respuestaFinalizacion: persistencia.respuestaFinalizacion,
     prepararRonda,
     prepararNuevaRonda,
+    reintentarFinalizacion,
+    reanudarFinalizacion: finalizarSesionRemota,
+    checkpoint,
   };
 };

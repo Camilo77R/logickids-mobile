@@ -25,6 +25,9 @@ const resolverFondoSesionFinal = (assets) =>
 const crearScriptBridgePremium = () => `
   (function () {
     const root = document.getElementById('mercado-ui');
+    let actualizacionPendiente = null;
+    let htmlPendiente = '';
+    let ultimoHtmlAplicado = null;
 
     const enviar = (type, payload = {}) => {
       try {
@@ -69,7 +72,19 @@ const crearScriptBridgePremium = () => `
         } catch (_) {}
       },
       updateUi(html) {
-        root.innerHTML = html;
+        const siguienteHtml = String(html ?? '');
+        if (siguienteHtml === ultimoHtmlAplicado) return;
+
+        htmlPendiente = siguienteHtml;
+        if (actualizacionPendiente !== null) return;
+
+        actualizacionPendiente = requestAnimationFrame(() => {
+          actualizacionPendiente = null;
+          if (htmlPendiente === ultimoHtmlAplicado) return;
+
+          ultimoHtmlAplicado = htmlPendiente;
+          root.innerHTML = htmlPendiente;
+        });
       },
     };
 
@@ -85,7 +100,7 @@ export const generarDocumentoMercadoPremium = ({
   const fondoSesionFinal = resolverFondoSesionFinal(assets);
   const estiloFondo = fondoEscenario
     ? `background-image:url(${cssUrl(fondoEscenario)});`
-    : 'background-image:linear-gradient(180deg,#8de5f6,#f8d49a);';
+    : 'background-image:none;';
   const variableFondoEscenario = fondoEscenario
     ? `--mercado-escenario-fondo:url(${cssUrl(fondoEscenario)});`
     : '--mercado-escenario-fondo:none;';
@@ -100,7 +115,7 @@ export const generarDocumentoMercadoPremium = ({
         <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
         <style>
           ${crearEstilosMercado()}
-          html,body{background:#8de5f6}
+          html,body{background:transparent!important}
           body::before{
             content:"";
             position:fixed;

@@ -27,6 +27,7 @@ const resolverNombreJugador = (contextoSesion) =>
 
 export default function MercadoInteligenteScreen({
   onSalir,
+  onResultadoVisible,
   configuracionInicial,
   contextoSesion,
 }) {
@@ -42,6 +43,7 @@ export default function MercadoInteligenteScreen({
     errorSincronizacionResultado,
     fase,
     feedbackEscena,
+    flujoResultado,
     modeloVisual,
     puedeContinuarNivel,
     resumenActividad,
@@ -52,6 +54,12 @@ export default function MercadoInteligenteScreen({
   const tieneSiguienteNivel = Boolean(puedeContinuarNivel);
   const nombreJugador = resolverNombreJugador(contextoSesion);
   const mostrarGuiaInicial = guiaVisible && fase === FASES_MERCADO_PREMIUM.jugando;
+
+  useEffect(() => {
+    if (completado) {
+      onResultadoVisible?.();
+    }
+  }, [completado, onResultadoVisible]);
 
   useEffect(() => {
     const prepararPantalla = async () => {
@@ -78,6 +86,8 @@ export default function MercadoInteligenteScreen({
         nombreJugador,
         bloqueado: fase === FASES_MERCADO_PREMIUM.bloqueado,
         completado,
+        mostrarResultadoNivel: flujoResultado?.mostrarResultadoNivel,
+        etiquetaAccionResultado: flujoResultado?.etiquetaAccionResultado,
         tieneSiguienteNivel,
         resultado,
         resumenActividad,
@@ -86,6 +96,7 @@ export default function MercadoInteligenteScreen({
       }),
     [
       completado,
+      flujoResultado,
       nombreJugador,
       fase,
       modeloVisual,

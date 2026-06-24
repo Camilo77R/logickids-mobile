@@ -9,6 +9,8 @@ import {
 
 const DIFICULTAD_MINIMA = 1;
 const DIFICULTAD_MAXIMA = 4;
+const NIVELES_POR_INTENTO_RUTA = 1;
+const MODOS_RUTA = new Set(['ruta', 'path']);
 
 const TABLA_DIFICULTAD = Object.freeze([
   Object.freeze({
@@ -61,6 +63,32 @@ const asegurarEnteroPositivo = (valor, respaldo) => {
 
   return numero;
 };
+
+export const resolverNivelesPorModoTren3D = ({
+  nivelesPorPartida,
+  sesionModo,
+}) => {
+  const modoNormalizado = typeof sesionModo === 'string'
+    ? sesionModo.trim().toLowerCase()
+    : '';
+
+  if (MODOS_RUTA.has(modoNormalizado)) {
+    return NIVELES_POR_INTENTO_RUTA;
+  }
+
+  return asegurarEnteroPositivo(
+    nivelesPorPartida,
+    CONFIGURACION_BASE.nivelesPorPartida,
+  );
+};
+
+export const debeFinalizarIntentoTren3D = ({
+  nivelActual,
+  nivelesPorPartida,
+}) => asegurarEnteroPositivo(nivelActual, 1) >= asegurarEnteroPositivo(
+  nivelesPorPartida,
+  CONFIGURACION_BASE.nivelesPorPartida,
+);
 
 export const clampDificultadTren3D = (valor) => {
   const numero = Number(valor);

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import {
   Poppins_400Regular,
@@ -8,17 +8,23 @@ import {
   useFonts,
 } from '@expo-google-fonts/poppins';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+import { canConfigureApiAtRuntime } from './src/config/runtimeEnvironment';
+import { colors } from './src/constants/theme';
+import {
+  STUDENT_AUTH_STATES,
+  useStudentAuthentication,
+} from './src/features/student-auth/useStudentAuthentication';
 import DashboardScreen from './src/screens/DashboardScreen';
 import LoginQrScreen from './src/screens/LoginQrScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import QrScannerScreen from './src/screens/QrScannerScreen';
-import { colors } from './src/constants/theme';
+import SessionRecoveryScreen from './src/screens/SessionRecoveryScreen';
 import {
   isLoopbackApiBaseUrl,
   loadApiBaseUrlSetting,
   saveApiBaseUrlSetting,
 } from './src/services/apiSettings.service';
-import { createStudentAccessService } from './src/services/studentAccess.service';
 import { extractQrToken } from './src/utils/qrToken';
 
 export default function App() {
@@ -29,17 +35,17 @@ export default function App() {
     Poppins_900Black,
   });
   const [route, setRoute] = useState('onboarding');
-  const [studentSession, setStudentSession] = useState(null);
   const [scannerError, setScannerError] = useState('');
   const [apiSettingsError, setApiSettingsError] = useState('');
   const [apiSettingsLoaded, setApiSettingsLoaded] = useState(false);
   const [processingQr, setProcessingQr] = useState(false);
   const [apiBaseUrl, setApiBaseUrl] = useState('');
-  const accessService = useMemo(
-    () => (apiBaseUrl ? createStudentAccessService(apiBaseUrl) : null),
-    [apiBaseUrl],
-  );
+  const canConfigureConnection = canConfigureApiAtRuntime();
   const needsApiConfiguration = !apiBaseUrl || isLoopbackApiBaseUrl(apiBaseUrl);
+  const authentication = useStudentAuthentication({
+    apiBaseUrl,
+    ready: apiSettingsLoaded,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -63,18 +69,24 @@ export default function App() {
       }
     };
 
-    loadApiSettings();
-
+    void loadApiSettings();
     return () => {
       cancelled = true;
     };
   }, []);
 
+  useEffect(() => {
+    if (authentication.session) {
+      setRoute('dashboard');
+    }
+  }, [authentication.session]);
+
   const handleSaveApiBaseUrl = async (nextApiBaseUrl) => {
     try {
+      await authentication.clearForApiChange();
       const savedApiBaseUrl = await saveApiBaseUrlSetting(nextApiBaseUrl);
       setApiBaseUrl(savedApiBaseUrl);
-      setStudentSession(null);
+      setRoute('onboarding');
       setScannerError('');
       setApiSettingsError('');
       return true;
@@ -86,11 +98,15 @@ export default function App() {
 
   const handleScanRequest = () => {
     if (needsApiConfiguration) {
-      const message =
-        'Configura la conexion del colegio antes de escanear. Usa una direccion como http://IP_DEL_PC:3000/api.';
+      const message = canConfigureConnection
+        ? 'Configura la conexion del colegio antes de escanear. Usa una direccion como http://IP_DEL_PC:3000/api.'
+        : 'Esta version no tiene disponible la conexion segura con el colegio. Solicita una version actualizada.';
 
       setApiSettingsError(message);
-      Alert.alert('Configura la conexion', message);
+      Alert.alert(
+        canConfigureConnection ? 'Configura la conexion' : 'Conexion no disponible',
+        message,
+      );
       return;
     }
 
@@ -100,7 +116,7 @@ export default function App() {
   const grantAccess = async (rawQrValue) => {
     const qrToken = extractQrToken(rawQrValue);
 
-    if (!qrToken || processingQr || !accessService) {
+    if (!qrToken || processingQr) {
       return;
     }
 
@@ -108,14 +124,7 @@ export default function App() {
     setScannerError('');
 
     try {
-      const loginData = await accessService.loginByQr(qrToken);
-      setStudentSession({
-        token: loginData.token,
-        studentProfile: loginData.estudiante,
-        qrToken,
-        apiBaseUrl,
-        authenticatedAt: new Date().toISOString(),
-      });
+      await authentication.loginByQr(qrToken);
       setRoute('dashboard');
     } catch (error) {
       const message = error.message || 'No fue posible validar el codigo QR.';
@@ -126,13 +135,20 @@ export default function App() {
     }
   };
 
-  const logout = () => {
-    setStudentSession(null);
-    setScannerError('');
-    setRoute('onboarding');
+  const handleLogout = async () => {
+    const loggedOut = await authentication.logout();
+
+    if (loggedOut) {
+      setScannerError('');
+      setRoute('onboarding');
+    }
   };
 
-  if (!fontsLoaded || !apiSettingsLoaded) {
+  if (
+    !fontsLoaded ||
+    !apiSettingsLoaded ||
+    authentication.state === STUDENT_AUTH_STATES.restoring
+  ) {
     return (
       <SafeAreaProvider>
         <View style={styles.loadingScreen}>
@@ -142,7 +158,19 @@ export default function App() {
     );
   }
 
-  if (!studentSession && route === 'onboarding') {
+  if (!authentication.session && authentication.state === STUDENT_AUTH_STATES.recovery) {
+    return (
+      <SafeAreaProvider>
+        <SessionRecoveryScreen
+          message={authentication.error}
+          onRetry={authentication.restore}
+          onUseAnotherQr={handleLogout}
+        />
+      </SafeAreaProvider>
+    );
+  }
+
+  if (!authentication.session && route === 'onboarding') {
     return (
       <SafeAreaProvider>
         <OnboardingScreen onStart={() => setRoute('login')} />
@@ -150,12 +178,13 @@ export default function App() {
     );
   }
 
-  if (!studentSession && route === 'login') {
+  if (!authentication.session && route === 'login') {
     return (
       <SafeAreaProvider>
         <LoginQrScreen
           apiBaseUrl={apiBaseUrl}
           apiSettingsError={apiSettingsError}
+          canConfigureConnection={canConfigureConnection}
           needsApiConfiguration={needsApiConfiguration}
           onBack={() => setRoute('onboarding')}
           onSaveApiBaseUrl={handleSaveApiBaseUrl}
@@ -165,7 +194,7 @@ export default function App() {
     );
   }
 
-  if (!studentSession && route === 'scanner') {
+  if (!authentication.session && route === 'scanner') {
     return (
       <SafeAreaProvider>
         <QrScannerScreen
@@ -181,8 +210,8 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <DashboardScreen
-        studentSession={studentSession}
-        onLogout={logout}
+        studentSession={authentication.session}
+        onLogout={handleLogout}
       />
     </SafeAreaProvider>
   );

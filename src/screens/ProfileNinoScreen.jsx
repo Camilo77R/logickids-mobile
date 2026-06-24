@@ -6,7 +6,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SvgUri } from 'react-native-svg';
+import StudentAvatar from '../components/StudentAvatar';
 import { colors, fonts, shadows, spacing } from '../constants/theme';
 
 const PROFILE_BACKGROUND = '#FAF3FF';
@@ -27,25 +27,6 @@ const buildProfileGoalMessage = ({ achievementsCount, averagePrecision, totalAtt
 
   return `Ya tienes ${achievementsCount} logro${achievementsCount === 1 ? '' : 's'}. Sigue con la siguiente actividad.`;
 };
-
-function AvatarImage({ avatarColor, avatarUri, size, iconSize }) {
-  const avatarStyle = {
-    width: size,
-    height: size,
-    borderRadius: size / 2,
-    backgroundColor: avatarUri ? PROFILE_BACKGROUND : avatarColor,
-  };
-
-  return (
-    <View style={[styles.avatar, avatarStyle]}>
-      {avatarUri ? (
-        <SvgUri uri={avatarUri} width={size} height={size} />
-      ) : (
-        <Ionicons name="happy" size={iconSize} color={colors.purple} />
-      )}
-    </View>
-  );
-}
 
 function ProfileMetric({ icon, label, value, helper }) {
   return (
@@ -87,7 +68,12 @@ export default function ProfileNinoScreen({
   return (
     <View style={styles.container}>
       <View style={styles.hero}>
-        <AvatarImage avatarColor={avatarColor || colors.yellow} avatarUri={avatarUri} size={64} iconSize={32} />
+        <StudentAvatar
+          backgroundColor={avatarColor || colors.yellow}
+          iconSize={32}
+          size={64}
+          uri={avatarUri}
+        />
         <View style={styles.heroText}>
           <Text style={styles.eyebrow}>Mi perfil</Text>
           <Text style={styles.name}>{studentName}</Text>
@@ -172,13 +158,6 @@ export default function ProfileNinoScreen({
 const styles = StyleSheet.create({
   container: {
     gap: spacing.md,
-  },
-  avatar: {
-    backgroundColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    ...shadows.soft,
   },
   hero: {
     minHeight: 112,

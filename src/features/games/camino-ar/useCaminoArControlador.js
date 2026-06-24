@@ -7,6 +7,7 @@ import {
   crearPatronAleatorio,
   resolverColumnasTablero,
 } from './caminoArMotor';
+import { parseCaminoArCheckpointState } from './aplicacion/caminoArCheckpoint';
 
 const construirEstadoInicial = (configuracion) => ({
   fase: ESTADOS_CAMINO_AR.listo,
@@ -47,6 +48,22 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
   const marcaUltimoIntentoRef = useRef(null);
   const duracionRespuestaRef = useRef(configuracion.configuracion.tiempoLimiteMs);
   const partidaIniciadaEnRef = useRef(null);
+  const estadoSuspendidoRef = useRef(null);
+
+  const guardarCheckpointSeguro = (estadoCheckpoint, pendingFinalization = null) => {
+    if (typeof observadores.alGuardarCheckpoint !== 'function') {
+      return;
+    }
+
+    try {
+      observadores.alGuardarCheckpoint({
+        estado: estadoCheckpoint,
+        pendingFinalization,
+      });
+    } catch {
+      // La partida no se interrumpe por un fallo local al preparar persistencia.
+    }
+  };
 
   const limpiarTemporizadores = () => {
     temporizadoresRef.current.forEach((temporizador) => clearTimeout(temporizador));
@@ -82,7 +99,7 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
     const tiempoTranscurridoMs = partidaIniciadaEnRef.current
       ? Date.now() - partidaIniciadaEnRef.current
       : 0;
-    const resultadoCalculado = construirResumenPartida({
+    const resultadoBase = construirResumenPartida({
       exito,
       configuracion,
       aciertos: estadoActual.aciertos,
@@ -91,16 +108,27 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
       tiempoTranscurridoMs,
       patron: estadoActual.patron,
     });
+    const finalizacionIdentificada =
+      observadores.alPrepararFinalizacion?.(resultadoBase.finalizacionSesion) ??
+      resultadoBase.finalizacionSesion;
+    const resultadoCalculado = {
+      ...resultadoBase,
+      finalizacionSesion: finalizacionIdentificada,
+    };
 
-    setEstado((previo) => ({
-      ...previo,
+    const estadoFinal = {
+      ...estadoActual,
       fase: exito ? ESTADOS_CAMINO_AR.completado : ESTADOS_CAMINO_AR.fallido,
       baldosaActiva: null,
       resultado: resultadoCalculado,
       mensaje: exito
         ? 'Ronda completada. Tus resultados fueron guardados.'
         : motivo,
-    }));
+    };
+
+    estadoRef.current = estadoFinal;
+    setEstado(estadoFinal);
+    guardarCheckpointSeguro(estadoFinal, resultadoCalculado.finalizacionSesion);
 
     ejecutarObservadorSeguro(observadores.alFinalizarPartida, resultadoCalculado);
   };
@@ -178,6 +206,11 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
       return;
     }
 
+    if (estadoSuspendidoRef.current) {
+      restaurarPartida(estadoSuspendidoRef.current);
+      return;
+    }
+
     bloqueoInicioRef.current = true;
 
     const patron = crearPatronAleatorio({
@@ -187,10 +220,17 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
 
     partidaIniciadaEnRef.current = Date.now();
 
-    setEstado({
+    const estadoInicial = {
       ...construirEstadoInicial(configuracion),
       patron,
       mensaje: 'Mira las luces con calma y recuerda el recorrido.',
+    };
+
+    estadoRef.current = estadoInicial;
+    setEstado(estadoInicial);
+    guardarCheckpointSeguro({
+      ...estadoInicial,
+      fase: ESTADOS_CAMINO_AR.mostrandoPatron,
     });
 
     ejecutarObservadorSeguro(observadores.alIniciarPartida, {
@@ -201,6 +241,55 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
     programarReproduccionPatron(patron, configuracion.configuracion.tiempoLimiteMs);
   };
 
+  const restaurarPartida = (checkpointState) => {
+    const checkpoint = parseCaminoArCheckpointState(checkpointState);
+
+    if (!checkpoint) {
+      return false;
+    }
+
+    limpiarTemporizadores();
+    detenerCuentaRegresiva();
+    estadoSuspendidoRef.current = null;
+    bloqueoInicioRef.current = true;
+    marcaInicioRespuestaRef.current = null;
+    marcaUltimoIntentoRef.current = null;
+    duracionRespuestaRef.current = checkpoint.tiempoRestanteMs;
+    partidaIniciadaEnRef.current =
+      Date.now() - Math.max(
+        0,
+        configuracion.configuracion.tiempoLimiteMs - checkpoint.tiempoRestanteMs,
+      );
+
+    const esTerminal =
+      checkpoint.fase === ESTADOS_CAMINO_AR.completado ||
+      checkpoint.fase === ESTADOS_CAMINO_AR.fallido;
+    const estadoRestaurado = {
+      ...construirEstadoInicial(configuracion),
+      fase: checkpoint.fase,
+      patron: checkpoint.patron,
+      indiceRespuesta: checkpoint.indiceRespuesta,
+      tiempoRestanteMs: checkpoint.tiempoRestanteMs,
+      ayudasRestantes: checkpoint.ayudasRestantes,
+      resultado: checkpoint.resultado,
+      aciertos: checkpoint.aciertos,
+      errores: checkpoint.errores,
+      ayudasUsadas: checkpoint.ayudasUsadas,
+      mensaje: esTerminal
+        ? 'Tu resultado anterior esta listo para sincronizarse.'
+        : 'Tablero localizado. Repasemos el camino antes de continuar.',
+    };
+
+    estadoRef.current = estadoRestaurado;
+    setEstado(estadoRestaurado);
+
+    if (!esTerminal) {
+      programarReproduccionPatron(checkpoint.patron, checkpoint.tiempoRestanteMs);
+    }
+
+    return true;
+  };
+
   const reiniciarPartida = () => {
     limpiarTemporizadores();
     detenerCuentaRegresiva();
@@ -208,6 +297,7 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
     partidaIniciadaEnRef.current = null;
     marcaInicioRespuestaRef.current = null;
     marcaUltimoIntentoRef.current = null;
+    estadoSuspendidoRef.current = null;
     setEstado(construirEstadoInicial(configuracion));
   };
 
@@ -221,6 +311,8 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
 
     limpiarTemporizadores();
     detenerCuentaRegresiva();
+    guardarCheckpointSeguro(estadoRef.current);
+    estadoSuspendidoRef.current = estadoRef.current;
     bloqueoInicioRef.current = false;
     partidaIniciadaEnRef.current = null;
     marcaInicioRespuestaRef.current = null;
@@ -247,12 +339,16 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
     const tiempoConsumido = Date.now() - marcaInicioRespuestaRef.current;
     const tiempoRestante = Math.max(0, duracionRespuestaRef.current - tiempoConsumido);
 
-    setEstado((previo) => ({
-      ...previo,
-      ayudasRestantes: previo.ayudasRestantes - 1,
-      ayudasUsadas: previo.ayudasUsadas + 1,
+    const estadoConPista = {
+      ...estadoActual,
+      ayudasRestantes: estadoActual.ayudasRestantes - 1,
+      ayudasUsadas: estadoActual.ayudasUsadas + 1,
       mensaje: 'Mira otra vez el recorrido antes de tocar.',
-    }));
+    };
+
+    estadoRef.current = estadoConPista;
+    setEstado(estadoConPista);
+    guardarCheckpointSeguro(estadoConPista);
 
     programarReproduccionPatron(estadoActual.patron, tiempoRestante);
   };
@@ -287,11 +383,14 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
           },
         }),
       );
-      setEstado((previo) => ({
-        ...previo,
-        errores: previo.errores + 1,
+      const estadoConError = {
+        ...estadoActual,
+        errores: estadoActual.errores + 1,
         baldosaActiva: indiceBaldosa,
-      }));
+      };
+      estadoRef.current = estadoConError;
+      setEstado(estadoConError);
+      guardarCheckpointSeguro(estadoConError);
 
       const temporizadorError = setTimeout(() => {
         finalizarPartida(false, 'Casi lo logras. Esta ronda ya termino y puedes revisar tu resultado.');
@@ -322,12 +421,15 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
 
     marcaUltimoIntentoRef.current = Date.now();
 
-    setEstado((previo) => ({
-      ...previo,
-      aciertos: previo.aciertos + 1,
+    const estadoConAcierto = {
+      ...estadoActual,
+      aciertos: estadoActual.aciertos + 1,
       indiceRespuesta: siguienteIndice,
       baldosaActiva: indiceBaldosa,
-    }));
+    };
+    estadoRef.current = estadoConAcierto;
+    setEstado(estadoConAcierto);
+    guardarCheckpointSeguro(estadoConAcierto);
 
     const temporizadorAcierto = setTimeout(() => {
       setEstado((previo) => ({
@@ -363,6 +465,7 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
     estado,
     columnasTablero: resolverColumnasTablero(configuracion.configuracion.cantidadBaldosas),
     iniciarPartida,
+    restaurarPartida,
     reiniciarPartida,
     cancelarPartidaTecnica,
     seleccionarBaldosa,

@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { crearClienteSesionesJuego } from '../../core/clienteSesionesJuego';
+import { createMobileGameOperationTracker } from '../../core/gameOperationIdentity.runtime';
+import { useGameCheckpoint } from '../../core/useGameCheckpoint';
+import { SLUG_MERCADO } from '../mercado.constants';
+import { finalizarMercadoTrasGuardarCheckpoint } from './mercadoFinalization';
 
 export const MODOS_PERSISTENCIA_MERCADO = Object.freeze({
   local: 'local',
@@ -48,6 +52,10 @@ const construirPersistenciaInicial = (modo) => ({
 const resolverMensajeError = (error) =>
   error instanceof Error ? error.message : 'Ocurrio un error al persistir la sesion del mercado.';
 
+const tieneIdentidadFinalizacion = (finalizacion) =>
+  typeof finalizacion?.finalization_id === 'string' &&
+  finalizacion.finalization_id.trim().length > 0;
+
 export const useSesionMercado = ({ configuracion, contextoSesion }) => {
   const contextoNormalizado = useMemo(
     () => normalizarContextoSesion(contextoSesion),
@@ -80,12 +88,31 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
   const respuestaInicioRef = useRef(null);
   const finalizacionPendienteRef = useRef(null);
   const colaOperacionesRef = useRef(Promise.resolve());
+  const operationTrackerRef = useRef(null);
+  operationTrackerRef.current ??= createMobileGameOperationTracker();
+  const checkpoint = useGameCheckpoint({
+    client: clienteSesionesJuego,
+    enabled: persistenciaRemotaHabilitada,
+    gameSlug: SLUG_MERCADO,
+    sessionId: persistencia.sesionId,
+    studentToken: contextoNormalizado.tokenEstudiante,
+  });
+
+  const identificarFinalizacion = useCallback((finalizacion) => {
+    const finalizacionIdentificada = tieneIdentidadFinalizacion(finalizacion)
+      ? finalizacion
+      : operationTrackerRef.current.decorateFinalization(finalizacion);
+
+    finalizacionPendienteRef.current = finalizacionIdentificada;
+    return finalizacionIdentificada;
+  }, []);
 
   useEffect(() => {
     sesionIdRef.current = null;
     respuestaInicioRef.current = null;
     finalizacionPendienteRef.current = null;
     colaOperacionesRef.current = Promise.resolve();
+    operationTrackerRef.current.resetAttempt();
     setPersistencia(construirPersistenciaInicial(modoPersistencia));
   }, [
     modoPersistencia,
@@ -123,6 +150,7 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
         tokenEstudiante: contextoNormalizado.tokenEstudiante,
         minijuegoId: contextoNormalizado.minijuegoId,
         dificultad: dificultadSolicitada,
+        attemptId: operationTrackerRef.current.getAttemptId(),
       });
 
       const sesionId = respuestaInicio?.sesion?.id ?? null;
@@ -160,6 +188,7 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
       return Promise.resolve();
     }
 
+    const eventoIdentificado = operationTrackerRef.current.decorateEvent(evento);
     return encadenarOperacion(async () => {
       setPersistencia((previo) => ({
         ...previo,
@@ -172,6 +201,7 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
       }));
 
       try {
+        await checkpoint.flushCheckpoint();
         const respuestaInicio = await iniciarSesionRemota(configuracion.dificultad);
         const sesionId = respuestaInicio?.sesion?.id ?? sesionIdRef.current;
 
@@ -182,7 +212,7 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
         await clienteSesionesJuego.registrarEvento({
           tokenEstudiante: contextoNormalizado.tokenEstudiante,
           sesionId,
-          evento,
+          evento: eventoIdentificado,
         });
 
         setPersistencia((previo) => ({
@@ -207,7 +237,7 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
       return Promise.resolve();
     }
 
-    finalizacionPendienteRef.current = finalizacionSesion;
+    const finalizacionIdentificada = identificarFinalizacion(finalizacionSesion);
 
     return encadenarOperacion(async () => {
       setPersistencia((previo) => ({
@@ -224,14 +254,20 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
           return;
         }
 
-        const respuestaFinalizacion = await clienteSesionesJuego.finalizarSesion({
-          tokenEstudiante: contextoNormalizado.tokenEstudiante,
-          sesionId,
-          finalizacion: finalizacionSesion,
+        const respuestaFinalizacion = await finalizarMercadoTrasGuardarCheckpoint({
+          finalizacion: finalizacionIdentificada,
+          flushCheckpoint: checkpoint.flushCheckpoint,
+          postFinalizacion: (finalizacion) => clienteSesionesJuego.finalizarSesion({
+            tokenEstudiante: contextoNormalizado.tokenEstudiante,
+            sesionId,
+            finalizacion,
+          }),
         });
 
         sesionIdRef.current = null;
         finalizacionPendienteRef.current = null;
+        operationTrackerRef.current.clearFinalization();
+        checkpoint.markTerminal();
 
         setPersistencia((previo) => ({
           ...previo,
@@ -292,9 +328,11 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
   }, [iniciarSesionRemota, persistenciaRemotaHabilitada]);
 
   const prepararNuevaRonda = useCallback(() => {
+    checkpoint.markTerminal();
     sesionIdRef.current = null;
     respuestaInicioRef.current = null;
     finalizacionPendienteRef.current = null;
+    operationTrackerRef.current.resetAttempt();
     setPersistencia((previo) => ({
       ...previo,
       estado: ESTADOS_PERSISTENCIA_MERCADO.inactiva,
@@ -304,7 +342,7 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
       respuestaInicio: null,
       respuestaFinalizacion: null,
     }));
-  }, []);
+  }, [checkpoint]);
 
   return {
     persistencia,
@@ -314,6 +352,9 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
     respuestaFinalizacion: persistencia.respuestaFinalizacion,
     prepararRonda,
     prepararNuevaRonda,
+    identificarFinalizacion,
     reintentarFinalizacion,
+    reanudarFinalizacion: finalizarSesionRemota,
+    checkpoint,
   };
 };
