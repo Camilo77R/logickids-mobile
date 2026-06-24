@@ -21,6 +21,12 @@ const {
   ESTADOS_ACCESO_JUEGO,
   resolverAccesoJuegoDesdePerfil,
 } = require('../../src/features/games/core/resolverAccesoJuego.js');
+const {
+  shouldCloseActiveGame,
+} = require('../../src/features/games/core/activeGameLifecycle.js');
+const {
+  resolveStudentAvatarUri,
+} = require('../../src/services/studentAvatar.service.js');
 
 test('entorno desconocido falla cerrado como produccion', () => {
   assert.equal(resolveAppEnvironment('preview'), APP_ENVIRONMENTS.preview);
@@ -142,4 +148,47 @@ test('participante terminal sigue bloqueado aunque la sesion de clase este activ
 
   assert.equal(access.estado, ESTADOS_ACCESO_JUEGO.bloqueado);
   assert.match(access.motivo, /completaste/i);
+});
+
+test('resultado visible permanece hasta que el estudiante decide continuar la ruta', () => {
+  assert.equal(shouldCloseActiveGame({
+    accessState: ESTADOS_ACCESO_JUEGO.bloqueado,
+    participantState: 'activo',
+    resultVisible: true,
+    sessionActive: true,
+  }), false);
+
+  assert.equal(shouldCloseActiveGame({
+    accessState: ESTADOS_ACCESO_JUEGO.bloqueado,
+    participantState: 'activo',
+    resultVisible: false,
+    sessionActive: true,
+  }), true);
+});
+
+test('cierre del tutor prevalece sobre una pantalla de resultado visible', () => {
+  assert.equal(shouldCloseActiveGame({
+    accessState: ESTADOS_ACCESO_JUEGO.bloqueado,
+    participantState: 'cerrado',
+    resultVisible: true,
+    sessionActive: true,
+  }), true);
+
+  assert.equal(shouldCloseActiveGame({
+    accessState: ESTADOS_ACCESO_JUEGO.bloqueado,
+    participantState: 'activo',
+    resultVisible: true,
+    sessionActive: false,
+  }), true);
+});
+
+test('avatar movil usa la misma semilla estable que el frontend', () => {
+  assert.equal(
+    resolveStudentAvatarUri({ nombre: 'Ana Maria' }),
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Ana%20Maria',
+  );
+  assert.equal(
+    resolveStudentAvatarUri({ id: 42 }),
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=42',
+  );
 });

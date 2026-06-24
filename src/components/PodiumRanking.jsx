@@ -4,14 +4,15 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
   withTiming,
 } from 'react-native-reanimated';
+import StudentAvatar from './StudentAvatar';
 import { colors, fonts, shadows, spacing } from '../constants/theme';
+import { resolveStudentAvatarUri } from '../services/studentAvatar.service';
 
 export default function PodiumRanking({ data = null, ranking = [] }) {
   const normalizedData = useMemo(() => {
@@ -62,6 +63,7 @@ export default function PodiumRanking({ data = null, ranking = [] }) {
     }
 
     const nameForDisplay = item.name || item.studentName || 'Student';
+    const avatarSize = isFirst ? 58 : 50;
     return (
       <Animated.View style={[styles.item, animStyle, { height }]}>
         <Text style={styles.medal}>
@@ -69,10 +71,11 @@ export default function PodiumRanking({ data = null, ranking = [] }) {
         </Text>
 
         <View style={[styles.avatarContainer, isFirst && styles.avatarContainerFirst]}>
-          <Ionicons
-            name="happy"
-            size={isFirst ? 34 : 28}
-            color={colors.purple}
+          <StudentAvatar
+            backgroundColor={item.avatarColor || colors.white}
+            iconSize={isFirst ? 34 : 28}
+            size={avatarSize}
+            uri={resolveStudentAvatarUri(item)}
           />
         </View>
 
@@ -125,9 +128,9 @@ const styles = StyleSheet.create({
     width: 100,
   },
   avatarContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     overflow: 'hidden',
     backgroundColor: colors.lavender,
     marginTop: spacing.sm,
@@ -135,9 +138,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatarContainerFirst: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     borderWidth: 2,
     borderColor: colors.yellow,
   },

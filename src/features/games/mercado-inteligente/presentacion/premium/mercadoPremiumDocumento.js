@@ -100,7 +100,7 @@ export const generarDocumentoMercadoPremium = ({
   const fondoSesionFinal = resolverFondoSesionFinal(assets);
   const estiloFondo = fondoEscenario
     ? `background-image:url(${cssUrl(fondoEscenario)});`
-    : 'background-image:linear-gradient(180deg,#8de5f6,#f8d49a);';
+    : 'background-image:none;';
   const variableFondoEscenario = fondoEscenario
     ? `--mercado-escenario-fondo:url(${cssUrl(fondoEscenario)});`
     : '--mercado-escenario-fondo:none;';
@@ -115,7 +115,7 @@ export const generarDocumentoMercadoPremium = ({
         <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
         <style>
           ${crearEstilosMercado()}
-          html,body{background:#8de5f6}
+          html,body{background:transparent!important}
           body::before{
             content:"";
             position:fixed;

@@ -1,5 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  ImageBackground,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import WebView from 'react-native-webview';
 
 import { fonts } from '../../../../../constants/theme';
@@ -18,6 +24,7 @@ import {
 import {
   MODELOS_ESCENA_MERCADO_PREMIUM,
 } from './mercadoPremiumModelos';
+import { FONDO_MERCADO_PREMIUM } from './mercadoPremiumFondos';
 import { MERCADO_SESION_FINAL_RASTER_MANIFEST } from './mercadoSesionFinalRasterManifest';
 import {
   crearScriptActualizarUiMercadoPremium,
@@ -115,27 +122,43 @@ export default function MercadoPremiumWebView({
   }
 
   return (
-    <WebView
-      key={claveProductos}
-      ref={webViewRef}
-      source={{ html: documento }}
-      originWhitelist={['*']}
-      onMessage={manejarMensaje}
-      javaScriptEnabled
-      domStorageEnabled
-      allowFileAccess
-      allowFileAccessFromFileURLs
-      allowUniversalAccessFromFileURLs
-      mixedContentMode="always"
-      style={styles.webView}
-    />
+    <ImageBackground
+      source={FONDO_MERCADO_PREMIUM}
+      resizeMode="cover"
+      style={styles.background}
+    >
+      <WebView
+        key={claveProductos}
+        ref={webViewRef}
+        source={{ html: documento }}
+        originWhitelist={['*']}
+        onMessage={manejarMensaje}
+        javaScriptEnabled
+        domStorageEnabled
+        allowFileAccess
+        allowFileAccessFromFileURLs
+        allowUniversalAccessFromFileURLs
+        mixedContentMode="always"
+        containerStyle={styles.webViewContainer}
+        style={styles.webView}
+      />
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+    height: '100%',
+    width: '100%',
+  },
+  webViewContainer: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
   webView: {
     flex: 1,
-    backgroundColor: '#8DE5F6',
+    backgroundColor: 'transparent',
   },
   cargando: {
     flex: 1,
