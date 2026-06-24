@@ -140,6 +140,21 @@ export const useStudentAuthentication = ({ apiBaseUrl, ready }) => {
     setState(STUDENT_AUTH_STATES.anonymous);
   }, [service, session]);
 
+  const clearLocalSession = useCallback(async () => {
+    requestIdRef.current += 1;
+
+    if (service) {
+      await service.clearLocalCredential();
+    } else {
+      await studentCredentialStorage.clear();
+    }
+
+    setSession(null);
+    setError('');
+    setState(STUDENT_AUTH_STATES.anonymous);
+    return true;
+  }, [service]);
+
   const revalidate = useCallback(async () => {
     if (!session || !service || revalidationInFlightRef.current) {
       return;
@@ -189,6 +204,7 @@ export const useStudentAuthentication = ({ apiBaseUrl, ready }) => {
 
   return {
     clearForApiChange,
+    clearLocalSession,
     error,
     loginByQr,
     logout,

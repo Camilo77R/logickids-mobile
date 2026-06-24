@@ -25,6 +25,9 @@ const unwrapRequiredResult = (result, fallbackMessage) => {
 const buildDashboardStats = (skills = []) =>
   skills.map((skill) => skill.raw).filter(Boolean);
 
+const getProfileStudentId = (profile = {}) =>
+  profile.id ?? profile.estudiante_id ?? profile.id_estudiante ?? profile.studentId ?? null;
+
 /**
  * Servicio del dashboard del estudiante.
  *
@@ -78,18 +81,37 @@ export const createStudentDashboardService = (baseUrl, token) => {
       ]);
 
       const profile = unwrapRequiredResult(profileResult, 'No pudimos cargar tu perfil.');
-      const achievements = unwrapRequiredResult(
-        achievementsResult,
-        'No pudimos cargar tus logros.',
-      );
+      const achievements = achievementsResult.status === 'fulfilled'
+        ? achievementsResult.value
+        : [];
       const games = unwrapRequiredResult(gamesResult, 'No pudimos cargar tus juegos asignados.');
-      const results = unwrapRequiredResult(
+      const initialResults = unwrapRequiredResult(
         resultsResult,
         'No pudimos cargar tu historial de sesiones.',
       );
+      const studentHistoryResults = await resultService
+        .fetchByStudentId(getProfileStudentId(profile))
+        .catch(() => []);
+      const results = studentHistoryResults.length > initialResults.length
+        ? studentHistoryResults
+        : initialResults;
       const skills = unwrapRequiredResult(skillsResult, 'No pudimos cargar tu progreso.');
       const rankingSummary = rankingResult.status === 'fulfilled' ? rankingResult.value : null;
-      const history = results.map((result) => result.raw).filter(Boolean);
+      const history = results
+        .map((result) => ({
+          ...(result.raw ?? {}),
+          sesion_clase_id: result.raw?.sesion_clase_id ?? result.sessionId,
+          minijuego_id: result.raw?.minijuego_id ?? result.game?.id,
+          minijuego_slug: result.raw?.minijuego_slug ?? result.game?.slug,
+          minijuego_titulo: result.raw?.minijuego_titulo ?? result.game?.title,
+          habilidad: result.raw?.habilidad ?? result.game?.skillName,
+          estado: result.raw?.estado ?? result.status,
+          aciertos: result.raw?.aciertos ?? result.hits,
+          errores: result.raw?.errores ?? result.errors,
+          iniciada_en: result.raw?.iniciada_en ?? result.startedAt,
+          finalizada_en: result.raw?.finalizada_en ?? result.finishedAt,
+        }))
+        .filter(Boolean);
       const sessionState = buildDashboardSessionState({ profile, history, games });
       const activeSessionRanking = rankingService.buildSessionRanking({
         sessionId: sessionState.activeSession?.id,

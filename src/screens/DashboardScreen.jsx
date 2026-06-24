@@ -32,8 +32,11 @@ import PodiumRanking from '../components/PodiumRanking';
 import StudentAvatar from '../components/StudentAvatar';
 import { colors, fonts, shadows, spacing } from '../constants/theme';
 import { resolveStudentAvatarUri } from '../services/studentAvatar.service';
+import ActivitiesTabScreen from './ActivitiesTabScreen';
+import AchievementsTabScreen from './AchievementsTabScreen';
 import GamePathScreen from './GamePathScreen';
 import ProfileNinoScreen from './ProfileNinoScreen';
+import ProgressTabScreen from './ProgressTabScreen';
 
 const TERMINAL_PARTICIPANT_STATES = new Set(['completado', 'abandonado', 'cerrado']);
 const DASHBOARD_BACKGROUND = '#F5F5F5';
@@ -46,13 +49,6 @@ const MAP_SKILL_NODES = Object.freeze([
   { id: 'razonar', name: 'Razonar', icon: 'cube', slugHints: ['mercado'], gameTitle: 'Mercado Inteligente' },
   { id: 'atencion', name: 'Atencion', icon: 'search', slugHints: ['objeto', 'atencion'], gameTitle: 'Objeto Perdido' },
 ]);
-
-const SESSION_BADGES = Object.freeze({
-  Activa: { backgroundColor: '#DDF8EA', color: '#157347' },
-  Pendiente: { backgroundColor: '#FFF3CD', color: '#8A6500' },
-  Bloqueada: { backgroundColor: '#ECEFF3', color: '#5F6673' },
-  Completada: { backgroundColor: '#F3E8FA', color: colors.purple },
-});
 
 const DASHBOARD_TABS = Object.freeze({
   mapa: 'mapa',
@@ -262,78 +258,6 @@ const buildSkillCards = ({ assignedGames, accessBySlug, skillStatsView }) => {
   });
 };
 
-const buildActivityCardsFromSession = ({ accessBySlug, assignedGames, historicalSessions, studentProfile }) => {
-  const activeCards = assignedGames.map((game) => ({
-    slug: game.slug,
-    id: `active-${game.slug}`,
-    title: game.title,
-    skillLabel: game.skillName ?? 'Sesion',
-    durationLabel: studentProfile?.sesion_total_pasos
-      ? `Paso ${studentProfile?.sesion_paso_actual ?? 1}/${studentProfile.sesion_total_pasos}`
-      : 'Sesion activa',
-    access: accessBySlug[game.slug],
-    icon: getGameIcon(game.slug),
-    source: 'active-session',
-  }));
-
-  const historicalCards = historicalSessions.flatMap((session) =>
-    (session.assignedGames ?? []).map((game) => ({
-      slug: game.slug,
-      id: `history-${session.id}-${game.slug}`,
-      title: game.title,
-      skillLabel: game.skillName ?? session.routeName ?? 'Sesion historica',
-      durationLabel: session.finishedAt ? 'Historica' : 'Sesion registrada',
-      access: null,
-      icon: getGameIcon(game.slug),
-      source: 'historical-session',
-      historicalStatus: session.status,
-    })),
-  );
-
-  return [...activeCards, ...historicalCards];
-};
-
-const resolveSessionStatus = ({ access, profile, slug, isComingSoon }) => {
-  if (isComingSoon) {
-    return 'Pendiente';
-  }
-
-  if (!access) {
-    return 'Completada';
-  }
-
-  if (profile?.sesion_participante_estado === 'completado' && profile?.sesion_minijuego_slug === slug) {
-    return 'Completada';
-  }
-
-  if (access?.estado === ESTADOS_ACCESO_JUEGO.disponible) {
-    return 'Activa';
-  }
-
-  if (!profile?.sesion_activa) {
-    return 'Pendiente';
-  }
-
-  return 'Bloqueada';
-};
-
-const buildSessionCards = ({ activityCards, studentProfile }) =>
-  activityCards.map((activity) => {
-    const status = resolveSessionStatus({
-      access: activity.access,
-      profile: studentProfile,
-      slug: activity.slug,
-      isComingSoon: activity.isComingSoon,
-    });
-    const isLocked = status === 'Bloqueada';
-
-    return {
-      ...activity,
-      status,
-      locked: isLocked,
-    };
-  });
-
 const getGradeLabel = (profile) =>
   profile?.grado_nombre ||
   profile?.grado ||
@@ -341,31 +265,12 @@ const getGradeLabel = (profile) =>
   profile?.grupo_nombre ||
   buildGroupLabel(profile);
 
-const getSessionTutorLabel = (session) =>
-  session?.tutorName ||
-  session?.tutor_nombre ||
-  session?.docente_nombre ||
-  'Tutor pendiente';
-
 const getSessionGamesLabel = (games = []) => {
   if (!games.length) {
     return 'Sin juegos asignados';
   }
 
   return games.map((game) => game.title).join(' + ');
-};
-
-const getSessionCompletedLabel = (session) => {
-  const completed = (session?.results ?? []).filter((result) =>
-    TERMINAL_PARTICIPANT_STATES.has(result.estado ?? result.status),
-  ).length;
-  const total = session?.totalSteps ?? session?.assignedGames?.length ?? completed;
-
-  if (!total) {
-    return 'En progreso';
-  }
-
-  return `${completed}/${total} completados`;
 };
 
 const getSessionCompletedCount = (session) =>
@@ -392,80 +297,6 @@ const getResultGameSlug = (result = {}) =>
 const getResultSkillName = (result = {}) =>
   result.game?.skillName ?? result.habilidad ?? result.skillName ?? null;
 
-const buildActivityStateCards = ({ assignedGames, accessBySlug, results }) => {
-  if (!assignedGames.length) {
-    return [];
-  }
-
-  return assignedGames.map((game) => {
-    const gameResults = results.filter((result) => getResultGameSlug(result) === game.slug);
-    const completed = gameResults.some((result) => TERMINAL_PARTICIPANT_STATES.has(result.status ?? result.estado));
-    const access = accessBySlug[game.slug];
-    const available = access?.estado === ESTADOS_ACCESO_JUEGO.disponible;
-    const status = completed ? 'completado' : available ? 'disponible' : 'en progreso';
-
-    return {
-      id: game.slug,
-      title: game.title,
-      skillLabel: game.skillName ?? 'Habilidad',
-      status,
-      statusLabel: status === 'disponible' ? 'Disponible' : status === 'completado' ? 'Completado' : 'En progreso',
-      icon: getGameIcon(game.slug),
-      slug: game.slug,
-      attempts: gameResults.length,
-      canOpen: available,
-    };
-  });
-};
-
-const buildMapNodes = ({ assignedGames, historicalSessions, accessBySlug, results }) => {
-  const allSessionGames = [
-    ...assignedGames,
-    ...historicalSessions.flatMap((session) => session.assignedGames ?? []),
-  ];
-
-  return MAP_SKILL_NODES.map((node, index) => {
-    const assignedGame = findGameForSkillNode({ node, games: assignedGames });
-    const historicalGame = findGameForSkillNode({ node, games: allSessionGames });
-    const game = assignedGame ?? historicalGame;
-    const nodeResults = results.filter((result) => {
-      const skillName = normalizeSkillKey(getResultSkillName(result));
-      const slug = String(getResultGameSlug(result) ?? '').toLowerCase();
-
-      return (
-        skillName === normalizeSkillKey(node.name) ||
-        node.slugHints.some((hint) => slug.includes(hint))
-      );
-    });
-    const completed = nodeResults.some((result) => TERMINAL_PARTICIPANT_STATES.has(result.status ?? result.estado));
-    const active = assignedGame && accessBySlug[assignedGame.slug]?.estado === ESTADOS_ACCESO_JUEGO.disponible;
-    const status = active ? 'activo' : completed ? 'completado' : game ? 'bloqueado' : 'no asignado';
-
-    return {
-      ...node,
-      number: index + 1,
-      game,
-      gameSlug: game?.slug ?? null,
-      status,
-      statusLabel: status === 'activo'
-        ? 'Activo'
-        : status === 'completado'
-          ? 'Completado'
-          : status === 'bloqueado'
-            ? 'Bloqueado'
-            : 'No asignado',
-      active,
-      locked: status !== 'activo',
-      lockedReason: status === 'no asignado'
-        ? 'Tu tutor aun no asigna este juego'
-        : status === 'bloqueado'
-          ? 'Disponible segun avance de la sesion'
-          : '',
-      activeMessage: active ? 'Listo para jugar' : '',
-    };
-  });
-};
-
 const buildSkillProgressCards = ({ skills, results }) => {
   const resultSkills = new Set(results.map(getResultSkillName).filter(Boolean).map(normalizeSkillKey));
   const skillRows = skills.length
@@ -488,13 +319,29 @@ const buildSkillProgressCards = ({ skills, results }) => {
   });
 };
 
-const normalizeAchievement = (achievement = {}) => ({
-  id: achievement.id ?? achievement.id_logro ?? achievement.logro_id ?? achievement.nombre,
-  title: achievement.nombre ?? achievement.titulo ?? achievement.title ?? 'Logro',
-  description: achievement.descripcion ?? achievement.description ?? '',
-  gameTitle: achievement.minijuego_titulo ?? achievement.juego ?? achievement.gameTitle ?? 'Juego',
-  unlocked: achievement.desbloqueado ?? achievement.unlocked ?? achievement.obtenido ?? true,
-});
+const normalizeAchievement = (achievement = {}) => {
+  const unlockedValue = achievement.isUnlocked
+    ?? achievement.desbloqueado
+    ?? achievement.unlocked
+    ?? achievement.obtenido
+    ?? false;
+
+  return {
+    id: achievement.id ?? achievement.id_catalogo_logro ?? achievement.id_logro ?? achievement.logro_id ?? achievement.code ?? achievement.clave ?? achievement.nombre,
+    code: achievement.code ?? achievement.clave ?? achievement.clave_logro,
+    title: achievement.title ?? achievement.nombre ?? achievement.nombre_logro ?? achievement.titulo ?? 'Logro',
+    description: achievement.description ?? achievement.descripcion ?? '',
+    gameTitle: achievement.minijuego_titulo ?? achievement.juego ?? achievement.gameTitle ?? 'Juego',
+    iconKey: achievement.iconKey ?? achievement.icon_key ?? achievement.icono,
+    module: achievement.module ?? achievement.modulo ?? achievement.habilidad,
+    points: achievement.points ?? achievement.puntos ?? achievement.puntos_otorgados ?? achievement.awardedPoints ?? 1,
+    unlocked: Boolean(unlockedValue),
+    isUnlocked: Boolean(unlockedValue),
+    unlockedAt: achievement.unlockedAt ?? achievement.desbloqueado_en ?? null,
+    progress: achievement.progress ?? (unlockedValue ? 1 : 0),
+    progressTarget: achievement.progressTarget ?? 1,
+  };
+};
 
 const buildProgressMetrics = ({ historicalSessions, results, skills, ranking = [] }) => {
   const completedResults = results.filter((result) => TERMINAL_PARTICIPANT_STATES.has(result.status ?? result.estado));
@@ -917,24 +764,6 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const attemptsLabel = progressSummary.totalAttempts
     ? `${progressSummary.totalAttempts}`
     : '0';
-  const activityCards = useMemo(
-    () =>
-      buildActivityCardsFromSession({
-        accessBySlug,
-        assignedGames,
-        historicalSessions,
-        studentProfile,
-      }),
-    [accessBySlug, assignedGames, historicalSessions, studentProfile],
-  );
-  const sessionCards = useMemo(
-    () =>
-      buildSessionCards({
-        activityCards,
-        studentProfile,
-      }),
-    [activityCards, studentProfile],
-  );
   const dashboardSessions = useMemo(
     () =>
       buildSessionListCards({
@@ -945,25 +774,6 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     [activeSession, historicalSessions, ranking],
   );
   const lastSession = dashboardSessions[0] ?? null;
-  const activityStateCards = useMemo(
-    () =>
-      buildActivityStateCards({
-        assignedGames,
-        accessBySlug,
-        results: safeResults,
-      }),
-    [accessBySlug, assignedGames, safeResults],
-  );
-  const mapNodes = useMemo(
-    () =>
-      buildMapNodes({
-        assignedGames,
-        historicalSessions,
-        accessBySlug,
-        results: safeResults,
-      }),
-    [accessBySlug, assignedGames, historicalSessions, safeResults],
-  );
   const skillProgressCards = useMemo(
     () => buildSkillProgressCards({ skills: safeSkills, results: safeResults }),
     [safeResults, safeSkills],
@@ -1198,6 +1008,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
 
           {activeTab === DASHBOARD_TABS.perfil ? (
             <ProfileNinoScreen
+              achievements={achievementCards}
               achievementsCount={achievementsCount}
               activityTitle={activityCopy.title}
               activityText={activityCopy.text}
@@ -1251,7 +1062,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
 
             </>
           ) : activeTab === DASHBOARD_TABS.actividades ? (
-            <SessionListScreen
+            <ActivitiesTabScreen
               sessions={dashboardSessions}
               loading={isLoading}
             />
@@ -1262,6 +1073,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
             />
           ) : activeTab === DASHBOARD_TABS.progreso ? (
             <ProgressTabScreen
+              achievements={achievementCards}
               metrics={progressMetrics}
               sessions={dashboardSessions}
               skills={skillProgressCards}
@@ -1404,16 +1216,6 @@ function CurrentClassCard({ activeSession, activityCopy, assignedGames, canPlay,
   );
 }
 
-function ClassMeta({ icon, label, value }) {
-  return (
-    <View style={styles.classMeta}>
-      <Ionicons name={icon} size={18} color={colors.purple} />
-      <Text style={styles.classMetaLabel}>{label}</Text>
-      <Text style={styles.classMetaValue} numberOfLines={2}>{value}</Text>
-    </View>
-  );
-}
-
 function RankingPanel({ activeSession, ranking = [], totalParticipants, studentName }) {
   const currentStudent = ranking.find((entry) => entry.isCurrentStudent);
   const currentStudentPosition = currentStudent?.position ?? null;
@@ -1474,139 +1276,6 @@ function RankingPanel({ activeSession, ranking = [], totalParticipants, studentN
   );
 }
 
-function SessionListScreen({ sessions, loading, onDetail }) {
-  if (loading) return <LoadingPanel text="Cargando sesiones..." />;
-
-  return (
-    <View style={styles.sessionsScreen}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Actividades</Text>
-        <Text style={styles.subtitle}>Detalle de tus sesiones jugadas</Text>
-      </View>
-      <SessionList sessions={sessions} onDetail={onDetail} />
-    </View>
-  );
-}
-
-function SessionList({ sessions, onDetail }) {
-  if (!sessions.length) {
-    return (
-      <View style={styles.sessionsEmpty}>
-        <Ionicons name="calendar" size={34} color={colors.purple} />
-        <Text style={styles.sessionsEmptyTitle}>Sin sesiones todavia</Text>
-        <Text style={styles.sessionsEmptyText}>Tu tutor debe abrir una clase para que aparezca aqui.</Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.sessionList}>
-      {sessions.map((session) => (
-        <DashboardSessionCard
-          key={session.id}
-          session={session}
-          onDetail={() => onDetail?.(session)}
-        />
-      ))}
-    </View>
-  );
-}
-
-function DashboardSessionCard({ session, onDetail }) {
-  const rankingTop = (session.ranking ?? []).slice(0, 3);
-  const studentRanking = (session.ranking ?? []).find((entry) => entry.isCurrentStudent) ?? null;
-  const games = getIntegratedSessionGames(session);
-  const results = session.results ?? [];
-  const levelsPlayed = results.length;
-  const hits = getSessionHitsCount(session);
-
-  // Extract skills from games
-  const sessionSkills = useMemo(() => {
-    const skillsMap = new Map();
-    games.forEach((game) => {
-      if (game.skillName) {
-        if (!skillsMap.has(game.skillName)) {
-          skillsMap.set(game.skillName, {
-            name: game.skillName,
-            description: game.skillDescription,
-            icon: getGameIcon(game.slug),
-          });
-        }
-      }
-    });
-    return [...skillsMap.values()];
-  }, [games]);
-
-  return (
-    <View style={styles.dashboardSessionCard}>
-      <View style={styles.dashboardSessionHead}>
-        <View style={styles.sessionIcon}>
-          <Ionicons name={session.source === 'active' ? 'radio' : 'checkmark-circle'} size={22} color={colors.purple} />
-        </View>
-        <View style={styles.dashboardSessionTitleBlock}>
-          <Text style={styles.dashboardSessionTitle}>{session.title}</Text>
-          <Text style={styles.dashboardSessionSubtitle}>
-            {session.activityDetail ? `${session.activityDetail} - ` : ''}{getSessionGamesLabel(games)}
-          </Text>
-        </View>
-        <SessionStatusPill label={session.stateLabel} />
-      </View>
-
-      <View style={styles.dashboardSessionMeta}>
-        <ClassMeta icon="game-controller" label="Juegos" value={String(games.length)} />
-        <ClassMeta icon="checkmark-done" label="Aciertos" value={String(hits)} />
-        <ClassMeta icon="layers" label="Niveles" value={String(levelsPlayed)} />
-      </View>
-
-      <View style={styles.dashboardSessionMeta}>
-        <ClassMeta icon="calendar" label="Fecha" value={getSessionDateLabel(session)} />
-        <ClassMeta
-          icon="podium"
-          label="Ranking"
-          value={studentRanking ? `Tu puesto #${studentRanking.position}` : rankingTop.length ? 'Ranking listo' : 'Sin ranking'}
-        />
-      </View>
-
-      <View style={styles.sessionDetailPanel}>
-        <Text style={styles.sessionDetailTitle}>Juegos de esta sesion</Text>
-        {games.length ? games.map((game) => {
-          const gameResults = results.filter((result) => getResultGameSlug(result) === game.slug);
-          const completed = gameResults.some((result) => TERMINAL_PARTICIPANT_STATES.has(result.status ?? result.estado));
-          const gameHits = gameResults.reduce((sum, result) => sum + Number(result.aciertos ?? result.hits ?? 0), 0);
-
-          return (
-            <View key={game.slug ?? game.title} style={styles.sessionGameDetailRow}>
-              <Ionicons name={getGameIcon(game.slug)} size={17} color={colors.purple} />
-              <View style={styles.sessionGameDetailText}>
-                <Text style={styles.sessionGameDetailTitle}>{game.title}</Text>
-                <Text style={styles.sessionGameDetailMeta}>
-                  {completed ? 'Completado' : session.source === 'active' ? 'En progreso' : 'Sin resultado'} - {gameHits} acierto(s) - {gameResults.length} nivel(es)
-                </Text>
-              </View>
-            </View>
-          );
-        }) : (
-          <Text style={styles.sessionGameDetailMeta}>Esta sesion no tiene juegos asignados.</Text>
-        )}
-      </View>
-
-      {sessionSkills.length > 0 && (
-        <View style={styles.sessionSkillsPanel}>
-          <Text style={styles.sessionSkillsTitle}>Habilidades</Text>
-          <View style={styles.sessionSkillsList}>
-            {sessionSkills.map((skill) => (
-              <View key={skill.name} style={styles.sessionSkillChip}>
-                <Ionicons name={skill.icon} size={14} color={colors.white} />
-                <Text style={styles.sessionSkillChipText}>{skill.name}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
-    </View>
-  );
-}
-
 function SessionStatusPill({ label }) {
   const isActive = label === 'En progreso';
   const isDone = label === 'Finalizada';
@@ -1643,85 +1312,6 @@ function EmptyPanel({ icon = 'sparkles', title, text }) {
       <Ionicons name={icon} size={34} color={colors.purple} />
       <Text style={styles.sessionsEmptyTitle}>{title}</Text>
       <Text style={styles.sessionsEmptyText}>{text}</Text>
-    </View>
-  );
-}
-
-function ActivitiesTabScreen({ activities, loading, onOpen }) {
-  if (loading) return <LoadingPanel text="Cargando actividades de la sesion..." />;
-  if (!activities.length) {
-    return (
-      <EmptyPanel
-        icon="clipboard"
-        title="Sin actividades asignadas"
-        text="Tu tutor debe abrir una sesion para mostrar juegos aqui."
-      />
-    );
-  }
-
-  return (
-    <View style={styles.sessionsScreen}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Actividades</Text>
-        <Text style={styles.subtitle}>Solo juegos asignados a tu sesion</Text>
-      </View>
-      <View style={styles.sessionList}>
-        {activities.map((activity) => (
-          <ActivitySessionGameCard key={activity.id} activity={activity} onOpen={() => onOpen(activity)} />
-        ))}
-      </View>
-    </View>
-  );
-}
-
-function ActivitySessionGameCard({ activity, onOpen }) {
-  const available = activity.status === 'disponible';
-
-  return (
-    <View style={styles.dashboardSessionCard}>
-      <View style={styles.dashboardSessionHead}>
-        <View style={styles.sessionIcon}>
-          <Ionicons name={activity.icon} size={22} color={colors.purple} />
-        </View>
-        <View style={styles.dashboardSessionTitleBlock}>
-          <Text style={styles.dashboardSessionTitle}>{activity.title}</Text>
-          <Text style={styles.dashboardSessionSubtitle}>{activity.skillLabel} - {activity.attempts} resultados</Text>
-        </View>
-        <SessionStatusPill label={activity.statusLabel} />
-      </View>
-      <TouchableOpacity
-        activeOpacity={0.86}
-        disabled={!available}
-        onPress={onOpen}
-        style={[styles.sessionDetailButton, !available && styles.sessionDetailButtonDisabled]}
-      >
-        <Text style={styles.sessionDetailButtonText}>{available ? 'Entrar' : 'Ver detalle'}</Text>
-        <Ionicons name={available ? 'play' : 'eye'} size={16} color={colors.white} />
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function MapNodesPanel({ nodes, onStart }) {
-  return (
-    <View style={styles.mapNodesGrid}>
-      {nodes.map((node) => (
-        <TouchableOpacity
-          key={node.id}
-          activeOpacity={0.86}
-          disabled={!node.active}
-          onPress={() => onStart(node)}
-          style={[styles.mapNodeCard, node.active && styles.mapNodeCardActive]}
-        >
-          <View style={[styles.mapNodeIcon, node.active && styles.mapNodeIconActive]}>
-            <Ionicons name={node.icon} size={22} color={node.active ? colors.purpleDark : colors.purple} />
-          </View>
-          <Text style={styles.mapNodeName}>{node.name}</Text>
-          <Text style={styles.mapNodeGame}>{node.game?.title ?? node.gameTitle}</Text>
-          <SessionStatusPill label={node.statusLabel} />
-          {node.lockedReason ? <Text style={styles.mapNodeReason}>{node.lockedReason}</Text> : null}
-        </TouchableOpacity>
-      ))}
     </View>
   );
 }
@@ -1795,179 +1385,6 @@ function DashboardSessionsPreview({ sessions, loading, onDetail }) {
         <Ionicons name="chevron-forward" size={16} color={colors.white} />
       </TouchableOpacity>
     </View>
-  );
-}
-
-function SkillsTabScreen({ skills, loading }) {
-  if (loading) return <LoadingPanel text="Cargando habilidades reales..." />;
-  if (!skills.length) {
-    return (
-      <EmptyPanel
-        icon="sparkles"
-        title="Sin habilidades medidas"
-        text="Completa sesiones para calcular progreso, precision y juegos jugados."
-      />
-    );
-  }
-
-  return (
-    <View style={styles.sessionsScreen}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Habilidades</Text>
-        <Text style={styles.subtitle}>Calculadas desde resultados guardados</Text>
-      </View>
-      <View style={styles.sessionList}>
-        {skills.map((skill) => (
-          <View key={skill.id} style={styles.skillProgressCard}>
-            <View style={styles.dashboardSessionHead}>
-              <View style={styles.sessionIcon}>
-                <Ionicons name="sparkles" size={22} color={colors.purple} />
-              </View>
-              <View style={styles.dashboardSessionTitleBlock}>
-                <Text style={styles.dashboardSessionTitle}>{skill.name}</Text>
-                <Text style={styles.dashboardSessionSubtitle}>{skill.detail}</Text>
-              </View>
-              <Text style={styles.skillProgressValue}>{skill.progressLabel}</Text>
-            </View>
-            <View style={styles.dashboardSessionMeta}>
-              <ClassMeta icon="game-controller" label="Juegos" value={String(skill.gamesPlayed)} />
-              <ClassMeta icon="analytics" label="Precision" value={skill.progressLabel} />
-            </View>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-function AchievementsTabScreen({ achievements, loading }) {
-  if (loading) return <LoadingPanel text="Cargando logros desde la base de datos..." />;
-  if (!achievements.length) {
-    return (
-      <EmptyPanel
-        icon="trophy"
-        title="Sin logros todavia"
-        text="Los logros apareceran cuando el backend los desbloquee por juego."
-      />
-    );
-  }
-
-  return (
-    <View style={styles.sessionsScreen}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Logros</Text>
-        <Text style={styles.subtitle}>Desbloqueados por juego</Text>
-      </View>
-      <View style={styles.sessionList}>
-        {achievements.map((achievement) => (
-          <View key={achievement.id} style={[styles.achievementCard, !achievement.unlocked && styles.achievementCardLocked]}>
-            <View style={styles.achievementIcon}>
-              <Ionicons name={achievement.unlocked ? 'trophy' : 'lock-closed'} size={24} color={colors.white} />
-            </View>
-            <View style={styles.dashboardSessionTitleBlock}>
-              <Text style={styles.dashboardSessionTitle}>{achievement.title}</Text>
-              <Text style={styles.dashboardSessionSubtitle}>{achievement.gameTitle} - {achievement.description}</Text>
-            </View>
-            <SessionStatusPill label={achievement.unlocked ? 'Desbloqueado' : 'Bloqueado'} />
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-function ProgressTabScreen({ metrics, sessions, skills, results, loading }) {
-  if (loading) return <LoadingPanel text="Cargando progreso real..." />;
-  const completedResults = results.filter((result) => TERMINAL_PARTICIPANT_STATES.has(result.status ?? result.estado));
-
-  return (
-    <View style={styles.sessionsScreen}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Progreso</Text>
-        <Text style={styles.subtitle}>Metricas reales de sesiones y resultados</Text>
-      </View>
-      <View style={styles.progressMetricsGrid}>
-        {metrics.map((metric) => (
-          <ClassMeta key={metric.label} icon={metric.icon} label={metric.label} value={`${metric.value}\n${metric.helper}`} />
-        ))}
-      </View>
-      <SectionTitle title="Aciertos y habilidades" subtitle="Datos tomados de resultados" />
-      {skills.length ? (
-        <View style={styles.sessionList}>
-          {skills.map((skill) => (
-            <View key={skill.id} style={styles.skillProgressCard}>
-              <View style={styles.dashboardSessionHead}>
-                <View style={styles.sessionIcon}>
-                  <Ionicons name="analytics" size={22} color={colors.purple} />
-                </View>
-                <View style={styles.dashboardSessionTitleBlock}>
-                  <Text style={styles.dashboardSessionTitle}>{skill.name}</Text>
-                  <Text style={styles.dashboardSessionSubtitle}>
-                    Precision {skill.progressLabel} - {skill.gamesPlayed} juego(s)
-                  </Text>
-                </View>
-              </View>
-            </View>
-          ))}
-        </View>
-      ) : (
-        <EmptyPanel
-          icon="analytics"
-          title="Sin progreso medido"
-          text="Completa juegos asignados por una sesion para ver aciertos y precision."
-        />
-      )}
-      <SectionTitle
-        title="Resumen"
-        subtitle={`${completedResults.length} resultado(s) completado(s) en ${sessions.length} sesion(es)`}
-      />
-    </View>
-  );
-}
-
-function ProgressItem({ icon, value, label, helper, progress = 0 }) {
-  return (
-    <View style={styles.progressItem}>
-      <View style={styles.progressIcon}>
-        <Ionicons name={icon} size={18} color={colors.white} />
-      </View>
-      <Text style={styles.progressValue}>{value}</Text>
-      <Text style={styles.progressLabel}>{label}</Text>
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${clampProgress(progress)}%` }]} />
-      </View>
-      <Text style={styles.progressHelper}>{helper}</Text>
-    </View>
-  );
-}
-
-function SessionCard({ session, onPress }) {
-  const badge = SESSION_BADGES[session.status] ?? SESSION_BADGES.Bloqueada;
-
-  return (
-    <TouchableOpacity
-      activeOpacity={0.88}
-      disabled={!onPress}
-      onPress={onPress}
-      style={[styles.sessionCard, session.locked && styles.sessionCardLocked]}
-    >
-      <View style={styles.sessionIcon}>
-        <Ionicons
-          name={session.locked ? 'lock-closed' : session.icon}
-          size={24}
-          color={session.locked ? colors.muted : colors.purple}
-        />
-      </View>
-      <Text style={styles.sessionTitle} numberOfLines={2}>{session.title}</Text>
-      <View style={styles.sessionFooter}>
-        <View style={[styles.sessionBadge, { backgroundColor: badge.backgroundColor }]}>
-          <Text style={[styles.sessionBadgeText, { color: badge.color }]}>{session.status}</Text>
-        </View>
-        <View style={styles.sessionActionButton}>
-          <Text style={styles.sessionActionText}>Ver detalle</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
   );
 }
 

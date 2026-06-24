@@ -144,6 +144,12 @@ export default function App() {
     }
   };
 
+  const handleUseAnotherQr = async () => {
+    await authentication.clearLocalSession();
+    setScannerError('');
+    setRoute('login');
+  };
+
   if (
     !fontsLoaded ||
     !apiSettingsLoaded ||
@@ -164,7 +170,7 @@ export default function App() {
         <SessionRecoveryScreen
           message={authentication.error}
           onRetry={authentication.restore}
-          onUseAnotherQr={handleLogout}
+          onUseAnotherQr={handleUseAnotherQr}
         />
       </SafeAreaProvider>
     );

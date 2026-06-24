@@ -6,9 +6,9 @@ import {
 } from './http.service';
 
 export const normalizeGame = (game = {}) => ({
-  id: game.id ?? game.id_minijuego ?? game.minijuego_id ?? null,
-  slug: game.slug ?? game.minijuego_slug ?? null,
-  title: game.titulo ?? game.title ?? game.minijuego ?? game.minijuego_titulo ?? 'Juego asignado',
+  id: game.id ?? game.id_minijuego ?? game.minijuego_id ?? game.juego_id ?? game.id_juego ?? null,
+  slug: game.slug ?? game.minijuego_slug ?? game.juego_slug ?? game.slug_juego ?? null,
+  title: game.titulo ?? game.title ?? game.minijuego ?? game.minijuego_titulo ?? game.juego_titulo ?? game.juego ?? 'Juego asignado',
   description: game.descripcion ?? game.description ?? '',
   skillName: game.habilidad ?? game.skillName ?? game.skill_label ?? null,
   skillDescription: game.habilidad_descripcion ?? game.skillDescription ?? null,

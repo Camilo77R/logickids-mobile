@@ -38,13 +38,14 @@ function WelcomeVideoPlayer({ source }) {
 
   return (
     <VideoView
+      key="logickids-onboarding-video"
       player={player}
       style={styles.video}
       contentFit="cover"
       nativeControls={false}
       allowsFullscreen={false}
       allowsPictureInPicture={false}
-      surfaceType="textureView"
+      surfaceType="surfaceView"
     />
   );
 }
