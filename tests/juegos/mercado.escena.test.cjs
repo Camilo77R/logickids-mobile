@@ -281,6 +281,14 @@ test('Pantalla 2 protege layout y safe-area en 640x360 y 667x375', () => {
     estilos,
     /\.mercado-resultado__recompensa\{width:100%;max-height:100%;min-height:0/,
   );
+  assert.match(
+    estilos,
+    /\.mercado-escaparate \.mercado-producto:nth-of-type\(5\)\{grid-column:1;grid-row:2\}/,
+  );
+  assert.match(
+    estilos,
+    /\.mercado-escaparate \.mercado-producto:nth-of-type\(6\)\{grid-column:4;grid-row:2\}/,
+  );
 });
 
 test('Pantalla 2 no afirma guardado exitoso cuando la persistencia falla', () => {

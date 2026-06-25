@@ -105,6 +105,34 @@ test('generarOfertaMercado y generarRondaMercado producen estructuras determinis
   assert.match(ronda.objetivo.textoGuia, /Elige 2 productos/i);
 });
 
+test('generarRondaMercado garantiza objetivos de categoria alcanzables', () => {
+  const configuracion = normalizarConfiguracionMercado({
+    configuracion: {
+      presupuestoMonedas: 9,
+      cantidadProductosVisibles: 6,
+      cantidadObjetivos: 3,
+      categoriasPermitidas: ['frutas', 'verduras', 'lacteos', 'panaderia'],
+      precioMin: 2,
+      precioMax: 6,
+      modoObjetivo: MODOS_OBJETIVO_MERCADO.categoriaObjetivo,
+    },
+  });
+
+  const ronda = generarRondaMercado({ configuracion, indiceRonda: 3 });
+  const productosCategoria = ronda.oferta.filter(
+    (producto) => producto.categoria === ronda.objetivo.categoriaObjetivo,
+  );
+  const seleccion = productosCategoria.slice(0, ronda.objetivo.cantidadObjetivos);
+  const evaluacion = evaluarSeleccionMercado({
+    ronda,
+    productosSeleccionadosIds: seleccion.map(({ id }) => id),
+  });
+
+  assert.equal(ronda.objetivo.categoriaObjetivo, 'panaderia');
+  assert.equal(productosCategoria.length >= ronda.objetivo.cantidadObjetivos, true);
+  assert.equal(evaluacion.exito, true);
+});
+
 test('evaluarSeleccionMercado valida cantidad, categoria y presupuesto', () => {
   const configuracion = normalizarConfiguracionMercado({
     configuracion: {
@@ -170,6 +198,35 @@ test('evaluarSeleccionMercado prioriza presupuesto excedido y nunca muestra mone
   assert.equal(evaluacion.motivoError, 'presupuesto_excedido');
   assert.equal(evaluacion.presupuestoRestante, 0);
   assert.equal(evaluacion.excesoPresupuesto, 7);
+});
+
+test('generarRondaMercado garantiza presupuesto exacto alcanzable', () => {
+  const configuracion = normalizarConfiguracionMercado({
+    configuracion: {
+      presupuestoMonedas: 14,
+      cantidadProductosVisibles: 6,
+      cantidadObjetivos: 3,
+      categoriasPermitidas: ['frutas', 'verduras', 'lacteos', 'panaderia'],
+      precioMin: 2,
+      precioMax: 6,
+      modoObjetivo: MODOS_OBJETIVO_MERCADO.presupuestoExacto,
+    },
+  });
+
+  const ronda = generarRondaMercado({ configuracion, indiceRonda: 2 });
+  const solucionGarantizada = ronda.oferta.slice(0, ronda.objetivo.cantidadObjetivos);
+  const totalSolucion = solucionGarantizada.reduce(
+    (acumulado, producto) => acumulado + producto.precio,
+    0,
+  );
+  const evaluacion = evaluarSeleccionMercado({
+    ronda,
+    productosSeleccionadosIds: solucionGarantizada.map(({ id }) => id),
+  });
+
+  assert.equal(ronda.objetivo.presupuestoObjetivo, totalSolucion);
+  assert.match(ronda.objetivo.textoGuia, new RegExp(`exactamente ${totalSolucion} monedas`, 'i'));
+  assert.equal(evaluacion.exito, true);
 });
 
 test('evaluarSeleccionMercado valida presupuesto exacto y categoria objetivo', () => {
