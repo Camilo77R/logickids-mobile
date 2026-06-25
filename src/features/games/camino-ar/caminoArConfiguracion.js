@@ -3,17 +3,18 @@ import { MODO_PRESENTACION_CAMINO_AR } from './caminoAr.constants';
 const CONFIGURACION_BASE = Object.freeze({
   slug: 'camino-ar',
   titulo: 'Camino AR',
-  dificultad: 2,
+  dificultad: 1,
   fuenteAdaptacion: 'base',
   versionAdaptacion: 'v1-base',
   modoPresentacion: MODO_PRESENTACION_CAMINO_AR,
   configuracion: Object.freeze({
-    cantidadBaldosas: 6,
-    longitudPatron: 4,
-    duracionDestelloMs: 560,
-    pausaEntreDestellosMs: 180,
-    tiempoLimiteMs: 13000,
+    cantidadBaldosas: 4,
+    longitudPatron: 3,
+    duracionDestelloMs: 900,
+    pausaEntreDestellosMs: 350,
+    tiempoLimiteMs: 18000,
     ayudasDisponibles: 1,
+    erroresPermitidos: 2,
   }),
 });
 
@@ -23,6 +24,11 @@ const asegurarEnteroPositivo = (valor, respaldo) => {
     return respaldo;
   }
   return numero;
+};
+
+const asegurarEnteroNoNegativo = (valor, respaldo) => {
+  const numero = Number(valor);
+  return Number.isInteger(numero) && numero >= 0 ? numero : respaldo;
 };
 
 const normalizarModoPresentacion = (valor, respaldo) => {
@@ -68,9 +74,13 @@ export const normalizarConfiguracionCaminoAr = (entrada = {}) => {
         configuracionEntrada.tiempoLimiteMs,
         configuracionBase.tiempoLimiteMs,
       ),
-      ayudasDisponibles: asegurarEnteroPositivo(
+      ayudasDisponibles: asegurarEnteroNoNegativo(
         configuracionEntrada.ayudasDisponibles,
         configuracionBase.ayudasDisponibles,
+      ),
+      erroresPermitidos: asegurarEnteroPositivo(
+        configuracionEntrada.erroresPermitidos,
+        configuracionBase.erroresPermitidos,
       ),
     },
   };
@@ -92,6 +102,10 @@ export const resolverConfiguracionCaminoArDesdeBackend = ({
   return normalizarConfiguracionCaminoAr({
     ...configuracionLocal,
     dificultad: gameConfig.dificultad ?? respuestaInicioSesion?.sesion?.dificultad,
+    fuenteAdaptacion:
+      gameConfig.adaptacion?.fuente ?? configuracionLocal.fuenteAdaptacion,
+    versionAdaptacion:
+      gameConfig.adaptacion?.version ?? configuracionLocal.versionAdaptacion,
     configuracion: {
       ...configuracionLocal.configuracion,
       cantidadBaldosas: gameConfig.cantidad_baldosas,
@@ -100,6 +114,7 @@ export const resolverConfiguracionCaminoArDesdeBackend = ({
       pausaEntreDestellosMs: gameConfig.pausa_entre_destellos_ms,
       tiempoLimiteMs: gameConfig.tiempo_limite_ms,
       ayudasDisponibles: gameConfig.ayudas_disponibles,
+      erroresPermitidos: gameConfig.errores_permitidos,
     },
   });
 };

@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ESTADOS_CAMINO_AR } from './caminoAr.constants';
+import { TIPOS_EVENTO_SESION } from '../core/contratoSesionJuego';
 import { normalizarConfiguracionCaminoAr } from './caminoArConfiguracion';
 import {
   construirEventoCaminoAr,
+  construirMetadataResultadoCaminoAr,
   construirResumenPartida,
   crearPatronAleatorio,
+  MOTIVOS_FIN_CAMINO_AR,
   resolverColumnasTablero,
 } from './caminoArMotor';
-import { parseCaminoArCheckpointState } from './aplicacion/caminoArCheckpoint';
 
 const construirEstadoInicial = (configuracion) => ({
   fase: ESTADOS_CAMINO_AR.listo,
@@ -42,28 +44,14 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
   const [estado, setEstado] = useState(() => construirEstadoInicial(configuracion));
   const estadoRef = useRef(construirEstadoInicial(configuracion));
   const bloqueoInicioRef = useRef(false);
+  const bloqueoSeleccionRef = useRef(false);
+  const partidaFinalizadaRef = useRef(false);
   const temporizadoresRef = useRef([]);
   const intervaloConteoRef = useRef(null);
   const marcaInicioRespuestaRef = useRef(null);
   const marcaUltimoIntentoRef = useRef(null);
   const duracionRespuestaRef = useRef(configuracion.configuracion.tiempoLimiteMs);
   const partidaIniciadaEnRef = useRef(null);
-  const estadoSuspendidoRef = useRef(null);
-
-  const guardarCheckpointSeguro = (estadoCheckpoint, pendingFinalization = null) => {
-    if (typeof observadores.alGuardarCheckpoint !== 'function') {
-      return;
-    }
-
-    try {
-      observadores.alGuardarCheckpoint({
-        estado: estadoCheckpoint,
-        pendingFinalization,
-      });
-    } catch {
-      // La partida no se interrumpe por un fallo local al preparar persistencia.
-    }
-  };
 
   const limpiarTemporizadores = () => {
     temporizadoresRef.current.forEach((temporizador) => clearTimeout(temporizador));
@@ -92,14 +80,20 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
     ejecutarObservadorSeguro(observadores.alRegistrarEvento, evento);
   };
 
-  const finalizarPartida = (exito, motivo) => {
+  const finalizarPartida = (exito, motivo, motivoFin, resumenEstado = estadoRef.current) => {
+    if (partidaFinalizadaRef.current) {
+      return;
+    }
+
+    partidaFinalizadaRef.current = true;
+    bloqueoSeleccionRef.current = true;
     limpiarTemporizadores();
     detenerCuentaRegresiva();
-    const estadoActual = estadoRef.current;
+    const estadoActual = resumenEstado;
     const tiempoTranscurridoMs = partidaIniciadaEnRef.current
       ? Date.now() - partidaIniciadaEnRef.current
       : 0;
-    const resultadoBase = construirResumenPartida({
+    const resultadoCalculado = construirResumenPartida({
       exito,
       configuracion,
       aciertos: estadoActual.aciertos,
@@ -108,27 +102,32 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
       tiempoTranscurridoMs,
       patron: estadoActual.patron,
     });
-    const finalizacionIdentificada =
-      observadores.alPrepararFinalizacion?.(resultadoBase.finalizacionSesion) ??
-      resultadoBase.finalizacionSesion;
-    const resultadoCalculado = {
-      ...resultadoBase,
-      finalizacionSesion: finalizacionIdentificada,
-    };
 
-    const estadoFinal = {
-      ...estadoActual,
+    registrarEvento(
+      construirEventoCaminoAr({
+        tipoEvento: TIPOS_EVENTO_SESION.nivelCompletado,
+        puntos: exito ? 15 : 0,
+        comboEnEvento: exito ? estadoActual.aciertos : 0,
+        metadata: construirMetadataResultadoCaminoAr({
+          exito,
+          motivoFin,
+          patron: estadoActual.patron,
+          aciertos: estadoActual.aciertos,
+          errores: estadoActual.errores,
+          ayudasUsadas: estadoActual.ayudasUsadas,
+        }),
+      }),
+    );
+
+    setEstado((previo) => ({
+      ...previo,
       fase: exito ? ESTADOS_CAMINO_AR.completado : ESTADOS_CAMINO_AR.fallido,
       baldosaActiva: null,
       resultado: resultadoCalculado,
       mensaje: exito
         ? 'Ronda completada. Tus resultados fueron guardados.'
         : motivo,
-    };
-
-    estadoRef.current = estadoFinal;
-    setEstado(estadoFinal);
-    guardarCheckpointSeguro(estadoFinal, resultadoCalculado.finalizacionSesion);
+    }));
 
     ejecutarObservadorSeguro(observadores.alFinalizarPartida, resultadoCalculado);
   };
@@ -149,7 +148,11 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
       }));
 
       if (restante <= 0) {
-        finalizarPartida(false, 'El tiempo se agoto antes de completar el patron.');
+        finalizarPartida(
+          false,
+          'El tiempo se agoto antes de completar el patron.',
+          MOTIVOS_FIN_CAMINO_AR.tiempoAgotado,
+        );
       }
     }, 100);
   };
@@ -206,12 +209,9 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
       return;
     }
 
-    if (estadoSuspendidoRef.current) {
-      restaurarPartida(estadoSuspendidoRef.current);
-      return;
-    }
-
     bloqueoInicioRef.current = true;
+    bloqueoSeleccionRef.current = false;
+    partidaFinalizadaRef.current = false;
 
     const patron = crearPatronAleatorio({
       cantidadBaldosas: configuracion.configuracion.cantidadBaldosas,
@@ -220,17 +220,10 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
 
     partidaIniciadaEnRef.current = Date.now();
 
-    const estadoInicial = {
+    setEstado({
       ...construirEstadoInicial(configuracion),
       patron,
       mensaje: 'Mira las luces con calma y recuerda el recorrido.',
-    };
-
-    estadoRef.current = estadoInicial;
-    setEstado(estadoInicial);
-    guardarCheckpointSeguro({
-      ...estadoInicial,
-      fase: ESTADOS_CAMINO_AR.mostrandoPatron,
     });
 
     ejecutarObservadorSeguro(observadores.alIniciarPartida, {
@@ -241,63 +234,15 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
     programarReproduccionPatron(patron, configuracion.configuracion.tiempoLimiteMs);
   };
 
-  const restaurarPartida = (checkpointState) => {
-    const checkpoint = parseCaminoArCheckpointState(checkpointState);
-
-    if (!checkpoint) {
-      return false;
-    }
-
-    limpiarTemporizadores();
-    detenerCuentaRegresiva();
-    estadoSuspendidoRef.current = null;
-    bloqueoInicioRef.current = true;
-    marcaInicioRespuestaRef.current = null;
-    marcaUltimoIntentoRef.current = null;
-    duracionRespuestaRef.current = checkpoint.tiempoRestanteMs;
-    partidaIniciadaEnRef.current =
-      Date.now() - Math.max(
-        0,
-        configuracion.configuracion.tiempoLimiteMs - checkpoint.tiempoRestanteMs,
-      );
-
-    const esTerminal =
-      checkpoint.fase === ESTADOS_CAMINO_AR.completado ||
-      checkpoint.fase === ESTADOS_CAMINO_AR.fallido;
-    const estadoRestaurado = {
-      ...construirEstadoInicial(configuracion),
-      fase: checkpoint.fase,
-      patron: checkpoint.patron,
-      indiceRespuesta: checkpoint.indiceRespuesta,
-      tiempoRestanteMs: checkpoint.tiempoRestanteMs,
-      ayudasRestantes: checkpoint.ayudasRestantes,
-      resultado: checkpoint.resultado,
-      aciertos: checkpoint.aciertos,
-      errores: checkpoint.errores,
-      ayudasUsadas: checkpoint.ayudasUsadas,
-      mensaje: esTerminal
-        ? 'Tu resultado anterior esta listo para sincronizarse.'
-        : 'Tablero localizado. Repasemos el camino antes de continuar.',
-    };
-
-    estadoRef.current = estadoRestaurado;
-    setEstado(estadoRestaurado);
-
-    if (!esTerminal) {
-      programarReproduccionPatron(checkpoint.patron, checkpoint.tiempoRestanteMs);
-    }
-
-    return true;
-  };
-
   const reiniciarPartida = () => {
     limpiarTemporizadores();
     detenerCuentaRegresiva();
     bloqueoInicioRef.current = false;
+    bloqueoSeleccionRef.current = false;
+    partidaFinalizadaRef.current = false;
     partidaIniciadaEnRef.current = null;
     marcaInicioRespuestaRef.current = null;
     marcaUltimoIntentoRef.current = null;
-    estadoSuspendidoRef.current = null;
     setEstado(construirEstadoInicial(configuracion));
   };
 
@@ -311,9 +256,9 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
 
     limpiarTemporizadores();
     detenerCuentaRegresiva();
-    guardarCheckpointSeguro(estadoRef.current);
-    estadoSuspendidoRef.current = estadoRef.current;
     bloqueoInicioRef.current = false;
+    bloqueoSeleccionRef.current = false;
+    partidaFinalizadaRef.current = false;
     partidaIniciadaEnRef.current = null;
     marcaInicioRespuestaRef.current = null;
     marcaUltimoIntentoRef.current = null;
@@ -339,16 +284,12 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
     const tiempoConsumido = Date.now() - marcaInicioRespuestaRef.current;
     const tiempoRestante = Math.max(0, duracionRespuestaRef.current - tiempoConsumido);
 
-    const estadoConPista = {
-      ...estadoActual,
-      ayudasRestantes: estadoActual.ayudasRestantes - 1,
-      ayudasUsadas: estadoActual.ayudasUsadas + 1,
+    setEstado((previo) => ({
+      ...previo,
+      ayudasRestantes: previo.ayudasRestantes - 1,
+      ayudasUsadas: previo.ayudasUsadas + 1,
       mensaje: 'Mira otra vez el recorrido antes de tocar.',
-    };
-
-    estadoRef.current = estadoConPista;
-    setEstado(estadoConPista);
-    guardarCheckpointSeguro(estadoConPista);
+    }));
 
     programarReproduccionPatron(estadoActual.patron, tiempoRestante);
   };
@@ -356,9 +297,15 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
   const seleccionarBaldosa = (indiceBaldosa) => {
     const estadoActual = estadoRef.current;
 
-    if (estadoActual.fase !== ESTADOS_CAMINO_AR.esperandoRespuesta) {
+    if (
+      estadoActual.fase !== ESTADOS_CAMINO_AR.esperandoRespuesta ||
+      bloqueoSeleccionRef.current ||
+      partidaFinalizadaRef.current
+    ) {
       return;
     }
+
+    bloqueoSeleccionRef.current = true;
 
     const indiceEsperado = estadoActual.patron[estadoActual.indiceRespuesta];
     const esCorrecta = indiceBaldosa === indiceEsperado;
@@ -367,6 +314,8 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
       : undefined;
 
     if (!esCorrecta) {
+      const errores = estadoActual.errores + 1;
+      const resumenEstado = { ...estadoActual, errores };
       registrarEvento(
         construirEventoCaminoAr({
           tipoEvento: 'error',
@@ -383,17 +332,33 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
           },
         }),
       );
-      const estadoConError = {
-        ...estadoActual,
-        errores: estadoActual.errores + 1,
+      setEstado((previo) => ({
+        ...previo,
+        errores,
         baldosaActiva: indiceBaldosa,
-      };
-      estadoRef.current = estadoConError;
-      setEstado(estadoConError);
-      guardarCheckpointSeguro(estadoConError);
+        mensaje:
+          errores < configuracion.configuracion.erroresPermitidos
+            ? 'Esa baldosa no era. Respira y continua desde el mismo paso.'
+            : previo.mensaje,
+      }));
+
+      if (errores < configuracion.configuracion.erroresPermitidos) {
+        marcaUltimoIntentoRef.current = Date.now();
+        const temporizadorCorreccion = setTimeout(() => {
+          bloqueoSeleccionRef.current = false;
+          setEstado((previo) => ({ ...previo, baldosaActiva: null }));
+        }, 220);
+        temporizadoresRef.current.push(temporizadorCorreccion);
+        return;
+      }
 
       const temporizadorError = setTimeout(() => {
-        finalizarPartida(false, 'Casi lo logras. Esta ronda ya termino y puedes revisar tu resultado.');
+        finalizarPartida(
+          false,
+          'Casi lo logras. Esta ronda ya termino y puedes revisar tu resultado.',
+          MOTIVOS_FIN_CAMINO_AR.errorSecuencia,
+          resumenEstado,
+        );
       }, 220);
       temporizadoresRef.current.push(temporizadorError);
       return;
@@ -421,17 +386,17 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
 
     marcaUltimoIntentoRef.current = Date.now();
 
-    const estadoConAcierto = {
-      ...estadoActual,
-      aciertos: estadoActual.aciertos + 1,
+    setEstado((previo) => ({
+      ...previo,
+      aciertos: previo.aciertos + 1,
       indiceRespuesta: siguienteIndice,
       baldosaActiva: indiceBaldosa,
-    };
-    estadoRef.current = estadoConAcierto;
-    setEstado(estadoConAcierto);
-    guardarCheckpointSeguro(estadoConAcierto);
+    }));
 
     const temporizadorAcierto = setTimeout(() => {
+      if (siguienteIndice < estadoActual.patron.length) {
+        bloqueoSeleccionRef.current = false;
+      }
       setEstado((previo) => ({
         ...previo,
         baldosaActiva: null,
@@ -440,8 +405,18 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
     temporizadoresRef.current.push(temporizadorAcierto);
 
     if (siguienteIndice >= estadoActual.patron.length) {
+      const resumenEstado = {
+        ...estadoActual,
+        aciertos: estadoActual.aciertos + 1,
+        indiceRespuesta: siguienteIndice,
+      };
       const temporizadorExito = setTimeout(() => {
-        finalizarPartida(true, 'Ronda completada. Tus resultados fueron guardados.');
+        finalizarPartida(
+          true,
+          'Ronda completada. Tus resultados fueron guardados.',
+          MOTIVOS_FIN_CAMINO_AR.completado,
+          resumenEstado,
+        );
       }, 200);
       temporizadoresRef.current.push(temporizadorExito);
     }
@@ -465,7 +440,6 @@ export const useCaminoArControlador = (configuracionInicial, observadores = {}) 
     estado,
     columnasTablero: resolverColumnasTablero(configuracion.configuracion.cantidadBaldosas),
     iniciarPartida,
-    restaurarPartida,
     reiniciarPartida,
     cancelarPartidaTecnica,
     seleccionarBaldosa,

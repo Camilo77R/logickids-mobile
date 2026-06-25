@@ -9,38 +9,60 @@ import {
 
 const DIFICULTAD_MINIMA = 1;
 const DIFICULTAD_MAXIMA = 4;
-const NIVELES_POR_INTENTO_RUTA = 1;
-const MODOS_RUTA = new Set(['ruta', 'path']);
+const MAX_OPCIONES_FIGURAS = 4;
 
 const TABLA_DIFICULTAD = Object.freeze([
   Object.freeze({
     dificultad: 1,
     velocidadTren: 0.75,
+    vueltasMaximas: 6,
+    vagonesPorNivel: 10,
     longitudSecuencia: 2,
+    maxOpcionesFiguras: MAX_OPCIONES_FIGURAS,
     usaColores: false,
+    paresConsecutivos: false,
+    variacionCiclica: false,
+    opacidadFiguraGuia: 0.86,
     descripcion: 'Patron AB con dos figuras y tren lento',
   }),
   Object.freeze({
     dificultad: 2,
-    velocidadTren: 0.95,
+    velocidadTren: 0.85,
+    vueltasMaximas: 5,
+    vagonesPorNivel: 10,
     longitudSecuencia: 3,
+    maxOpcionesFiguras: MAX_OPCIONES_FIGURAS,
     usaColores: false,
+    paresConsecutivos: false,
+    variacionCiclica: false,
+    opacidadFiguraGuia: 0.86,
     descripcion: 'Patron ABC con tres figuras y velocidad tranquila',
   }),
   Object.freeze({
     dificultad: 3,
-    velocidadTren: 1.15,
+    velocidadTren: 0.95,
+    vueltasMaximas: 4,
+    vagonesPorNivel: 10,
     longitudSecuencia: 4,
+    maxOpcionesFiguras: MAX_OPCIONES_FIGURAS,
     usaColores: true,
     paresConsecutivos: true,
+    variacionCiclica: false,
+    opacidadFiguraGuia: 0.86,
     descripcion: 'Patron AABB con figuras y colores alternados',
   }),
   Object.freeze({
     dificultad: 4,
-    velocidadTren: 1.35,
-    longitudSecuencia: 7,
+    velocidadTren: 1.18,
+    vueltasMaximas: 3,
+    vagonesPorNivel: 12,
+    longitudSecuencia: 4,
+    maxOpcionesFiguras: MAX_OPCIONES_FIGURAS,
     usaColores: true,
-    descripcion: 'Patron largo de siete pasos con figura y color',
+    paresConsecutivos: false,
+    variacionCiclica: true,
+    opacidadFiguraGuia: 0.86,
+    descripcion: 'Reto experto con mas vagones, colores y patron alternado',
   }),
 ]);
 
@@ -64,31 +86,8 @@ const asegurarEnteroPositivo = (valor, respaldo) => {
   return numero;
 };
 
-export const resolverNivelesPorModoTren3D = ({
-  nivelesPorPartida,
-  sesionModo,
-}) => {
-  const modoNormalizado = typeof sesionModo === 'string'
-    ? sesionModo.trim().toLowerCase()
-    : '';
-
-  if (MODOS_RUTA.has(modoNormalizado)) {
-    return NIVELES_POR_INTENTO_RUTA;
-  }
-
-  return asegurarEnteroPositivo(
-    nivelesPorPartida,
-    CONFIGURACION_BASE.nivelesPorPartida,
-  );
-};
-
-export const debeFinalizarIntentoTren3D = ({
-  nivelActual,
-  nivelesPorPartida,
-}) => asegurarEnteroPositivo(nivelActual, 1) >= asegurarEnteroPositivo(
-  nivelesPorPartida,
-  CONFIGURACION_BASE.nivelesPorPartida,
-);
+const asegurarMaxOpcionesFiguras = (valor, respaldo = MAX_OPCIONES_FIGURAS) =>
+  Math.max(1, Math.min(MAX_OPCIONES_FIGURAS, asegurarEnteroPositivo(valor, respaldo)));
 
 export const clampDificultadTren3D = (valor) => {
   const numero = Number(valor);
@@ -128,15 +127,26 @@ const construirSecuenciaBase = (params) =>
     construirPasoPatron({ indice, usaColores: params.usaColores }),
   );
 
-export const generarPatronNivel = (dificultad, vagonesPorNivel = VAGONES_POR_NIVEL) => {
-  const params = obtenerParametrosDificultad(dificultad);
-  const totalVagones = asegurarEnteroPositivo(vagonesPorNivel, VAGONES_POR_NIVEL);
+export const generarPatronNivel = (
+  dificultad,
+  vagonesPorNivel = VAGONES_POR_NIVEL,
+  parametrosPersonalizados = null,
+) => {
+  const params = parametrosPersonalizados ?? obtenerParametrosDificultad(dificultad);
+  const totalVagones = asegurarEnteroPositivo(
+    params.vagonesPorNivel ?? vagonesPorNivel,
+    VAGONES_POR_NIVEL,
+  );
   const secuenciaBase = construirSecuenciaBase(params);
 
   return Array.from({ length: totalVagones }, (_, indice) => {
-    const indicePatron = params.paresConsecutivos
-      ? Math.floor(indice / 2) % secuenciaBase.length
-      : indice % secuenciaBase.length;
+    let indicePatron = indice % secuenciaBase.length;
+
+    if (params.paresConsecutivos) {
+      indicePatron = Math.floor(indice / 2) % secuenciaBase.length;
+    } else if (params.variacionCiclica) {
+      indicePatron = (indice + Math.floor(indice / secuenciaBase.length)) % secuenciaBase.length;
+    }
 
     return {
       ...secuenciaBase[indicePatron],
@@ -149,6 +159,7 @@ export const calcularAdaptacionInterNivel = ({
   aciertos = 0,
   errores = 0,
   dificultadActual = DIFICULTAD_MINIMA,
+  misionCompletada = true,
 }) => {
   const dificultadBase = clampDificultadTren3D(dificultadActual);
   const aciertosNormalizados = Math.max(0, Math.round(Number(aciertos) || 0));
@@ -159,9 +170,12 @@ export const calcularAdaptacionInterNivel = ({
   let nuevaDificultad = dificultadBase;
   let ajusteVelocidad = 1;
 
-  if (precisionPct >= 85) {
+  if (!misionCompletada) {
+    nuevaDificultad = Math.max(dificultadBase - 1, DIFICULTAD_MINIMA);
+    ajusteVelocidad = 0.9;
+  } else if (precisionPct >= 90) {
     nuevaDificultad = Math.min(dificultadBase + 1, DIFICULTAD_MAXIMA);
-  } else if (precisionPct >= 60) {
+  } else if (precisionPct >= 70) {
     ajusteVelocidad = 0.95;
   } else {
     nuevaDificultad = Math.max(dificultadBase - 1, DIFICULTAD_MINIMA);
@@ -175,10 +189,15 @@ export const calcularAdaptacionInterNivel = ({
     precisionPct: Number(precisionPct.toFixed(2)),
     nuevaDificultad,
     nuevaVelocidad,
+    vueltasMaximas: paramsNuevos.vueltasMaximas,
+    vagonesPorNivel: paramsNuevos.vagonesPorNivel,
+    maxOpcionesFiguras: paramsNuevos.maxOpcionesFiguras,
+    opacidadFiguraGuia: paramsNuevos.opacidadFiguraGuia,
     patronNuevo: generarPatronNivel(nuevaDificultad),
     descripcionNivel: paramsNuevos.descripcion,
     subioNivel: nuevaDificultad > dificultadBase,
     bajoNivel: nuevaDificultad < dificultadBase,
+    misionCompletada,
   };
 };
 
@@ -193,10 +212,66 @@ export const normalizarConfiguracionTren3D = (entrada = {}) => ({
     CONFIGURACION_BASE.nivelesPorPartida,
   ),
   vagonesPorNivel: asegurarEnteroPositivo(
-    entrada.vagonesPorNivel,
+    entrada.vagonesPorNivel ?? entrada.parametrosNivel?.vagonesPorNivel,
     CONFIGURACION_BASE.vagonesPorNivel,
+  ),
+  parametrosNivel: entrada.parametrosNivel ?? obtenerParametrosDificultad(
+    entrada.dificultad ?? CONFIGURACION_BASE.dificultad,
   ),
 });
 
 export const obtenerConfiguracionBaseTren3D = (sobrescrituras = {}) =>
   normalizarConfiguracionTren3D(sobrescrituras);
+
+export const resolverConfiguracionTren3DDesdeBackend = ({
+  configuracionLocal = {},
+  respuestaInicioSesion = null,
+}) => {
+  const gameConfig = respuestaInicioSesion?.game_config;
+
+  if (!gameConfig || typeof gameConfig !== 'object' || Array.isArray(gameConfig)) {
+    return normalizarConfiguracionTren3D(configuracionLocal);
+  }
+
+  const dificultad = clampDificultadTren3D(
+    gameConfig.dificultad ?? respuestaInicioSesion?.sesion?.dificultad,
+  );
+  const presetLocal = obtenerParametrosDificultad(dificultad);
+
+  return normalizarConfiguracionTren3D({
+    ...configuracionLocal,
+    dificultad,
+    fuenteAdaptacion:
+      gameConfig.adaptacion?.fuente ?? configuracionLocal.fuenteAdaptacion,
+    parametrosNivel: {
+      ...presetLocal,
+      dificultad,
+      velocidadTren: Number(gameConfig.velocidad_tren ?? presetLocal.velocidadTren),
+      vueltasMaximas: asegurarEnteroPositivo(
+        gameConfig.vueltas_maximas,
+        presetLocal.vueltasMaximas,
+      ),
+      vagonesPorNivel: asegurarEnteroPositivo(
+        gameConfig.vagones_por_nivel,
+        presetLocal.vagonesPorNivel,
+      ),
+      longitudSecuencia: asegurarEnteroPositivo(
+        gameConfig.longitud_secuencia,
+        presetLocal.longitudSecuencia,
+      ),
+      maxOpcionesFiguras: asegurarMaxOpcionesFiguras(
+        gameConfig.max_opciones_figuras,
+        presetLocal.maxOpcionesFiguras,
+      ),
+      usaColores: gameConfig.usa_colores ?? presetLocal.usaColores,
+      paresConsecutivos:
+        gameConfig.pares_consecutivos ?? presetLocal.paresConsecutivos,
+      variacionCiclica:
+        gameConfig.variacion_ciclica ?? presetLocal.variacionCiclica,
+      opacidadFiguraGuia: Math.max(
+        0.5,
+        Math.min(1, Number(gameConfig.opacidad_figura_guia ?? presetLocal.opacidadFiguraGuia)),
+      ),
+    },
+  });
+};

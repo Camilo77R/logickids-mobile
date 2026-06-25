@@ -12,7 +12,41 @@ const enteroAleatorio = (minimo, maximo) =>
   minimo + Math.floor(Math.random() * (maximo - minimo + 1));
 
 export const crearPatronAleatorio = ({ cantidadBaldosas, longitudPatron }) =>
-  Array.from({ length: longitudPatron }, () => enteroAleatorio(0, cantidadBaldosas - 1));
+  Array.from({ length: longitudPatron }).reduce((patron) => {
+    const anterior = patron.at(-1);
+    let siguiente = enteroAleatorio(0, cantidadBaldosas - 1);
+
+    if (cantidadBaldosas > 1 && siguiente === anterior) {
+      siguiente = (siguiente + enteroAleatorio(1, cantidadBaldosas - 1)) % cantidadBaldosas;
+    }
+
+    return [...patron, siguiente];
+  }, []);
+
+export const MOTIVOS_FIN_CAMINO_AR = Object.freeze({
+  completado: 'patron_completado',
+  errorSecuencia: 'error_secuencia',
+  tiempoAgotado: 'tiempo_agotado',
+});
+
+export const construirMetadataResultadoCaminoAr = ({
+  exito,
+  motivoFin,
+  patron,
+  aciertos,
+  errores,
+  ayudasUsadas,
+}) => ({
+  game: 'camino-ar',
+  end_reason: motivoFin,
+  pattern_resolved: exito,
+  progress_pct: patron.length > 0
+    ? Number(((Math.min(aciertos, patron.length) / patron.length) * 100).toFixed(2))
+    : 0,
+  hints_used: ayudasUsadas,
+  errors: errores,
+  pattern_length: patron.length,
+});
 
 export const resolverColumnasTablero = (cantidadBaldosas) => {
   if (cantidadBaldosas <= 4) {
