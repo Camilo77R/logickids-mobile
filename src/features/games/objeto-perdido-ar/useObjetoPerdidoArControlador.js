@@ -162,7 +162,28 @@ export const useObjetoPerdidoArControlador = (
       }));
 
       if (restante <= 0) {
+        const estadoActual = estadoRef.current;
+        const ronda = estadoActual.rondaActual;
+
         detenerCuentaRegresiva();
+        registrarEvento(
+          construirEventoObjetoPerdidoAr({
+            tipoEvento: 'error',
+            tiempoReaccionMs: tiempoInicialMs,
+            puntos: 0,
+            comboEnEvento: 0,
+            metadata: {
+              ronda: ronda?.numeroRonda ?? estadoActual.numeroRonda,
+              objetoObjetivo: ronda?.objetivoId ?? null,
+              objetoTocado: null,
+              nombreObjetoTocado: null,
+              tiempoRestanteMs: 0,
+              ayudaUsada: estadoActual.ayudasUsadas > 0,
+              ayudasUsadas: estadoActual.ayudasUsadas,
+              reason: 'tiempo_agotado',
+            },
+          }),
+        );
         setEstado((previo) => ({
           ...previo,
           errores: previo.errores + 1,
@@ -298,7 +319,9 @@ export const useObjetoPerdidoArControlador = (
             objetoTocado: objetoId,
             nombreObjetoTocado: objetoTocado?.nombre ?? null,
             tiempoRestanteMs: Math.max(0, Math.round(estadoActual.tiempoRestanteMs)),
-            ayudaUsada: false,
+            ayudaUsada: estadoActual.ayudasUsadas > 0,
+            ayudasUsadas: estadoActual.ayudasUsadas,
+            reason: 'objeto_incorrecto',
           },
         }),
       );
@@ -336,6 +359,8 @@ export const useObjetoPerdidoArControlador = (
           nombreObjetoTocado: objetoTocado?.nombre ?? null,
           tiempoRestanteMs: Math.max(0, Math.round(estadoActual.tiempoRestanteMs)),
           ayudaUsada: estadoActual.ayudasUsadas > 0,
+          ayudasUsadas: estadoActual.ayudasUsadas,
+          reason: 'objeto_encontrado',
         },
       }),
     );
@@ -350,6 +375,9 @@ export const useObjetoPerdidoArControlador = (
           ronda: ronda.numeroRonda,
           objetoObjetivo: ronda.objetivoId,
           tiempoRestanteMs: Math.max(0, Math.round(estadoActual.tiempoRestanteMs)),
+          ayudaUsada: estadoActual.ayudasUsadas > 0,
+          ayudasUsadas: estadoActual.ayudasUsadas,
+          reason: 'objeto_encontrado',
         },
       }),
     );

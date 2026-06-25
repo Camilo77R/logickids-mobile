@@ -80,6 +80,24 @@ ViroMaterials.createMaterials({
   objetoTextoOscuro: {
     diffuseColor: '#102A43',
   },
+  objetoFiguraAzul: {
+    diffuseColor: '#38BDF8',
+  },
+  objetoFiguraRoja: {
+    diffuseColor: '#EF4444',
+  },
+  objetoFiguraVerde: {
+    diffuseColor: '#22C55E',
+  },
+  objetoFiguraMorada: {
+    diffuseColor: '#A855F7',
+  },
+  objetoFiguraNaranja: {
+    diffuseColor: '#FB923C',
+  },
+  objetoFiguraAmarilla: {
+    diffuseColor: '#FACC15',
+  },
 });
 
 const formatearSegundos = (milisegundos) =>

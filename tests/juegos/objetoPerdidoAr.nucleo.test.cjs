@@ -27,7 +27,9 @@ test('normalizarConfiguracionObjetoPerdidoAr aplica dificultad segura y parametr
   assert.equal(configuracion.modoPresentacion, MODO_PRESENTACION_OBJETO_PERDIDO_AR);
   assert.equal(configuracion.dificultad, 4);
   assert.equal(configuracion.configuracion.objetosPorRonda, 6);
-  assert.equal(configuracion.configuracion.tiempoLimiteMs, 12000);
+  assert.equal(configuracion.configuracion.tiempoLimiteMs, 13000);
+  assert.equal(configuracion.configuracion.ayudasDisponibles, 0);
+  assert.equal(configuracion.configuracion.tipoMision, 'color-forma');
   assert.equal(configuracion.configuracion.usarTableroLimitado, true);
   assert.equal(configuracion.configuracion.zonaBusqueda.ancho, 3.6);
   assert.equal(configuracion.configuracion.zonaBusqueda.profundidad, 3.6);
@@ -88,6 +90,27 @@ test('construirEventoObjetoPerdidoAr respeta tipos del contrato de sesiones', ()
   assert.equal(evento.tiempo_reaccion_ms, 740);
   assert.equal(evento.puntos, 10);
   assert.equal(evento.metadata.objetoObjetivo, 'pelota-azul');
+});
+
+test('crearRondaObjetoPerdidoAr evita distractores visualmente indistinguibles', () => {
+  const configuracion = normalizarConfiguracionObjetoPerdidoAr({
+    dificultad: 4,
+    configuracion: {
+      tipoMision: 'color-forma',
+      objetosPorRonda: 6,
+    },
+  });
+  const ronda = crearRondaObjetoPerdidoAr({
+    configuracion,
+    numeroRonda: 1,
+  });
+  const objetivo = ronda.objetivo;
+
+  ronda.objetos
+    .filter((objeto) => objeto.id !== objetivo.id)
+    .forEach((objeto) => {
+      assert.notEqual(`${objeto.forma}:${objeto.color}`, `${objetivo.forma}:${objetivo.color}`);
+    });
 });
 
 test('construirResumenObjetoPerdidoAr devuelve contrato comun y finaliza como completado', () => {
