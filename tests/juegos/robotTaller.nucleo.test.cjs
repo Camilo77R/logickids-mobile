@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const {
   normalizarConfiguracionRobotTaller,
+  resolverConfiguracionRobotTallerDesdeBackend,
 } = require('../../src/features/games/robot-taller/robotTallerConfiguracion.js');
 const {
   MODO_PRESENTACION_ROBOT_TALLER,
@@ -41,6 +42,33 @@ test('normalizarConfiguracionRobotTaller usa defaults seguros y valida modo de p
   assert.equal(configuracion.slug, 'robot-logico');
 });
 
+
+test('resolverConfiguracionRobotTallerDesdeBackend aplica dificultad oficial del backend', () => {
+  const configuracion = resolverConfiguracionRobotTallerDesdeBackend({
+    configuracionLocal: normalizarConfiguracionRobotTaller({ dificultad: 1 }),
+    respuestaInicioSesion: {
+      sesion: { dificultad: 4 },
+      game_config: {
+        dificultad: 4,
+        nivel: 3,
+        tiempo_limite_ms: 150000,
+        mostrar_siluetas: false,
+        orden_secuencial: true,
+        usar_alternativas: true,
+        umbral_snap: 1.25,
+      },
+    },
+  });
+
+  assert.equal(configuracion.dificultad, 4);
+  assert.equal(configuracion.nivel, 3);
+  assert.equal(configuracion.configuracion.tiempoLimiteMs, 150000);
+  assert.equal(configuracion.configuracion.mostrarSiluetas, false);
+  assert.equal(configuracion.configuracion.ordenSecuencial, true);
+  assert.equal(configuracion.configuracion.usarAlternativas, true);
+  assert.equal(configuracion.configuracion.umbralSnap, 1.25);
+  assert.equal(configuracion.nivelConfig.ordenSecuencial, true);
+});
 test('PARTES_ROBOT define 7 piezas con formas y posiciones', () => {
   assert.equal(PARTES_ROBOT.length, 7);
   const ids = PARTES_ROBOT.map((p) => p.id);

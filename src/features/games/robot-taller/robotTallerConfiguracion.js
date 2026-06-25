@@ -40,11 +40,38 @@ const normalizarModoPresentacion = (valor, respaldo) => {
   return valor;
 };
 
+const normalizarBooleano = (valor, respaldo) =>
+  typeof valor === 'boolean' ? valor : respaldo;
+
+const normalizarNumeroPositivo = (valor, respaldo) => {
+  const numero = Number(valor);
+  return Number.isFinite(numero) && numero > 0 ? numero : respaldo;
+};
+
 export const normalizarConfiguracionRobotTaller = (entrada = {}) => {
   const configuracionEntrada = entrada.configuracion ?? {};
   const configuracionBase = CONFIGURACION_BASE.configuracion;
   const nivel = normalizarNivel(entrada.nivel, CONFIGURACION_BASE.nivel);
-  const nivelConfig = NIVELES[nivel];
+  const nivelConfigBase = NIVELES[nivel];
+  const nivelConfig = {
+    ...nivelConfigBase,
+    mostrarSiluetas: normalizarBooleano(
+      configuracionEntrada.mostrarSiluetas,
+      nivelConfigBase.mostrarSiluetas,
+    ),
+    ordenSecuencial: normalizarBooleano(
+      configuracionEntrada.ordenSecuencial,
+      nivelConfigBase.ordenSecuencial,
+    ),
+    usarAlternativas: normalizarBooleano(
+      configuracionEntrada.usarAlternativas,
+      nivelConfigBase.usarAlternativas,
+    ),
+    umbralSnap: normalizarNumeroPositivo(
+      configuracionEntrada.umbralSnap,
+      nivelConfigBase.umbralSnap,
+    ),
+  };
 
   return {
     slug: entrada.slug ?? CONFIGURACION_BASE.slug,
@@ -62,7 +89,12 @@ export const normalizarConfiguracionRobotTaller = (entrada = {}) => {
         configuracionEntrada.tiempoLimiteMs ?? nivelConfig.tiempoLimiteMs,
         configuracionBase.tiempoLimiteMs,
       ),
+      mostrarSiluetas: nivelConfig.mostrarSiluetas,
+      ordenSecuencial: nivelConfig.ordenSecuencial,
+      usarAlternativas: nivelConfig.usarAlternativas,
+      umbralSnap: nivelConfig.umbralSnap,
     },
+    nivelConfig,
     nivel,
     idMision: entrada.idMision ?? CONFIGURACION_BASE.idMision,
   };
@@ -87,8 +119,13 @@ export const resolverConfiguracionRobotTallerDesdeBackend = ({
     configuracion: {
       ...configuracionLocal.configuracion,
       tiempoLimiteMs: gameConfig.tiempo_limite_ms,
+      mostrarSiluetas: gameConfig.mostrar_siluetas,
+      ordenSecuencial: gameConfig.orden_secuencial,
+      usarAlternativas: gameConfig.usar_alternativas,
+      umbralSnap: gameConfig.umbral_snap,
     },
     nivel: gameConfig.nivel,
     idMision: gameConfig.id_mision,
   });
 };
+
