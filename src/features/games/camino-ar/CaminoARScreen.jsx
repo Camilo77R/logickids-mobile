@@ -6,7 +6,6 @@ import { useSesionCaminoAr } from './aplicacion/useSesionCaminoAr';
 import { resolverConfiguracionCaminoArDesdeBackend } from './caminoArConfiguracion';
 import CaminoArVistaArViro from './presentacion/CaminoArVistaArViro';
 import { ESTADOS_CAMINO_AR } from './caminoAr.constants';
-import { parseCaminoArCheckpointState } from './aplicacion/caminoArCheckpoint';
 
 export default function CaminoARScreen({
   onSalir,
@@ -15,10 +14,8 @@ export default function CaminoARScreen({
 }) {
   const [preparandoRonda, setPreparandoRonda] = useState(false);
   const [guiaInicialVisible, setGuiaInicialVisible] = useState(true);
-  const [inicioPendienteSesionId, setInicioPendienteSesionId] = useState(null);
-  const tableroDisponibleRef = useRef(() => true);
-  const checkpointAplicadoRef = useRef(null);
-  const checkpointReintentadoRef = useRef(false);
+  const [revisionInicioRonda, setRevisionInicioRonda] = useState(0);
+  const inicioPendienteRef = useRef(null);
   const sesionCaminoAr = useSesionCaminoAr({
     configuracion: configuracionInicial,
     contextoSesion,
@@ -37,71 +34,42 @@ export default function CaminoARScreen({
   );
   const cancelarRondaTecnica = useCallback((motivo) => {
     controlador.cancelarPartidaTecnica(motivo);
-    setInicioPendienteSesionId(null);
-  }, [controlador]);
-  const rondaEnPreparacion = preparandoRonda || Boolean(inicioPendienteSesionId);
+    sesionCaminoAr.prepararNuevaRonda();
+  }, [controlador, sesionCaminoAr]);
+
+  const programarInicioRonda = useCallback((tableroDisponible, mensajeTableroMovido) => {
+    inicioPendienteRef.current = { tableroDisponible, mensajeTableroMovido };
+    setRevisionInicioRonda((revision) => revision + 1);
+  }, []);
 
   useEffect(() => {
-    if (!inicioPendienteSesionId) {
+    const inicioPendiente = inicioPendienteRef.current;
+
+    if (!inicioPendiente || controlador.estado.fase !== ESTADOS_CAMINO_AR.listo) {
       return;
     }
 
-    const checkpoint = sesionCaminoAr.checkpoint;
-    const sesionIdActual = sesionCaminoAr.persistencia.sesionId;
+    inicioPendienteRef.current = null;
 
-    if (String(sesionIdActual ?? '') !== String(inicioPendienteSesionId)) {
+    if (!inicioPendiente.tableroDisponible()) {
+      cancelarRondaTecnica(inicioPendiente.mensajeTableroMovido);
       return;
     }
 
-    if (checkpoint.phase === 'error') {
-      if (!checkpointReintentadoRef.current) {
-        checkpointReintentadoRef.current = true;
-        void checkpoint.retryCheckpoint();
-        return;
-      }
-
-      setInicioPendienteSesionId(null);
-      return;
-    }
-
-    if (checkpoint.phase !== 'ready') {
-      return;
-    }
-
-    if (!tableroDisponibleRef.current()) {
-      setInicioPendienteSesionId(null);
-      return;
-    }
-
-    const estadoRestaurado = parseCaminoArCheckpointState(checkpoint.checkpointState);
-    checkpointAplicadoRef.current = String(sesionIdActual);
-    setInicioPendienteSesionId(null);
-
-    if (!estadoRestaurado) {
-      controlador.iniciarPartida();
-      return;
-    }
-
-    controlador.restaurarPartida(estadoRestaurado);
-
-    if (estadoRestaurado.pendingFinalization) {
-      void sesionCaminoAr.reanudarFinalizacion(estadoRestaurado.pendingFinalization);
-    }
+    controlador.iniciarPartida();
   }, [
-    controlador,
-    inicioPendienteSesionId,
-    sesionCaminoAr.checkpoint,
-    sesionCaminoAr.persistencia.sesionId,
-    sesionCaminoAr.reanudarFinalizacion,
+    cancelarRondaTecnica,
+    configuracionEfectiva,
+    controlador.estado.fase,
+    revisionInicioRonda,
   ]);
 
   const solicitarInicioRonda = useCallback(async ({ tableroDisponible } = {}) => {
     const tableroSigueListo =
       typeof tableroDisponible === 'function' ? tableroDisponible : () => true;
-    tableroDisponibleRef.current = tableroSigueListo;
 
     if (
-      rondaEnPreparacion ||
+      preparandoRonda ||
       controlador.estado.fase !== ESTADOS_CAMINO_AR.listo ||
       controlador.estado.resultado ||
       !tableroSigueListo()
@@ -114,7 +82,7 @@ export default function CaminoARScreen({
     try {
       const preparacion = await sesionCaminoAr.prepararRonda(configuracionInicial.dificultad);
 
-      if (!preparacion.lista) {
+      if (!preparacion?.lista) {
         return;
       }
 
@@ -123,19 +91,10 @@ export default function CaminoARScreen({
         return;
       }
 
-      const sesionId = preparacion.respuestaInicio?.sesion?.id;
-      const requiereHidratacion =
-        sesionCaminoAr.persistenciaRemotaHabilitada &&
-        sesionId &&
-        checkpointAplicadoRef.current !== String(sesionId);
-
-      if (requiereHidratacion) {
-        checkpointReintentadoRef.current = false;
-        setInicioPendienteSesionId(String(sesionId));
-        return;
-      }
-
-      controlador.iniciarPartida();
+      programarInicioRonda(
+        tableroSigueListo,
+        'El tablero se movio antes de empezar. Vamos a buscarlo de nuevo.',
+      );
     } finally {
       setPreparandoRonda(false);
     }
@@ -143,16 +102,16 @@ export default function CaminoARScreen({
     configuracionInicial.dificultad,
     cancelarRondaTecnica,
     controlador,
-    rondaEnPreparacion,
+    preparandoRonda,
+    programarInicioRonda,
     sesionCaminoAr,
   ]);
 
   const continuarActividad = useCallback(async ({ tableroDisponible } = {}) => {
     const tableroSigueListo =
       typeof tableroDisponible === 'function' ? tableroDisponible : () => true;
-    tableroDisponibleRef.current = tableroSigueListo;
 
-    if (rondaEnPreparacion) {
+    if (preparandoRonda) {
       return;
     }
 
@@ -163,14 +122,13 @@ export default function CaminoARScreen({
     }
 
     setPreparandoRonda(true);
-    checkpointAplicadoRef.current = null;
     sesionCaminoAr.prepararNuevaRonda();
     controlador.reiniciarPartida();
 
     try {
       const preparacion = await sesionCaminoAr.prepararRonda(configuracionInicial.dificultad);
 
-      if (!preparacion.lista) {
+      if (!preparacion?.lista) {
         return;
       }
 
@@ -179,15 +137,10 @@ export default function CaminoARScreen({
         return;
       }
 
-      const sesionId = preparacion.respuestaInicio?.sesion?.id;
-
-      if (sesionCaminoAr.persistenciaRemotaHabilitada && sesionId) {
-        checkpointReintentadoRef.current = false;
-        setInicioPendienteSesionId(String(sesionId));
-        return;
-      }
-
-      controlador.iniciarPartida();
+      programarInicioRonda(
+        tableroSigueListo,
+        'El tablero se movio antes del siguiente reto. Vamos a buscarlo de nuevo.',
+      );
     } finally {
       setPreparandoRonda(false);
     }
@@ -195,7 +148,8 @@ export default function CaminoARScreen({
     configuracionInicial.dificultad,
     cancelarRondaTecnica,
     controlador,
-    rondaEnPreparacion,
+    preparandoRonda,
+    programarInicioRonda,
     sesionCaminoAr,
   ]);
 
@@ -210,13 +164,13 @@ export default function CaminoARScreen({
         continuarActividad,
         salirActividad: onSalir,
         puedePedirPista: controlador.puedePedirPista,
-        preparandoRonda: rondaEnPreparacion,
+        preparandoRonda,
       }),
     [
       continuarActividad,
       controlador,
       onSalir,
-      rondaEnPreparacion,
+      preparandoRonda,
       solicitarInicioRonda,
       sesionCaminoAr.persistencia,
       sesionCaminoAr.respuestaFinalizacion,

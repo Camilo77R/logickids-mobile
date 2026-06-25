@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { crearClienteSesionesJuego } from '../../core/clienteSesionesJuego';
-import { createMobileGameOperationTracker } from '../../core/gameOperationIdentity.runtime';
-import { useGameCheckpoint } from '../../core/useGameCheckpoint';
-import { SLUG_TREN_3D } from '../tren3d.constants';
-import { finalizarSesionTren3DConCheckpoint } from './finalizarSesionTren3D';
 
 export const MODOS_PERSISTENCIA_TREN_3D = Object.freeze({
   local: 'local',
@@ -83,25 +79,13 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
   const sesionIdRef = useRef(null);
   const inicioSesionPromiseRef = useRef(null);
   const respuestaInicioRef = useRef(null);
-  const finalizacionPendienteRef = useRef(null);
   const colaOperacionesRef = useRef(Promise.resolve());
-  const operationTrackerRef = useRef(null);
-  operationTrackerRef.current ??= createMobileGameOperationTracker();
-  const checkpoint = useGameCheckpoint({
-    client: clienteSesionesJuego,
-    enabled: persistenciaRemotaHabilitada,
-    gameSlug: SLUG_TREN_3D,
-    sessionId: persistencia.sesionId,
-    studentToken: contextoNormalizado.tokenEstudiante,
-  });
 
   useEffect(() => {
     sesionIdRef.current = null;
     inicioSesionPromiseRef.current = null;
     respuestaInicioRef.current = null;
-    finalizacionPendienteRef.current = null;
     colaOperacionesRef.current = Promise.resolve();
-    operationTrackerRef.current.resetAttempt();
     setPersistencia(construirPersistenciaInicial(modoPersistencia));
   }, [
     modoPersistencia,
@@ -124,7 +108,7 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
     }
 
     if (sesionIdRef.current) {
-      return sesionIdRef.current;
+      return respuestaInicioRef.current ?? { sesion: { id: sesionIdRef.current } };
     }
 
     if (inicioSesionPromiseRef.current) {
@@ -142,7 +126,6 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
         tokenEstudiante: contextoNormalizado.tokenEstudiante,
         minijuegoId: contextoNormalizado.minijuegoId,
         dificultad: dificultadSolicitada,
-        attemptId: operationTrackerRef.current.getAttemptId(),
       });
 
       const sesionId = respuestaInicio?.sesion?.id ?? null;
@@ -157,7 +140,7 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
         error: null,
       }));
 
-      return sesionId;
+      return respuestaInicio;
     })();
 
     try {
@@ -175,26 +158,16 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
     }
   }, [
     clienteSesionesJuego,
-    configuracion.dificultad,
     contextoNormalizado.minijuegoId,
     contextoNormalizado.tokenEstudiante,
     persistenciaRemotaHabilitada,
   ]);
-
-  const prepararFinalizacion = useCallback((finalizacionSesion) => {
-    if (finalizacionSesion?.finalization_id) {
-      return finalizacionSesion;
-    }
-
-    return operationTrackerRef.current.decorateFinalization(finalizacionSesion);
-  }, []);
 
   const registrarEventoRemoto = (evento) => {
     if (!clienteSesionesJuego || !persistenciaRemotaHabilitada) {
       return Promise.resolve();
     }
 
-    const eventoIdentificado = operationTrackerRef.current.decorateEvent(evento);
     return encadenarOperacion(async () => {
       setPersistencia((previo) => ({
         ...previo,
@@ -207,7 +180,8 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
       }));
 
       try {
-        const sesionId = await iniciarSesionRemota(configuracion.dificultad);
+        const respuestaInicio = await iniciarSesionRemota(configuracion.dificultad);
+        const sesionId = respuestaInicio?.sesion?.id ?? sesionIdRef.current;
 
         if (!sesionId) {
           setPersistencia((previo) => ({
@@ -220,7 +194,7 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
         await clienteSesionesJuego.registrarEvento({
           tokenEstudiante: contextoNormalizado.tokenEstudiante,
           sesionId,
-          evento: eventoIdentificado,
+          evento,
         });
 
         setPersistencia((previo) => ({
@@ -245,8 +219,6 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
       return Promise.resolve();
     }
 
-    const finalizacionIdentificada = prepararFinalizacion(finalizacionSesion);
-    finalizacionPendienteRef.current = finalizacionIdentificada;
     return encadenarOperacion(async () => {
       setPersistencia((previo) => ({
         ...previo,
@@ -255,7 +227,8 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
       }));
 
       try {
-        const sesionId = await iniciarSesionRemota(configuracion.dificultad);
+        const respuestaInicio = await iniciarSesionRemota(configuracion.dificultad);
+        const sesionId = respuestaInicio?.sesion?.id ?? sesionIdRef.current;
 
         if (!sesionId) {
           setPersistencia((previo) => ({
@@ -266,20 +239,13 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
           return;
         }
 
-        const respuestaFinalizacion = await finalizarSesionTren3DConCheckpoint({
-          finalizacion: finalizacionIdentificada,
-          flushCheckpoint: checkpoint.flushCheckpoint,
-          finalizarSesion: (finalizacion) => clienteSesionesJuego.finalizarSesion({
-            tokenEstudiante: contextoNormalizado.tokenEstudiante,
-            sesionId,
-            finalizacion,
-          }),
+        const respuestaFinalizacion = await clienteSesionesJuego.finalizarSesion({
+          tokenEstudiante: contextoNormalizado.tokenEstudiante,
+          sesionId,
+          finalizacion: finalizacionSesion,
         });
 
         sesionIdRef.current = null;
-        finalizacionPendienteRef.current = null;
-        operationTrackerRef.current.clearFinalization();
-        checkpoint.markTerminal();
 
         setPersistencia((previo) => ({
           ...previo,
@@ -296,23 +262,6 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
       }
     });
   };
-
-  const reintentarFinalizacion = () => {
-    if (!finalizacionPendienteRef.current) {
-      return Promise.resolve();
-    }
-
-    return finalizarSesionRemota(finalizacionPendienteRef.current);
-  };
-
-  const prepararRonda = useCallback(async (dificultadSolicitada) => {
-    if (!persistenciaRemotaHabilitada) {
-      return { lista: true, sesionId: null };
-    }
-
-    const sesionId = await iniciarSesionRemota(dificultadSolicitada);
-    return { lista: Boolean(sesionId), sesionId };
-  }, [iniciarSesionRemota, persistenciaRemotaHabilitada]);
 
   const observadoresJuego = {
     alIniciarPartida: ({ configuracionPartida }) => {
@@ -338,16 +287,24 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
     },
   };
 
+  const prepararRonda = useCallback(async (dificultadSolicitada) => {
+    if (!persistenciaRemotaHabilitada) {
+      return { lista: true, respuestaInicio: null };
+    }
+
+    const respuestaInicio = await iniciarSesionRemota(dificultadSolicitada);
+    return {
+      lista: Boolean(respuestaInicio?.sesion?.id ?? sesionIdRef.current),
+      respuestaInicio,
+    };
+  }, [iniciarSesionRemota, persistenciaRemotaHabilitada]);
+
   return {
     persistencia,
     observadoresJuego,
     persistenciaRemotaHabilitada,
     respuestaInicio: persistencia.respuestaInicio ?? respuestaInicioRef.current,
     respuestaFinalizacion: persistencia.respuestaFinalizacion,
-    checkpoint,
-    prepararFinalizacion,
     prepararRonda,
-    reanudarFinalizacion: finalizarSesionRemota,
-    reintentarFinalizacion,
   };
 };

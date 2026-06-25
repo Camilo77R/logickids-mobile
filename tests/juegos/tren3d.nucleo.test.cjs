@@ -3,10 +3,9 @@ const assert = require('node:assert/strict');
 
 const {
   calcularAdaptacionInterNivel,
-  debeFinalizarIntentoTren3D,
   generarPatronNivel,
   normalizarConfiguracionTren3D,
-  resolverNivelesPorModoTren3D,
+  resolverConfiguracionTren3DDesdeBackend,
 } = require('../../src/features/games/tren-3d/tren3dConfiguracion.js');
 const {
   calcularPuntaje,
@@ -36,44 +35,6 @@ test('normalizarConfiguracionTren3D limita dificultad y conserva defaults seguro
   assert.equal(configuracion.vagonesPorNivel, 10);
 });
 
-test('modo ruta limita Tren a exactamente un nivel por intento', () => {
-  const nivelesRuta = resolverNivelesPorModoTren3D({
-    nivelesPorPartida: 4,
-    sesionModo: 'ruta',
-  });
-
-  assert.equal(nivelesRuta, 1);
-  assert.equal(debeFinalizarIntentoTren3D({
-    nivelActual: 1,
-    nivelesPorPartida: nivelesRuta,
-  }), true);
-  assert.equal(resolverNivelesPorModoTren3D({
-    nivelesPorPartida: 7,
-    sesionModo: 'path',
-  }), 1);
-});
-
-test('modo single conserva los niveles configurados por el tutor', () => {
-  const nivelesSingle = resolverNivelesPorModoTren3D({
-    nivelesPorPartida: 3,
-    sesionModo: 'single',
-  });
-
-  assert.equal(nivelesSingle, 3);
-  assert.equal(debeFinalizarIntentoTren3D({
-    nivelActual: 1,
-    nivelesPorPartida: nivelesSingle,
-  }), false);
-  assert.equal(debeFinalizarIntentoTren3D({
-    nivelActual: 3,
-    nivelesPorPartida: nivelesSingle,
-  }), true);
-  assert.equal(resolverNivelesPorModoTren3D({
-    nivelesPorPartida: 6,
-    sesionModo: null,
-  }), 6);
-});
-
 test('generarPatronNivel crea patrones deterministas por dificultad', () => {
   const nivel1 = generarPatronNivel(1);
   const nivel2 = generarPatronNivel(2);
@@ -92,9 +53,14 @@ test('generarPatronNivel crea patrones deterministas por dificultad', () => {
   assert.equal(nivel3[2].clave, nivel3[3].clave);
   assert.notEqual(nivel3[0].clave, nivel3[2].clave);
 
-  assert.equal(new Set(nivel4.slice(0, 7).map((paso) => paso.clave)).size, 7);
+  assert.equal(nivel4.length, 12);
+  assert.equal(new Set(nivel4.slice(0, 4).map((paso) => paso.clave)).size, 4);
   assert.equal(new Set(nivel4.map((paso) => paso.figuraId)).size, 4);
   assert.equal(new Set(nivel4.map((paso) => paso.colorId)).size, 4);
+  assert.notDeepEqual(
+    nivel4.slice(4, 8).map((paso) => paso.clave),
+    nivel4.slice(0, 4).map((paso) => paso.clave),
+  );
 });
 
 test('calcularAdaptacionInterNivel ajusta dificultad y velocidad por precision', () => {
@@ -103,29 +69,71 @@ test('calcularAdaptacionInterNivel ajusta dificultad y velocidad por precision',
     {
       precisionPct: 90,
       nuevaDificultad: 2,
-      nuevaVelocidad: 0.95,
+      nuevaVelocidad: 0.85,
+      vueltasMaximas: 5,
+      vagonesPorNivel: 10,
+      maxOpcionesFiguras: 4,
+      opacidadFiguraGuia: 0.86,
       patronNuevo: generarPatronNivel(2),
       descripcionNivel: 'Patron ABC con tres figuras y velocidad tranquila',
       subioNivel: true,
       bajoNivel: false,
+      misionCompletada: true,
     },
   );
 
   const mantiene = calcularAdaptacionInterNivel({ aciertos: 7, errores: 3, dificultadActual: 2 });
   assert.equal(mantiene.precisionPct, 70);
   assert.equal(mantiene.nuevaDificultad, 2);
-  assert.equal(mantiene.nuevaVelocidad, 0.9);
+  assert.equal(mantiene.nuevaVelocidad, 0.81);
 
   const baja = calcularAdaptacionInterNivel({ aciertos: 4, errores: 6, dificultadActual: 3 });
   assert.equal(baja.precisionPct, 40);
   assert.equal(baja.nuevaDificultad, 2);
-  assert.equal(baja.nuevaVelocidad, 0.85);
+  assert.equal(baja.nuevaVelocidad, 0.77);
 
   const maximo = calcularAdaptacionInterNivel({ aciertos: 10, errores: 0, dificultadActual: 4 });
   assert.equal(maximo.nuevaDificultad, 4);
+  assert.equal(maximo.nuevaVelocidad, 1.18);
+  assert.equal(maximo.vagonesPorNivel, 12);
 
   const minimo = calcularAdaptacionInterNivel({ aciertos: 0, errores: 10, dificultadActual: 1 });
   assert.equal(minimo.nuevaDificultad, 1);
+
+  const sinVueltas = calcularAdaptacionInterNivel({
+    aciertos: 9,
+    errores: 1,
+    dificultadActual: 3,
+    misionCompletada: false,
+  });
+  assert.equal(sinVueltas.nuevaDificultad, 2);
+  assert.equal(sinVueltas.vueltasMaximas, 5);
+});
+
+test('resolverConfiguracionTren3DDesdeBackend aplica velocidad y vueltas oficiales', () => {
+  const configuracion = resolverConfiguracionTren3DDesdeBackend({
+    configuracionLocal: normalizarConfiguracionTren3D({ dificultad: 1 }),
+    respuestaInicioSesion: {
+      sesion: { dificultad: 3 },
+      game_config: {
+        dificultad: 3,
+        velocidad_tren: 0.95,
+        vueltas_maximas: 4,
+        longitud_secuencia: 4,
+        usa_colores: true,
+        pares_consecutivos: true,
+        opacidad_figura_guia: 0.86,
+        adaptacion: { fuente: 'reglas' },
+      },
+    },
+  });
+
+  assert.equal(configuracion.dificultad, 3);
+  assert.equal(configuracion.fuenteAdaptacion, 'reglas');
+  assert.equal(configuracion.parametrosNivel.velocidadTren, 0.95);
+  assert.equal(configuracion.parametrosNivel.vueltasMaximas, 4);
+  assert.equal(configuracion.parametrosNivel.maxOpcionesFiguras, 4);
+  assert.equal(configuracion.parametrosNivel.paresConsecutivos, true);
 });
 
 test('construirEventoTren3D respeta el contrato de sesion', () => {
@@ -189,6 +197,8 @@ test('motor Babylon V2 expone selector nativo y movimiento continuo del tren', (
   const html = generarHtmlMotorBabylon({
     dificultad: 1,
     velocidadTren: 1,
+    vueltasMaximas: 3,
+    opacidadFiguraGuia: 0.86,
     patron: generarPatronNivel(1),
   });
 
@@ -200,6 +210,11 @@ test('motor Babylon V2 expone selector nativo y movimiento continuo del tren', (
   assert.match(html, /finRecorridoX/);
   assert.match(html, /resolverJugada\(picked\.metadata\.indice\)/);
   assert.match(html, /function reportarNivelCompletado/);
+  assert.match(html, /function reportarNivelFallido/);
+  assert.match(html, /vueltasRestantes/);
+  assert.match(html, /estado\.opacidadFiguraGuia/);
+  assert.match(html, /engine\.getDeltaTime\(\)/);
+  assert.match(html, /1\.68 \* estado\.velocidadTren \* deltaSegundos/);
   assert.match(html, /nivelCompletado: nivelCompletado/);
   assert.match(html, /estado\.nivelReportado = true/);
   assert.match(html, /esperado\.metadata = \{ tipo: 'vagon', decoracion: true/);
