@@ -117,26 +117,26 @@ test('finalizacion espera el flush y envia la misma identidad persistida', async
   assert.deepEqual(calls, ['flush', 'post:finalization-stable']);
 });
 
-test('finalizacion no ejecuta el POST cuando falla el flush del checkpoint', async () => {
+test('finalizacion prioriza el POST aunque falle el flush del checkpoint', async () => {
   let postEjecutado = false;
 
-  await assert.rejects(
-    finalizarMercadoTrasGuardarCheckpoint({
-      finalizacion: {
-        estado: 'completado',
-        finalization_id: 'finalization-not-posted',
-      },
-      flushCheckpoint: async () => {
-        throw new Error('No se pudo guardar checkpoint');
-      },
-      postFinalizacion: async () => {
-        postEjecutado = true;
-      },
-    }),
-    /No se pudo guardar checkpoint/,
-  );
+  const respuesta = await finalizarMercadoTrasGuardarCheckpoint({
+    finalizacion: {
+      estado: 'completado',
+      finalization_id: 'finalization-posted',
+    },
+    flushCheckpoint: async () => {
+      throw new Error('No se pudo guardar checkpoint');
+    },
+    postFinalizacion: async (payload) => {
+      postEjecutado = true;
+      return { finalization_id: payload.finalization_id };
+    },
+  });
 
-  assert.equal(postEjecutado, false);
+  assert.equal(postEjecutado, true);
+  assert.equal(respuesta.finalization_id, 'finalization-posted');
+  assert.equal(respuesta.checkpoint_warning, 'No se pudo guardar checkpoint');
 });
 
 test('checkpoint de Mercado rechaza payloads que regenerarian la ronda', () => {

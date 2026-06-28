@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
+  ImageBackground,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -11,18 +13,14 @@ import {
 } from 'react-native';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { TIPOS_EVENTO_SESION } from '../core/contratoSesionJuego';
-import {
-  createTren3DCheckpointState,
-  parseTren3DCheckpointState,
-} from './aplicacion/tren3dCheckpoint';
 import { useSesionTren3D } from './aplicacion/useSesionTren3D';
 import {
   calcularAdaptacionInterNivel,
-  debeFinalizarIntentoTren3D,
   generarPatronNivel,
   normalizarConfiguracionTren3D,
   obtenerParametrosDificultad,
-  resolverNivelesPorModoTren3D,
+  resolverNivelesPorPartidaTren3D,
+  resolverConfiguracionTren3DDesdeBackend,
 } from './tren3dConfiguracion';
 import {
   calcularPuntaje,
@@ -34,38 +32,37 @@ import Tren3DVistaWebView from './presentacion/Tren3DVistaWebView';
 import { useTren3DAudio } from './useTren3DAudio';
 import { colores, espaciado, radios, tipografia } from '../../../theme/tokens';
 
+const fondoTrenInicio = require('../../../../assets/images/tren-3d/fondo-tren.avif');
+
 const construirParametrosNivel = ({ dificultad, configuracion }) => {
-  const params = obtenerParametrosDificultad(dificultad);
+  const parametrosBackend = configuracion.parametrosNivel;
+  const params = parametrosBackend?.dificultad === dificultad
+    ? parametrosBackend
+    : obtenerParametrosDificultad(dificultad);
 
   return {
     dificultad,
     velocidadTren: params.velocidadTren,
-    patron: generarPatronNivel(dificultad, configuracion.vagonesPorNivel),
+    vueltasMaximas: params.vueltasMaximas,
+    vagonesPorNivel: params.vagonesPorNivel ?? configuracion.vagonesPorNivel,
+    maxOpcionesFiguras: params.maxOpcionesFiguras,
+    opacidadFiguraGuia: params.opacidadFiguraGuia,
+    patron: generarPatronNivel(
+      dificultad,
+      params.vagonesPorNivel ?? configuracion.vagonesPorNivel,
+      params,
+    ),
   };
 };
+
+const esFaseSeleccionable = (fase) => [
+  ESTADOS_TREN_3D.esperando,
+  ESTADOS_TREN_3D.jugando,
+].includes(fase);
 
 const inyectarNuevoNivel = ({ webViewRef, parametros }) => {
   const script = `
     window.iniciarNuevoNivel && window.iniciarNuevoNivel(${JSON.stringify(parametros)});
-    true;
-  `;
-
-  webViewRef.current?.injectJavaScript(script);
-};
-
-const inyectarNivelRestaurado = ({ webViewRef, checkpoint }) => {
-  const script = `
-    window.restaurarNivel && window.restaurarNivel(${JSON.stringify({
-      dificultad: checkpoint.dificultad,
-      velocidadTren: checkpoint.velocidadTren,
-      patron: checkpoint.patronActual,
-      vagonesResueltos: checkpoint.vagonesResueltos,
-      aciertosNivel: checkpoint.estadisticasNivel.aciertos,
-      erroresNivel: checkpoint.estadisticasNivel.errores,
-      comboActual: checkpoint.estadisticasNivel.comboActual,
-      comboMaximoNivel: checkpoint.estadisticasNivel.comboMaximo,
-      tiempoNivelMs: checkpoint.estadisticasNivel.tiempoMs,
-    })});
     true;
   `;
 
@@ -106,6 +103,11 @@ const calcularEstrellasResultado = (resultado) => {
   if (precision > 0) return 1;
   return 0;
 };
+
+const SIMBOLOS_FIGURA_PLANA = Object.freeze({
+  triangulo: '▲',
+  estrella: '★',
+});
 
 const ConfettiCelebracionTren = () => {
   const piezas = [
@@ -190,6 +192,7 @@ const ConfettiCelebracionTren = () => {
 };
 
 const FiguraPatron = ({ paso, completado }) => {
+  const simboloFigura = SIMBOLOS_FIGURA_PLANA[paso.figuraId];
   const figuraStyle = [
     styles.figuraPatron,
     { backgroundColor: paso.colorHex },
@@ -202,7 +205,19 @@ const FiguraPatron = ({ paso, completado }) => {
 
   return (
     <View style={styles.itemPatron}>
-      <View style={figuraStyle} />
+      {simboloFigura ? (
+        <Text
+          style={[
+            styles.figuraPatronSimbolo,
+            { color: paso.colorHex },
+            completado && styles.figuraCompletada,
+          ]}
+        >
+          {simboloFigura}
+        </Text>
+      ) : (
+        <View style={figuraStyle} />
+      )}
       <Text style={styles.itemPatronTexto}>{paso.posicion + 1}</Text>
     </View>
   );
@@ -475,17 +490,24 @@ export default function Tren3DScreen({
   contextoSesion,
 }) {
   const viewport = useWindowDimensions();
-  const configuracion = useMemo(() => {
-    const configuracionNormalizada = normalizarConfiguracionTren3D(configuracionInicial);
-
-    return {
-      ...configuracionNormalizada,
-      nivelesPorPartida: resolverNivelesPorModoTren3D({
-        nivelesPorPartida: configuracionNormalizada.nivelesPorPartida,
-        sesionModo: contextoSesion?.sesionModo,
+  const configuracionBase = useMemo(
+    () =>
+      normalizarConfiguracionTren3D({
+        ...configuracionInicial,
+        nivelesPorPartida: resolverNivelesPorPartidaTren3D({
+          nivelesPorPartida: configuracionInicial?.nivelesPorPartida,
+          contextoSesion,
+        }),
       }),
-    };
-  }, [configuracionInicial, contextoSesion?.sesionModo]);
+    [configuracionInicial, contextoSesion],
+  );
+  const [configuracion, setConfiguracion] = useState(configuracionBase);
+  const [preparacionLista, setPreparacionLista] = useState(false);
+  const [revisionPreparacion, setRevisionPreparacion] = useState(0);
+  const [juegoSolicitado, setJuegoSolicitado] = useState(false);
+  const [motorListo, setMotorListo] = useState(false);
+  const [errorMotor, setErrorMotor] = useState(null);
+  const [webViewKey, setWebViewKey] = useState(0);
   const webViewRef = useRef(null);
   const inicioPartidaRef = useRef(Date.now());
   const acumuladoRef = useRef({
@@ -494,23 +516,12 @@ export default function Tren3DScreen({
     comboMaximo: 0,
     tiempoTotalMs: 0,
   });
-  const estadisticasNivelRef = useRef({
-    aciertos: 0,
-    errores: 0,
-    comboActual: 0,
-    comboMaximo: 0,
-    tiempoMs: 0,
-  });
   const nivelRef = useRef(1);
   const dificultadRef = useRef(configuracion.dificultad);
   const finalizadoRef = useRef(false);
+  const partidaIniciadaRef = useRef(false);
+  const ultimaMisionCompletadaRef = useRef(true);
   const siguienteNivelPendienteRef = useRef(null);
-  const finalizacionPendienteCheckpointRef = useRef(null);
-  const checkpointSessionRef = useRef(null);
-  const ultimoCheckpointSerializadoRef = useRef(null);
-  const estadoCheckpointProcesadoRef = useRef(null);
-  const motorListoRef = useRef(false);
-  const finalizacionReanudadaRef = useRef(null);
   const audioTren = useTren3DAudio();
 
   const parametrosIniciales = useMemo(
@@ -531,7 +542,6 @@ export default function Tren3DScreen({
     fase: ESTADOS_TREN_3D.esperando,
     nivel: 1,
     dificultad: configuracion.dificultad,
-    velocidadTren: parametrosIniciales.velocidadTren,
     aciertos: 0,
     errores: 0,
     comboMaximo: 0,
@@ -540,10 +550,56 @@ export default function Tren3DScreen({
     vagonesCompletados: 0,
     vagonesResueltos: [],
     mensaje: 'Toca una figura y luego el vagon que quieres completar.',
+    vueltasMaximas: parametrosIniciales.vueltasMaximas,
+    vueltasRestantes: parametrosIniciales.vueltasMaximas,
+    maxOpcionesFiguras: parametrosIniciales.maxOpcionesFiguras,
     resultado: null,
     seleccionClave: null,
   });
   const [tarjetaResultado, setTarjetaResultado] = useState(null);
+
+  useEffect(() => {
+    let vigente = true;
+
+    const prepararPartida = async () => {
+      setPreparacionLista(false);
+      setJuegoSolicitado(false);
+      setMotorListo(false);
+      setErrorMotor(null);
+      const preparacion = await sesionTren.prepararRonda(configuracionBase.dificultad);
+
+      if (!vigente || !preparacion?.lista) {
+        return;
+      }
+
+      const configuracionPreparada = resolverConfiguracionTren3DDesdeBackend({
+        configuracionLocal: configuracionBase,
+        respuestaInicioSesion: preparacion.respuestaInicio,
+      });
+      const parametros = construirParametrosNivel({
+        dificultad: configuracionPreparada.dificultad,
+        configuracion: configuracionPreparada,
+      });
+
+      dificultadRef.current = configuracionPreparada.dificultad;
+      setConfiguracion(configuracionPreparada);
+      setEstado((previo) => ({
+        ...previo,
+        dificultad: configuracionPreparada.dificultad,
+        patronActual: parametros.patron,
+        vueltasMaximas: parametros.vueltasMaximas,
+        vueltasRestantes: parametros.vueltasMaximas,
+        maxOpcionesFiguras: parametros.maxOpcionesFiguras,
+      }));
+      setPreparacionLista(true);
+    };
+
+    void prepararPartida();
+
+    return () => {
+      vigente = false;
+    };
+  }, [configuracionBase, revisionPreparacion, sesionTren.prepararRonda]);
 
   const tarjetaResultadoVisible = useMemo(() => {
     if (!tarjetaResultado || tarjetaResultado.tipo !== 'final') {
@@ -564,7 +620,9 @@ export default function Tren3DScreen({
 
     return {
       ...tarjetaResultado,
-      estrellas: calcularEstrellasResultado(resultadoConOficial),
+      estrellas: ultimaMisionCompletadaRef.current
+        ? calcularEstrellasResultado(resultadoConOficial)
+        : Math.min(1, calcularEstrellasResultado(resultadoConOficial)),
       logros: Array.isArray(respuestaFinalizacion.logros_desbloqueados)
         ? respuestaFinalizacion.logros_desbloqueados
         : tarjetaResultado.logros,
@@ -605,8 +663,9 @@ export default function Tren3DScreen({
     estado.patronActual.forEach((paso) => {
       mapa[paso.clave] = paso;
     });
-    return Object.values(mapa);
-  }, [estado.patronActual]);
+    const limite = Math.max(1, Math.min(4, Number(estado.maxOpcionesFiguras) || 4));
+    return Object.values(mapa).slice(0, limite);
+  }, [estado.maxOpcionesFiguras, estado.patronActual]);
 
   const seleccionarFiguraNativa = (paso) => {
     audioTren.reproducirSeleccion();
@@ -630,20 +689,25 @@ export default function Tren3DScreen({
     }
   }, []);
 
-  const construirTarjetaFinal = (resultado) => ({
+  const construirTarjetaFinal = (resultado, misionCompletada = true) => ({
     tipo: 'final',
     cinta: resultado.finalizacionSesion.estado === 'abandonado' ? 'PARTIDA PAUSADA' : 'RETO TERMINADO',
     insignia: 'Tren Patrones',
     titulo:
       resultado.finalizacionSesion.estado === 'abandonado'
         ? 'Volvemos al tablero'
-        : 'El tren llego a la meta',
+        : misionCompletada
+          ? 'El tren llego a la meta'
+          : 'El tren volvera mas preparado',
     descripcion:
       resultado.finalizacionSesion.estado === 'abandonado'
         ? 'Puedes volver a intentarlo cuando quieras.'
-        : 'Completaste la secuencia del tren. Buen trabajo.',
+        : misionCompletada
+          ? 'Completaste la secuencia del tren. Buen trabajo.'
+          : 'Las vueltas terminaron, pero cada intento entreno tu mirada de patrones.',
     estrellas: calcularEstrellasResultado(resultado),
-    mostrarCelebracion: resultado.finalizacionSesion.estado === 'completado',
+    mostrarCelebracion:
+      resultado.finalizacionSesion.estado === 'completado' && misionCompletada,
     metricas: [
       { etiqueta: 'Aciertos', valor: resultado.estadisticas.aciertos },
       { etiqueta: 'Errores', valor: resultado.estadisticas.errores },
@@ -660,193 +724,10 @@ export default function Tren3DScreen({
     logros: resultado.logros_desbloqueados ?? [],
   });
 
-  const construirTarjetaNivel = (pendiente) => ({
-    tipo: 'nivel',
-    cinta: 'NIVEL COMPLETADO',
-    insignia: `Tren Patrones - Nivel ${pendiente.resumen.nivelCompletado}`,
-    titulo: 'Buen viaje de patrones',
-    descripcion: `${pendiente.resumen.descripcion}. El siguiente tramo ajusta la dificultad con tu precision.`,
-    estrellas: calcularEstrellasResultado({
-      estadisticas: {
-        aciertos: pendiente.resumen.aciertos,
-        errores: pendiente.resumen.errores,
-        precisionPct: pendiente.resumen.precisionPct,
-      },
-    }),
-    mostrarCelebracion: pendiente.resumen.errores === 0,
-    metricas: [
-      { etiqueta: 'Aciertos', valor: pendiente.resumen.aciertos },
-      { etiqueta: 'Errores', valor: pendiente.resumen.errores },
-      { etiqueta: 'Combo', valor: `x${pendiente.resumen.comboMaximo}` },
-      { etiqueta: 'Precision', valor: `${pendiente.resumen.precisionPct}%` },
-      { etiqueta: 'Sigue', valor: `${pendiente.siguienteNivel}/${configuracion.nivelesPorPartida}` },
-      { etiqueta: 'Dificultad', valor: pendiente.dificultad },
-    ],
-    resumenTitulo: 'Siguiente nivel listo',
-    resumenTexto: 'Pulsa Continuar para que el tren entre al nuevo tramo.',
-    logros: [],
-  });
-
-  const construirCheckpointActual = useCallback(({
-    estadoJuego,
-    finalizacionPendiente = finalizacionPendienteCheckpointRef.current,
-  }) => createTren3DCheckpointState({
-    accumulatedStats: acumuladoRef.current,
-    currentLevelStats: estadisticasNivelRef.current,
-    elapsedSessionMs: Date.now() - inicioPartidaRef.current,
-    gameState: estadoJuego,
-    pendingFinalization: finalizacionPendiente,
-    pendingLevel: siguienteNivelPendienteRef.current,
-  }), []);
-
-  useEffect(() => {
-    const sesionId = sesionTren.persistencia.sesionId;
-    const checkpoint = sesionTren.checkpoint;
-
-    if (
-      !motorListoRef.current ||
-      !sesionId ||
-      checkpoint.phase !== 'ready' ||
-      checkpointSessionRef.current === sesionId
-    ) {
-      return;
-    }
-
-    checkpointSessionRef.current = sesionId;
-    const restaurado = parseTren3DCheckpointState(checkpoint.checkpointState);
-
-    if (!restaurado) {
-      setEstado((previo) => ({
-        ...previo,
-        fase: ESTADOS_TREN_3D.jugando,
-        mensaje: 'Elige una figura de abajo y toca el vagon correcto.',
-      }));
-      return;
-    }
-
-    ultimoCheckpointSerializadoRef.current = JSON.stringify(restaurado);
-    inicioPartidaRef.current = Date.now() - restaurado.tiempoSesionMs;
-    acumuladoRef.current = {
-      aciertos: restaurado.estadisticasAcumuladas.aciertos,
-      errores: restaurado.estadisticasAcumuladas.errores,
-      comboMaximo: restaurado.estadisticasAcumuladas.comboMaximo,
-      tiempoTotalMs: restaurado.estadisticasAcumuladas.tiempoMs,
-    };
-    estadisticasNivelRef.current = restaurado.estadisticasNivel;
-    nivelRef.current = restaurado.nivel;
-    dificultadRef.current = restaurado.dificultad;
-    siguienteNivelPendienteRef.current = restaurado.siguienteNivelPendiente;
-    finalizacionPendienteCheckpointRef.current = restaurado.finalizacionPendiente;
-
-    const estadoRestaurado = {
-      fase: restaurado.fase,
-      nivel: restaurado.nivel,
-      dificultad: restaurado.dificultad,
-      velocidadTren: restaurado.velocidadTren,
-      aciertos: restaurado.estadisticasAcumuladas.aciertos,
-      errores: restaurado.estadisticasAcumuladas.errores,
-      comboMaximo: restaurado.estadisticasAcumuladas.comboMaximo,
-      puntaje: restaurado.puntaje,
-      patronActual: restaurado.patronActual,
-      vagonesCompletados: restaurado.vagonesResueltos.length,
-      vagonesResueltos: restaurado.vagonesResueltos,
-      mensaje: 'Partida restaurada. Continua desde el ultimo vagon guardado.',
-      resultado: null,
-      seleccionClave: null,
-    };
-
-    if (restaurado.finalizacionPendiente) {
-      finalizadoRef.current = true;
-      const resultado = construirResumenPartidaTren3D({
-        configuracion,
-        aciertos: restaurado.estadisticasAcumuladas.aciertos,
-        errores: restaurado.estadisticasAcumuladas.errores,
-        comboMaximo: restaurado.estadisticasAcumuladas.comboMaximo,
-        nivelAlcanzado: restaurado.nivel,
-        tiempoTotalMs: restaurado.tiempoSesionMs,
-        dificultadFinal: restaurado.dificultad,
-        estado: restaurado.finalizacionPendiente.estado,
-      });
-      const resultadoRestaurado = {
-        ...resultado,
-        finalizacionSesion: restaurado.finalizacionPendiente,
-      };
-
-      const estadoFinalRestaurado = {
-        ...estadoRestaurado,
-        fase: ESTADOS_TREN_3D.finalizado,
-        resultado: resultadoRestaurado,
-        mensaje: 'Recuperamos el resultado y estamos terminando de guardarlo.',
-      };
-      estadoCheckpointProcesadoRef.current = estadoFinalRestaurado;
-      setEstado(estadoFinalRestaurado);
-      setTarjetaResultado(construirTarjetaFinal(resultadoRestaurado));
-
-      if (finalizacionReanudadaRef.current !== restaurado.finalizacionPendiente.finalization_id) {
-        finalizacionReanudadaRef.current = restaurado.finalizacionPendiente.finalization_id;
-        void sesionTren.reanudarFinalizacion(restaurado.finalizacionPendiente);
-      }
-      return;
-    }
-
-    finalizadoRef.current = false;
-    estadoCheckpointProcesadoRef.current = estadoRestaurado;
-    setEstado(estadoRestaurado);
-
-    if (
-      restaurado.fase === ESTADOS_TREN_3D.transicionNivel &&
-      restaurado.siguienteNivelPendiente
-    ) {
-      setTarjetaResultado(construirTarjetaNivel(restaurado.siguienteNivelPendiente));
-      return;
-    }
-
-    inyectarNivelRestaurado({ webViewRef, checkpoint: restaurado });
-  }, [
-    configuracion,
-    sesionTren.checkpoint,
-    sesionTren.persistencia.sesionId,
-    sesionTren.reanudarFinalizacion,
-  ]);
-
-  useEffect(() => {
-    const sesionId = sesionTren.persistencia.sesionId;
-    const checkpoint = sesionTren.checkpoint;
-
-    if (
-      !sesionId ||
-      checkpoint.phase !== 'ready' ||
-      checkpointSessionRef.current !== sesionId ||
-      estado.fase === ESTADOS_TREN_3D.esperando ||
-      estadoCheckpointProcesadoRef.current === estado
-    ) {
-      return;
-    }
-
-    estadoCheckpointProcesadoRef.current = estado;
-
-    let snapshot;
-    try {
-      snapshot = construirCheckpointActual({ estadoJuego: estado });
-    } catch {
-      return;
-    }
-
-    const serializado = JSON.stringify(snapshot);
-    if (serializado === ultimoCheckpointSerializadoRef.current) {
-      return;
-    }
-
-    ultimoCheckpointSerializadoRef.current = serializado;
-    checkpoint.saveCheckpoint(snapshot);
-  }, [
-    construirCheckpointActual,
-    estado,
-    sesionTren.checkpoint,
-    sesionTren.persistencia.sesionId,
-  ]);
-
-  const finalizarPartida = ({ estadoFinal = 'completado' } = {}) => {
+  const finalizarPartida = ({
+    estadoFinal = 'completado',
+    misionCompletada = true,
+  } = {}) => {
     if (finalizadoRef.current) {
       return;
     }
@@ -854,7 +735,7 @@ export default function Tren3DScreen({
     finalizadoRef.current = true;
     void mostrarResultadoFinalEnPortrait();
     const acumulado = acumuladoRef.current;
-    const resultadoBase = construirResumenPartidaTren3D({
+    const resultado = construirResumenPartidaTren3D({
       configuracion,
       aciertos: acumulado.aciertos,
       errores: acumulado.errores,
@@ -864,35 +745,17 @@ export default function Tren3DScreen({
       dificultadFinal: dificultadRef.current,
       estado: estadoFinal,
     });
-    const finalizacionIdentificada = sesionTren.prepararFinalizacion(
-      resultadoBase.finalizacionSesion,
-    );
-    const resultado = {
-      ...resultadoBase,
-      finalizacionSesion: finalizacionIdentificada,
-    };
-    const estadoFinalizado = {
-      ...estado,
+
+    sesionTren.observadoresJuego.alFinalizarPartida(resultado);
+    setEstado((previo) => ({
+      ...previo,
       fase: ESTADOS_TREN_3D.finalizado,
       puntaje: resultado.estadisticas.puntaje,
       resultado,
       mensaje: 'Partida finalizada. Buen trabajo con los patrones.',
-    };
-
-    finalizacionPendienteCheckpointRef.current = finalizacionIdentificada;
-    if (sesionTren.persistenciaRemotaHabilitada) {
-      const checkpointFinal = construirCheckpointActual({
-        estadoJuego: estadoFinalizado,
-        finalizacionPendiente: finalizacionIdentificada,
-      });
-      ultimoCheckpointSerializadoRef.current = JSON.stringify(checkpointFinal);
-      estadoCheckpointProcesadoRef.current = estadoFinalizado;
-      sesionTren.checkpoint.saveCheckpoint(checkpointFinal);
-    }
-
-    sesionTren.observadoresJuego.alFinalizarPartida(resultado);
-    setEstado(estadoFinalizado);
-    setTarjetaResultado(construirTarjetaFinal(resultado));
+    }));
+    ultimaMisionCompletadaRef.current = misionCompletada;
+    setTarjetaResultado(construirTarjetaFinal(resultado, misionCompletada));
   };
 
   const restaurarPortrait = useCallback(async () => {
@@ -939,21 +802,6 @@ export default function Tren3DScreen({
       errores: acumuladoRef.current.errores + (mensaje.tipo === 'error' ? 1 : 0),
       comboMaximo: Math.max(acumuladoRef.current.comboMaximo, mensaje.comboEnEvento ?? 0),
     };
-    estadisticasNivelRef.current = {
-      aciertos:
-        estadisticasNivelRef.current.aciertos + (mensaje.tipo === 'acierto' ? 1 : 0),
-      errores:
-        estadisticasNivelRef.current.errores + (mensaje.tipo === 'error' ? 1 : 0),
-      comboActual: Math.max(0, mensaje.comboEnEvento ?? 0),
-      comboMaximo: Math.max(
-        estadisticasNivelRef.current.comboMaximo,
-        mensaje.comboEnEvento ?? 0,
-      ),
-      tiempoMs: Math.max(
-        estadisticasNivelRef.current.tiempoMs,
-        mensaje.tiempoNivelMs ?? 0,
-      ),
-    };
 
     setEstado((previo) => {
       const aciertos = previo.aciertos + (mensaje.tipo === 'acierto' ? 1 : 0);
@@ -981,19 +829,67 @@ export default function Tren3DScreen({
     });
   };
 
-  const completarNivel = (mensaje) => {
+  const completarNivel = (mensaje, { misionCompletada = true } = {}) => {
+    const vagonesPendientes = Math.max(0, Number(mensaje.vagonesPendientes ?? 0));
+    const erroresAdaptativos = Number(mensaje.errores ?? 0) + vagonesPendientes;
+    const precisionInteracciones = calcularPrecision({
+      aciertos: mensaje.aciertos,
+      errores: mensaje.errores,
+    });
+    const precisionAdaptativa = calcularPrecision({
+      aciertos: mensaje.aciertos,
+      errores: erroresAdaptativos,
+    });
+
+    if (!misionCompletada && vagonesPendientes > 0) {
+      Array.from({ length: vagonesPendientes }).forEach((_unused, indice) => {
+        sesionTren.observadoresJuego.alRegistrarEvento(
+          construirEventoTren3D({
+            tipoEvento: TIPOS_EVENTO_SESION.error,
+            puntos: 0,
+            comboEnEvento: 0,
+            metadata: {
+              omission: true,
+              omission_index: indice + 1,
+              reason: mensaje.motivo,
+              difficulty: dificultadRef.current,
+              mission_number: nivelRef.current,
+            },
+          }),
+        );
+      });
+    }
+
+    sesionTren.observadoresJuego.alRegistrarEvento(
+      construirEventoTren3D({
+        tipoEvento: TIPOS_EVENTO_SESION.nivelCompletado,
+        puntos: misionCompletada ? 15 : 0,
+        comboEnEvento: mensaje.comboMaximo ?? 0,
+        metadata: {
+          game: configuracion.slug,
+          mission_completed: misionCompletada,
+          end_reason: misionCompletada ? 'patron_completado' : mensaje.motivo,
+          precision_pct: precisionAdaptativa,
+          interaction_precision_pct: precisionInteracciones,
+          laps_used: mensaje.vueltasConsumidas ?? estado.vueltasMaximas,
+          max_laps: mensaje.vueltasMaximas ?? estado.vueltasMaximas,
+          pending_wagons: vagonesPendientes,
+          difficulty: dificultadRef.current,
+          mission_number: nivelRef.current,
+        },
+      }),
+    );
+
     acumuladoRef.current = {
       ...acumuladoRef.current,
+      errores: acumuladoRef.current.errores + vagonesPendientes,
       tiempoTotalMs: acumuladoRef.current.tiempoTotalMs + (mensaje.tiempoNivelMs ?? 0),
       comboMaximo: Math.max(acumuladoRef.current.comboMaximo, mensaje.comboMaximo ?? 0),
     };
 
-    if (debeFinalizarIntentoTren3D({
-      nivelActual: nivelRef.current,
-      nivelesPorPartida: configuracion.nivelesPorPartida,
-    })) {
+    if (nivelRef.current >= configuracion.nivelesPorPartida) {
       audioTren.reproducirFinal();
-      finalizarPartida();
+      finalizarPartida({ misionCompletada });
       return;
     }
 
@@ -1001,44 +897,74 @@ export default function Tren3DScreen({
 
     const adaptacion = calcularAdaptacionInterNivel({
       aciertos: mensaje.aciertos,
-      errores: mensaje.errores,
+      errores: erroresAdaptativos,
       dificultadActual: dificultadRef.current,
+      misionCompletada,
     });
     const siguienteNivel = nivelRef.current + 1;
     const parametros = {
       dificultad: adaptacion.nuevaDificultad,
       velocidadTren: adaptacion.nuevaVelocidad,
-      patron: generarPatronNivel(adaptacion.nuevaDificultad, configuracion.vagonesPorNivel),
+      vueltasMaximas: adaptacion.vueltasMaximas,
+      vagonesPorNivel: adaptacion.vagonesPorNivel,
+      maxOpcionesFiguras: adaptacion.maxOpcionesFiguras,
+      opacidadFiguraGuia: adaptacion.opacidadFiguraGuia,
+      patron: generarPatronNivel(
+        adaptacion.nuevaDificultad,
+        adaptacion.vagonesPorNivel ?? configuracion.vagonesPorNivel,
+        obtenerParametrosDificultad(adaptacion.nuevaDificultad),
+      ),
     };
 
-    const siguienteNivelPendiente = {
+    siguienteNivelPendienteRef.current = {
       siguienteNivel,
       dificultad: adaptacion.nuevaDificultad,
       parametros,
-      resumen: {
-        nivelCompletado: nivelRef.current,
-        aciertos: mensaje.aciertos,
-        errores: mensaje.errores,
-        comboMaximo: mensaje.comboMaximo ?? 0,
-        precisionPct: adaptacion.precisionPct,
-        descripcion: adaptacion.descripcionNivel,
-      },
     };
-    siguienteNivelPendienteRef.current = siguienteNivelPendiente;
 
     setEstado((previo) => ({
       ...previo,
       fase: ESTADOS_TREN_3D.transicionNivel,
       nivel: siguienteNivel,
       dificultad: adaptacion.nuevaDificultad,
-      velocidadTren: adaptacion.nuevaVelocidad,
       patronActual: parametros.patron,
       vagonesCompletados: 0,
       vagonesResueltos: [],
       seleccionClave: null,
+      vueltasMaximas: parametros.vueltasMaximas,
+      vueltasRestantes: parametros.vueltasMaximas,
+      maxOpcionesFiguras: parametros.maxOpcionesFiguras,
       mensaje: `${adaptacion.descripcionNivel}. Precision: ${adaptacion.precisionPct}%.`,
     }));
-    setTarjetaResultado(construirTarjetaNivel(siguienteNivelPendiente));
+    setTarjetaResultado({
+      tipo: 'nivel',
+      cinta: misionCompletada ? 'NIVEL COMPLETADO' : 'VUELTAS TERMINADAS',
+      insignia: `Tren Patrones - Nivel ${nivelRef.current}`,
+      titulo: misionCompletada ? 'Buen viaje de patrones' : 'Seguimos aprendiendo',
+      descripcion: misionCompletada
+        ? `${adaptacion.descripcionNivel}. El siguiente tramo ajusta la dificultad con tu precision.`
+        : `Quedaron ${vagonesPendientes} vagones. El siguiente tramo se ajustara para ayudarte.`,
+      estrellas: calcularEstrellasResultado({
+        estadisticas: {
+          aciertos: mensaje.aciertos,
+          errores: erroresAdaptativos,
+          precisionPct: precisionAdaptativa,
+        },
+      }),
+      mostrarCelebracion: misionCompletada && mensaje.errores === 0,
+      metricas: [
+        { etiqueta: 'Aciertos', valor: mensaje.aciertos },
+        { etiqueta: 'Errores', valor: erroresAdaptativos },
+        { etiqueta: 'Combo', valor: `x${mensaje.comboMaximo ?? 0}` },
+        { etiqueta: 'Precision', valor: `${precisionAdaptativa}%` },
+        { etiqueta: 'Vueltas', valor: mensaje.vueltasConsumidas ?? estado.vueltasMaximas },
+        { etiqueta: 'Sigue', valor: `${siguienteNivel}/${configuracion.nivelesPorPartida}` },
+        { etiqueta: 'Dificultad', valor: adaptacion.nuevaDificultad },
+      ],
+      resumenTitulo: 'Siguiente nivel listo',
+      resumenTexto: 'Pulsa Continuar para que el tren entre al nuevo tramo.',
+      logros: [],
+    });
   };
 
   const continuarNivel = () => {
@@ -1052,19 +978,12 @@ export default function Tren3DScreen({
     nivelRef.current = pendiente.siguienteNivel;
     dificultadRef.current = pendiente.dificultad;
     siguienteNivelPendienteRef.current = null;
-    estadisticasNivelRef.current = {
-      aciertos: 0,
-      errores: 0,
-      comboActual: 0,
-      comboMaximo: 0,
-      tiempoMs: 0,
-    };
     setTarjetaResultado(null);
     inyectarNuevoNivel({ webViewRef, parametros: pendiente.parametros });
     setEstado((previo) => ({
       ...previo,
-      fase: ESTADOS_TREN_3D.jugando,
-      velocidadTren: pendiente.parametros.velocidadTren,
+      fase: ESTADOS_TREN_3D.esperando,
+      mensaje: 'El siguiente tren esta entrando. Preparate.',
     }));
   };
 
@@ -1078,30 +997,18 @@ export default function Tren3DScreen({
     }
 
     if (mensaje.tipo === 'motorListo') {
-      motorListoRef.current = true;
+      partidaIniciadaRef.current = true;
+      inicioPartidaRef.current = Date.now();
+      setMotorListo(true);
+      setErrorMotor(null);
+      sesionTren.observadoresJuego.alIniciarPartida({
+        configuracionPartida: configuracion,
+      });
       setEstado((previo) => ({
         ...previo,
         fase: ESTADOS_TREN_3D.esperando,
-        mensaje: 'Preparando y recuperando tu viaje...',
+        mensaje: 'El tren esta entrando. Preparate para completar el patron.',
       }));
-      void sesionTren.prepararRonda(configuracion.dificultad).then(({ lista }) => {
-        if (!lista) {
-          setEstado((previo) => ({
-            ...previo,
-            fase: ESTADOS_TREN_3D.esperando,
-            mensaje: 'No fue posible preparar la partida. Intenta reconectarte.',
-          }));
-          return;
-        }
-
-        if (!sesionTren.persistenciaRemotaHabilitada) {
-          setEstado((previo) => ({
-            ...previo,
-            fase: ESTADOS_TREN_3D.jugando,
-            mensaje: 'Elige una figura de abajo y toca el vagon correcto.',
-          }));
-        }
-      });
       return;
     }
 
@@ -1111,7 +1018,31 @@ export default function Tren3DScreen({
     }
 
     if (mensaje.tipo === 'nivelCompletado') {
-      completarNivel(mensaje);
+      completarNivel(mensaje, { misionCompletada: true });
+      return;
+    }
+
+    if (mensaje.tipo === 'nivelFallido') {
+      audioTren.reproducirError();
+      completarNivel(mensaje, { misionCompletada: false });
+      return;
+    }
+
+    if (mensaje.tipo === 'vueltaActualizada') {
+      setEstado((previo) => ({
+        ...previo,
+        fase: mensaje.trenDisponible
+          ? ESTADOS_TREN_3D.jugando
+          : ESTADOS_TREN_3D.esperando,
+        vueltasMaximas: mensaje.vueltasMaximas,
+        vueltasRestantes: mensaje.vueltasRestantes,
+        mensaje:
+          !mensaje.trenDisponible
+            ? 'El tren esta dando la vuelta. Prepara tu siguiente figura.'
+            : mensaje.vueltasRestantes === 1
+            ? 'Ultima vuelta. Completa los vagones que faltan.'
+            : `Te quedan ${mensaje.vueltasRestantes} vueltas para completar el tren.`,
+      }));
       return;
     }
 
@@ -1124,6 +1055,7 @@ export default function Tren3DScreen({
     }
 
     if (mensaje.tipo === 'errorMotor') {
+      setErrorMotor(mensaje.mensaje ?? 'No fue posible cargar el motor 3D.');
       setEstado((previo) => ({
         ...previo,
         mensaje: mensaje.mensaje ?? 'No fue posible cargar el motor 3D.',
@@ -1131,23 +1063,141 @@ export default function Tren3DScreen({
     }
   };
 
+  const iniciarJuegoDesdePortada = () => {
+    setJuegoSolicitado(true);
+    setMotorListo(false);
+    setErrorMotor(null);
+    setEstado((previo) => ({
+      ...previo,
+      mensaje: 'Preparando el tren...',
+    }));
+  };
+
+  const reintentarCargaMotor = () => {
+    setMotorListo(false);
+    setErrorMotor(null);
+    setWebViewKey((valor) => valor + 1);
+    setEstado((previo) => ({
+      ...previo,
+      mensaje: 'Preparando el tren...',
+    }));
+  };
+
   const salir = async () => {
+    if (!finalizadoRef.current && partidaIniciadaRef.current) {
+      finalizarPartida({ estadoFinal: 'abandonado' });
+    }
+
     await restaurarPortrait();
     onSalir?.();
   };
 
+  if (!preparacionLista) {
+    return (
+      <SafeAreaView style={styles.contenedor}>
+        <ImageBackground
+          source={fondoTrenInicio}
+          resizeMode="cover"
+          style={styles.portadaOverlay}
+        >
+          <View style={styles.portadaSombra} />
+          <View style={styles.cargaMotorPanel}>
+            {sesionTren.persistencia.error ? null : (
+              <ActivityIndicator color={colores.alerta} size="large" />
+            )}
+            <Text style={styles.cargaMotorTitulo}>Preparando el tren</Text>
+            <Text style={styles.cargaMotorTexto}>
+              {sesionTren.persistencia.error ?? 'Un momento mientras llega a la estacion.'}
+            </Text>
+            {sesionTren.persistencia.error ? (
+              <TouchableOpacity
+                activeOpacity={0.86}
+                style={styles.botonReintentarMotor}
+                onPress={() => setRevisionPreparacion((revision) => revision + 1)}
+              >
+                <Text style={styles.botonReintentarMotorTexto}>Intentar de nuevo</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </ImageBackground>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.contenedor}>
-      <Tren3DVistaWebView
-        webViewRef={webViewRef}
-        onMensaje={manejarMensaje}
-        parametrosIniciales={parametrosIniciales}
-      />
+      {juegoSolicitado ? (
+        <Tren3DVistaWebView
+          key={webViewKey}
+          webViewRef={webViewRef}
+          onMensaje={manejarMensaje}
+          parametrosIniciales={parametrosIniciales}
+        />
+      ) : null}
+
+      {!juegoSolicitado ? (
+        <ImageBackground
+          source={fondoTrenInicio}
+          resizeMode="cover"
+          style={styles.portadaOverlay}
+        >
+          <View style={styles.portadaSombra} />
+          <View style={styles.portadaContenido}>
+            <Text style={styles.portadaTitulo}>Tren Patrones</Text>
+            <Text style={styles.portadaSubtitulo}>
+              Listo para el viaje de patrones.
+            </Text>
+            <TouchableOpacity
+              activeOpacity={0.86}
+              style={styles.botonJugarPortada}
+              onPress={iniciarJuegoDesdePortada}
+            >
+              <Text style={styles.botonJugarPortadaTexto}>Jugar</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity style={styles.botonSalirPortada} onPress={salir}>
+            <Text style={styles.botonSalirTexto}>Salir</Text>
+          </TouchableOpacity>
+        </ImageBackground>
+      ) : null}
+
+      {juegoSolicitado && !motorListo ? (
+        <ImageBackground
+          source={fondoTrenInicio}
+          resizeMode="cover"
+          style={styles.cargaMotorOverlay}
+        >
+          <View style={styles.cargaMotorPanel}>
+            {errorMotor ? null : <ActivityIndicator color={colores.alerta} size="large" />}
+            <Text style={styles.cargaMotorTitulo}>
+              {errorMotor ? 'No pudimos cargar el tren' : 'Preparando el tren'}
+            </Text>
+            <Text style={styles.cargaMotorTexto}>
+              {errorMotor ?? 'Un momento mientras llega a la estacion.'}
+            </Text>
+            {errorMotor ? (
+              <TouchableOpacity
+                activeOpacity={0.86}
+                style={styles.botonReintentarMotor}
+                onPress={reintentarCargaMotor}
+              >
+                <Text style={styles.botonReintentarMotorTexto}>Reintentar</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </ImageBackground>
+      ) : null}
 
       <View style={styles.barraSuperior}>
         <View style={styles.barraSuperiorTexto}>
           <Text style={styles.titulo}>Tren Patrones</Text>
           <Text style={styles.subtitulo} numberOfLines={2}>{estado.mensaje}</Text>
+        </View>
+        <View style={styles.vueltasBadge}>
+          <Text style={styles.vueltasBadgeLabel}>Vueltas</Text>
+          <Text style={styles.vueltasBadgeValor}>
+            {estado.vueltasRestantes}/{estado.vueltasMaximas}
+          </Text>
         </View>
         <TouchableOpacity style={styles.botonSalir} onPress={salir}>
           <Text style={styles.botonSalirTexto}>Salir</Text>
@@ -1179,24 +1229,27 @@ export default function Tren3DScreen({
             <TouchableOpacity
               key={opcion.clave}
               activeOpacity={0.8}
-              disabled={estado.fase !== ESTADOS_TREN_3D.jugando}
+              disabled={!esFaseSeleccionable(estado.fase)}
               style={[
                 styles.botonNativo,
                 { backgroundColor: opcion.colorHex },
                 estado.seleccionClave === opcion.clave && styles.botonNativoActivo,
-                estado.fase !== ESTADOS_TREN_3D.jugando && { opacity: 0.5 },
+                !esFaseSeleccionable(estado.fase) && { opacity: 0.5 },
               ]}
               onPress={() => seleccionarFiguraNativa(opcion)}
             >
-              <View
-                style={[
-                  styles.figuraBoton,
-                  opcion.figuraId === 'circulo' && styles.figuraBotonCirculo,
-                  opcion.figuraId === 'triangulo' && styles.figuraBotonTriangulo,
-                  opcion.figuraId === 'triangulo' && { borderBottomColor: opcion.colorHex },
-                  opcion.figuraId === 'estrella' && styles.figuraBotonEstrella,
-                ]}
-              />
+              {SIMBOLOS_FIGURA_PLANA[opcion.figuraId] ? (
+                <Text style={styles.figuraBotonSimbolo}>
+                  {SIMBOLOS_FIGURA_PLANA[opcion.figuraId]}
+                </Text>
+              ) : (
+                <View
+                  style={[
+                    styles.figuraBoton,
+                    opcion.figuraId === 'circulo' && styles.figuraBotonCirculo,
+                  ]}
+                />
+              )}
               <Text style={styles.botonNativoTexto} numberOfLines={1}>
                 {opcion.figuraLabel}
               </Text>
@@ -1244,11 +1297,150 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#06131f',
   },
+  portadaOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  portadaSombra: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(6, 19, 31, 0.34)',
+  },
+  portadaContenido: {
+    width: '48%',
+    minWidth: 300,
+    maxWidth: 430,
+    alignItems: 'center',
+    gap: espaciado.sm,
+    paddingVertical: 22,
+    paddingHorizontal: 28,
+    borderRadius: 18,
+    backgroundColor: 'rgba(7,28,43,0.78)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  portadaTitulo: {
+    color: '#FFFFFF',
+    fontSize: 30,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  portadaSubtitulo: {
+    color: '#DFF6FF',
+    fontSize: 14,
+    fontWeight: '800',
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+  botonJugarPortada: {
+    marginTop: 6,
+    minWidth: 190,
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 34,
+    alignItems: 'center',
+    backgroundColor: colores.alerta,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#6D4D00',
+    shadowOpacity: 0.32,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  botonJugarPortadaTexto: {
+    color: '#06131f',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  botonSalirPortada: {
+    position: 'absolute',
+    top: 24,
+    right: 18,
+    backgroundColor: 'rgba(7,28,43,0.82)',
+    borderRadius: radios.md,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
+  },
+  cargaMotorOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cargaMotorPanel: {
+    minWidth: 300,
+    maxWidth: 420,
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 20,
+    paddingHorizontal: 26,
+    borderRadius: 18,
+    backgroundColor: 'rgba(7,28,43,0.86)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.34)',
+  },
+  cargaMotorTitulo: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  cargaMotorTexto: {
+    color: '#DFF6FF',
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  botonReintentarMotor: {
+    marginTop: 6,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    backgroundColor: colores.alerta,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  botonReintentarMotorTexto: {
+    color: '#06131f',
+    fontWeight: '900',
+  },
+  preparacionContenedor: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 28,
+    gap: 12,
+  },
+  preparacionTitulo: {
+    color: colores.alerta,
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  preparacionTexto: {
+    color: colores.textoPrincipal,
+    fontSize: 15,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  preparacionBoton: {
+    borderRadius: radios.pill,
+    backgroundColor: colores.acento,
+    paddingHorizontal: 22,
+    paddingVertical: 11,
+  },
+  preparacionBotonTexto: {
+    color: '#06131f',
+    fontWeight: '900',
+  },
   barraSuperior: {
     position: 'absolute',
     top: 24,
     left: 12,
-    width: 318,
+    width: 390,
     backgroundColor: 'rgba(7,28,43,0.78)',
     borderColor: 'rgba(130,215,255,0.42)',
     borderWidth: 1,
@@ -1262,6 +1454,27 @@ const styles = StyleSheet.create({
   barraSuperiorTexto: {
     flex: 1,
     minWidth: 0,
+  },
+  vueltasBadge: {
+    minWidth: 72,
+    borderRadius: radios.md,
+    borderWidth: 2,
+    borderColor: colores.alerta,
+    backgroundColor: '#17324d',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    alignItems: 'center',
+  },
+  vueltasBadgeLabel: {
+    color: colores.textoSecundario,
+    fontSize: 9,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  vueltasBadgeValor: {
+    color: colores.alerta,
+    fontSize: 17,
+    fontWeight: '900',
   },
   titulo: {
     color: colores.textoPrincipal,
@@ -1325,6 +1538,14 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(21,52,77,0.18)',
   },
+  figuraPatronSimbolo: {
+    fontSize: 26,
+    lineHeight: 28,
+    fontWeight: '900',
+    textShadowColor: 'rgba(21,52,77,0.36)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 1,
+  },
   figuraCirculo: {
     borderRadius: 999,
   },
@@ -1380,22 +1601,22 @@ const styles = StyleSheet.create({
   },
   barraBotones: {
     position: 'absolute',
-    right: 12,
-    top: 78,
-    bottom: 82,
-    width: 108,
-    padding: 7,
+    right: 42,
+    top: 42,
+    bottom: 54,
+    width: 132,
+    padding: 8,
     backgroundColor: 'rgba(7,28,43,0.82)',
     borderColor: 'rgba(130,215,255,0.3)',
     borderWidth: 1,
     borderRadius: radios.md,
   },
   listaBotones: {
-    gap: 9,
-    paddingBottom: 9,
+    gap: 6,
+    paddingBottom: 8,
   },
   botonNativo: {
-    minHeight: 58,
+    minHeight: 52,
     borderRadius: radios.md,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1419,6 +1640,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(6,19,31,0.86)',
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.85)',
+  },
+  figuraBotonSimbolo: {
+    color: 'rgba(6,19,31,0.92)',
+    fontSize: 27,
+    lineHeight: 28,
+    fontWeight: '900',
+    textShadowColor: 'rgba(255,255,255,0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 1,
   },
   figuraBotonCirculo: {
     borderRadius: 999,

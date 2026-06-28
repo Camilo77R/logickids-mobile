@@ -33,6 +33,30 @@ const mezclar = (elementos) => {
 const seleccionarObjetivo = (objetosDisponibles) =>
   objetosDisponibles[Math.floor(Math.random() * objetosDisponibles.length)];
 
+const construirClaveVisual = (objeto, tipoMision) => {
+  if (tipoMision === 'figura') {
+    return objeto.forma;
+  }
+
+  if (tipoMision === 'figura-color' || tipoMision === 'color-forma') {
+    return `${objeto.forma}:${objeto.color}`;
+  }
+
+  return objeto.id;
+};
+
+const seleccionarDistractores = ({ objetosDisponibles, objetivo, tipoMision, cantidad }) => {
+  const claveObjetivo = construirClaveVisual(objetivo, tipoMision);
+  const candidatosSeguros = objetosDisponibles.filter(
+    (objeto) =>
+      objeto.id !== objetivo.id && construirClaveVisual(objeto, tipoMision) !== claveObjetivo,
+  );
+  const candidatosRespaldo = objetosDisponibles.filter((objeto) => objeto.id !== objetivo.id);
+  const candidatos = candidatosSeguros.length >= cantidad ? candidatosSeguros : candidatosRespaldo;
+
+  return mezclar(candidatos).slice(0, cantidad);
+};
+
 const aleatorioEntre = (minimo, maximo) => minimo + Math.random() * (maximo - minimo);
 
 const distanciaHorizontal = (a, b) => {
@@ -88,6 +112,18 @@ const crearPosicionesZonaBusqueda = (cantidad, zonaEntrada = {}) => {
 };
 
 const construirTextoMision = ({ objetivo, tipoMision }) => {
+  if (tipoMision === 'figura') {
+    return `Encuentra la figura: ${objetivo.forma}.`;
+  }
+
+  if (tipoMision === 'figura-color') {
+    return `Encuentra la figura ${objetivo.forma} de color ${objetivo.color}.`;
+  }
+
+  if (tipoMision === 'color-forma') {
+    return `Encuentra la figura ${objetivo.color} con forma de ${objetivo.forma}.`;
+  }
+
   if (tipoMision === 'caracteristica') {
     return `Encuentra algo que sirve para ${objetivo.uso}.`;
   }
@@ -109,9 +145,14 @@ export const crearRondaObjetoPerdidoAr = ({ configuracion, numeroRonda = 1 }) =>
     cantidad,
     configuracion.configuracion.zonaBusqueda,
   );
+  const tipoMision = configuracion.configuracion.tipoMision;
   const objetivo = seleccionarObjetivo(objetosDisponibles);
-  const distractores = mezclar(objetosDisponibles.filter((objeto) => objeto.id !== objetivo.id))
-    .slice(0, Math.max(0, cantidad - 1));
+  const distractores = seleccionarDistractores({
+    objetosDisponibles,
+    objetivo,
+    tipoMision,
+    cantidad: Math.max(0, cantidad - 1),
+  });
   const objetos = mezclar([objetivo, ...distractores]).map((objeto, indice) => ({
     ...objeto,
     indice,
@@ -125,7 +166,7 @@ export const crearRondaObjetoPerdidoAr = ({ configuracion, numeroRonda = 1 }) =>
     objetivo,
     mision: construirTextoMision({
       objetivo,
-      tipoMision: configuracion.configuracion.tipoMision,
+      tipoMision,
     }),
     objetos,
   };

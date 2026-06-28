@@ -91,19 +91,76 @@ const CLIENTES_MERCADO = Object.freeze([
 const obtenerClienteNivel = (indiceRonda) =>
   CLIENTES_MERCADO[((indiceRonda % CLIENTES_MERCADO.length) + CLIENTES_MERCADO.length) % CLIENTES_MERCADO.length];
 
-export const generarOfertaMercado = ({ configuracion, indiceRonda = 0 }) => {
+const requiereCategoriaObjetivo = (modoObjetivo) =>
+  modoObjetivo === MODOS_OBJETIVO_MERCADO.categoriaObjetivo ||
+  modoObjetivo === MODOS_OBJETIVO_MERCADO.cantidadYCategoria;
+
+const seleccionarCategoriaViable = ({ catalogo, categoriasPermitidas, cantidadObjetivos, indiceRonda }) => {
+  const grupos = agruparCatalogoPorCategoria(catalogo);
+  const categoriasViables = categoriasPermitidas.filter(
+    (categoria) => (grupos[categoria]?.length ?? 0) >= cantidadObjetivos,
+  );
+  const candidatas = categoriasViables.length > 0
+    ? categoriasViables
+    : categoriasPermitidas.filter((categoria) => grupos[categoria]?.length > 0);
+
+  return candidatas[indiceRonda % candidatas.length] ?? catalogo[0]?.categoria ?? 'frutas';
+};
+
+const ordenarCatalogoParaCategoriaObjetivo = ({
+  catalogo,
+  categoriasPermitidas,
+  cantidadObjetivos,
+  categoriaObjetivo,
+  indiceRonda,
+}) => {
+  const grupos = agruparCatalogoPorCategoria(catalogo);
+  const productosObjetivo = rotarCatalogo(grupos[categoriaObjetivo] ?? [], indiceRonda)
+    .slice(0, cantidadObjetivos);
+  const distractores = construirCatalogoDiverso({
+    catalogo: catalogo.filter((producto) => producto.categoria !== categoriaObjetivo),
+    categoriasPermitidas: categoriasPermitidas.filter((categoria) => categoria !== categoriaObjetivo),
+    indiceRonda,
+  });
+  const respaldoMismaCategoria = rotarCatalogo(grupos[categoriaObjetivo] ?? [], indiceRonda + cantidadObjetivos)
+    .filter((producto) => !productosObjetivo.some((item) => item.id === producto.id));
+
+  return [...productosObjetivo, ...distractores, ...respaldoMismaCategoria];
+};
+
+export const generarOfertaMercado = ({ configuracion, indiceRonda = 0, categoriaObjetivo = null }) => {
   const {
     categoriasPermitidas,
     cantidadProductosVisibles,
+    cantidadObjetivos,
     precioMin,
     precioMax,
+    modoObjetivo,
   } = configuracion.configuracion;
   const catalogoPermitido = obtenerCatalogoPermitido(categoriasPermitidas);
-  const catalogo = construirCatalogoDiverso({
-    catalogo: catalogoPermitido,
-    categoriasPermitidas,
-    indiceRonda,
-  });
+  const categoriaGarantizada = categoriaObjetivo ?? (
+    requiereCategoriaObjetivo(modoObjetivo)
+      ? seleccionarCategoriaViable({
+        catalogo: catalogoPermitido,
+        categoriasPermitidas,
+        cantidadObjetivos,
+        indiceRonda,
+      })
+      : null
+  );
+  const catalogo = categoriaGarantizada
+    ? ordenarCatalogoParaCategoriaObjetivo({
+      catalogo: catalogoPermitido,
+      categoriasPermitidas,
+      cantidadObjetivos,
+      categoriaObjetivo: categoriaGarantizada,
+      indiceRonda,
+    })
+    : construirCatalogoDiverso({
+      catalogo: catalogoPermitido,
+      categoriasPermitidas,
+      indiceRonda,
+    });
 
   return catalogo.slice(0, cantidadProductosVisibles).map((producto, indiceProducto) => ({
     ...producto,
@@ -122,10 +179,14 @@ const construirObjetivoPorModo = ({ configuracion, oferta, indiceRonda }) => {
     presupuestoMonedas,
     modoObjetivo,
   } = configuracion.configuracion;
-  const productoObjetivo = oferta[indiceRonda % oferta.length];
-  const categoriaObjetivo = productoObjetivo?.categoria ?? oferta[0]?.categoria ?? 'frutas';
   const seleccionSugerida = oferta.slice(0, cantidadObjetivos);
+  const categoriaObjetivo = seleccionSugerida[0]?.categoria ?? oferta[0]?.categoria ?? 'frutas';
+  const seleccionObjetivo = seleccionSugerida.filter(
+    (producto) => producto.categoria === categoriaObjetivo,
+  );
   const totalSugerido = seleccionSugerida.reduce((acumulado, producto) => acumulado + producto.precio, 0);
+  const totalCategoriaObjetivo = seleccionObjetivo.reduce((acumulado, producto) => acumulado + producto.precio, 0);
+  const presupuestoCategoria = Math.max(presupuestoMonedas, totalCategoriaObjetivo);
   const cliente = obtenerClienteNivel(indiceRonda);
 
   switch (modoObjetivo) {
@@ -133,26 +194,23 @@ const construirObjetivoPorModo = ({ configuracion, oferta, indiceRonda }) => {
       return {
         modo: modoObjetivo,
         cantidadObjetivos,
-        presupuestoObjetivo: Math.min(presupuestoMonedas, totalSugerido),
+        presupuestoObjetivo: totalSugerido,
         categoriaObjetivo: null,
-        textoGuia: `${cliente} necesita ${cantidadObjetivos} productos. Usa exactamente ${Math.min(
-          presupuestoMonedas,
-          totalSugerido,
-        )} monedas.`,
+        textoGuia: `${cliente} necesita ${cantidadObjetivos} productos. Usa exactamente ${totalSugerido} monedas.`,
       };
     case MODOS_OBJETIVO_MERCADO.categoriaObjetivo:
       return {
         modo: modoObjetivo,
         cantidadObjetivos,
-        presupuestoObjetivo: presupuestoMonedas,
+        presupuestoObjetivo: presupuestoCategoria,
         categoriaObjetivo,
-        textoGuia: `${cliente} quiere ${cantidadObjetivos} productos de ${categoriaObjetivo} sin pasar ${presupuestoMonedas} monedas.`,
+        textoGuia: `${cliente} quiere ${cantidadObjetivos} productos de ${categoriaObjetivo} sin pasar ${presupuestoCategoria} monedas.`,
       };
     case MODOS_OBJETIVO_MERCADO.cantidadYCategoria:
       return {
         modo: modoObjetivo,
         cantidadObjetivos,
-        presupuestoObjetivo: presupuestoMonedas,
+        presupuestoObjetivo: presupuestoCategoria,
         categoriaObjetivo,
         textoGuia: `${cliente} esta buscando ${cantidadObjetivos} productos de ${categoriaObjetivo}.`,
       };

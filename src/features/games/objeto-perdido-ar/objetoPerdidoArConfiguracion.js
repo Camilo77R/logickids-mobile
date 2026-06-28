@@ -4,10 +4,10 @@ const CONFIGURACION_NIVELES = Object.freeze({
   1: Object.freeze({
     rondasPorPartida: 3,
     objetosPorRonda: 3,
-    tiempoLimiteMs: 25000,
+    tiempoLimiteMs: 26000,
     ayudasDisponibles: 2,
     escalaObjeto: 1.12,
-    tipoMision: 'nombre-color',
+    tipoMision: 'figura',
     zonaBusqueda: {
       ancho: 3,
       profundidad: 3,
@@ -20,10 +20,10 @@ const CONFIGURACION_NIVELES = Object.freeze({
   2: Object.freeze({
     rondasPorPartida: 3,
     objetosPorRonda: 4,
-    tiempoLimiteMs: 20000,
+    tiempoLimiteMs: 22000,
     ayudasDisponibles: 1,
     escalaObjeto: 1,
-    tipoMision: 'nombre-color',
+    tipoMision: 'figura-color',
     zonaBusqueda: {
       ancho: 3.2,
       profundidad: 3.2,
@@ -36,10 +36,10 @@ const CONFIGURACION_NIVELES = Object.freeze({
   3: Object.freeze({
     rondasPorPartida: 4,
     objetosPorRonda: 5,
-    tiempoLimiteMs: 16000,
+    tiempoLimiteMs: 17000,
     ayudasDisponibles: 1,
-    escalaObjeto: 0.92,
-    tipoMision: 'caracteristica',
+    escalaObjeto: 0.94,
+    tipoMision: 'color-forma',
     zonaBusqueda: {
       ancho: 3.4,
       profundidad: 3.4,
@@ -52,10 +52,10 @@ const CONFIGURACION_NIVELES = Object.freeze({
   4: Object.freeze({
     rondasPorPartida: 5,
     objetosPorRonda: 6,
-    tiempoLimiteMs: 12000,
-    ayudasDisponibles: 1,
-    escalaObjeto: 0.82,
-    tipoMision: 'condicion',
+    tiempoLimiteMs: 13000,
+    ayudasDisponibles: 0,
+    escalaObjeto: 0.86,
+    tipoMision: 'color-forma',
     zonaBusqueda: {
       ancho: 3.6,
       profundidad: 3.6,
@@ -195,6 +195,9 @@ export const resolverConfiguracionObjetoPerdidoArDesdeBackend = ({
       objetosPorRonda: gameConfig.objetos_por_ronda,
       tiempoLimiteMs: gameConfig.tiempo_limite_ms,
       ayudasDisponibles: gameConfig.ayudas_disponibles,
+      escalaObjeto: gameConfig.escala_objeto,
+      tipoMision: gameConfig.tipo_mision,
+      zonaBusqueda: gameConfig.zona_busqueda,
     },
   });
 };

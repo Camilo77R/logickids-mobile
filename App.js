@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import {
   Poppins_400Regular,
@@ -39,6 +39,7 @@ export default function App() {
   const [apiSettingsError, setApiSettingsError] = useState('');
   const [apiSettingsLoaded, setApiSettingsLoaded] = useState(false);
   const [processingQr, setProcessingQr] = useState(false);
+  const qrRequestInFlightRef = useRef(false);
   const [apiBaseUrl, setApiBaseUrl] = useState('');
   const canConfigureConnection = canConfigureApiAtRuntime();
   const needsApiConfiguration = !apiBaseUrl || isLoopbackApiBaseUrl(apiBaseUrl);
@@ -116,10 +117,11 @@ export default function App() {
   const grantAccess = async (rawQrValue) => {
     const qrToken = extractQrToken(rawQrValue);
 
-    if (!qrToken || processingQr) {
+    if (!qrToken || processingQr || qrRequestInFlightRef.current) {
       return;
     }
 
+    qrRequestInFlightRef.current = true;
     setProcessingQr(true);
     setScannerError('');
 
@@ -131,6 +133,7 @@ export default function App() {
       setScannerError(message);
       Alert.alert('QR no validado', message);
     } finally {
+      qrRequestInFlightRef.current = false;
       setProcessingQr(false);
     }
   };

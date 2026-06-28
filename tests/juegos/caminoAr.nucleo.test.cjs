@@ -13,7 +13,10 @@ const {
   ESTADOS_FINALIZACION_SESION,
 } = require('../../src/features/games/core/contratoSesionJuego.js');
 const {
+  construirMetadataResultadoCaminoAr,
   construirResumenPartida,
+  crearPatronAleatorio,
+  MOTIVOS_FIN_CAMINO_AR,
 } = require('../../src/features/games/camino-ar/caminoArMotor.js');
 const {
   construirEscenaCaminoAr,
@@ -42,13 +45,57 @@ test('normalizarConfiguracionCaminoAr usa defaults seguros y valida modo de pres
     },
   });
 
-  assert.equal(configuracion.dificultad, 2);
+  assert.equal(configuracion.dificultad, 1);
   assert.equal(
     configuracion.modoPresentacion,
     MODO_PRESENTACION_CAMINO_AR,
   );
-  assert.equal(configuracion.configuracion.cantidadBaldosas, 6);
+  assert.equal(configuracion.configuracion.cantidadBaldosas, 4);
   assert.equal(configuracion.configuracion.longitudPatron, 5);
+});
+
+test('normalizarConfiguracionCaminoAr acepta cero pistas en el reto maximo', () => {
+  const configuracion = normalizarConfiguracionCaminoAr({
+    dificultad: 4,
+    configuracion: {
+      ayudasDisponibles: 0,
+      erroresPermitidos: 1,
+    },
+  });
+
+  assert.equal(configuracion.configuracion.ayudasDisponibles, 0);
+  assert.equal(configuracion.configuracion.erroresPermitidos, 1);
+});
+
+test('crearPatronAleatorio evita repetir la misma baldosa de forma consecutiva', () => {
+  for (let intento = 0; intento < 25; intento += 1) {
+    const patron = crearPatronAleatorio({ cantidadBaldosas: 4, longitudPatron: 12 });
+
+    patron.slice(1).forEach((baldosa, indice) => {
+      assert.notEqual(baldosa, patron[indice]);
+    });
+  }
+});
+
+test('construirMetadataResultadoCaminoAr entrega el contrato que consume la adaptacion', () => {
+  const metadata = construirMetadataResultadoCaminoAr({
+    exito: false,
+    motivoFin: MOTIVOS_FIN_CAMINO_AR.tiempoAgotado,
+    patron: [0, 1, 2, 3],
+    aciertos: 3,
+    errores: 0,
+    ayudasUsadas: 1,
+  });
+
+  assert.deepEqual(metadata, {
+    game: 'camino-ar',
+    end_reason: 'tiempo_agotado',
+    pattern_resolved: false,
+    progress_pct: 75,
+    hints_used: 1,
+    errors: 0,
+    pattern_length: 4,
+  });
 });
 
 test('crearEventoSesion rechaza tipos de evento no soportados por backend', () => {

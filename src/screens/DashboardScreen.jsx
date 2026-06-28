@@ -650,6 +650,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const [activeGame, setActiveGame] = useState(null);
   const [activeGameContext, setActiveGameContext] = useState(null);
   const [activeGameResultVisible, setActiveGameResultVisible] = useState(false);
+  const [isSyncingNextRouteStep, setIsSyncingNextRouteStep] = useState(false);
   const [showGamePath, setShowGamePath] = useState(false);
   const [skillsExpanded, setSkillsExpanded] = useState(false);
   const [expandedSkillId, setExpandedSkillId] = useState(null);
@@ -1038,12 +1039,28 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     openActivityBySlug(skill.gameSlug);
   };
 
-  const exitGame = () => {
+  const exitGame = useCallback(async () => {
+    const shouldSyncBeforeMap =
+      activeGameContext?.sesionModo === 'path' || studentProfile?.sesion_modo === 'path';
+
+    setActiveGameResultVisible(false);
+
+    if (shouldSyncBeforeMap) {
+      try {
+        setIsSyncingNextRouteStep(true);
+        await reloadDashboard({ silent: true });
+      } finally {
+        setIsSyncingNextRouteStep(false);
+        setActiveGame(null);
+        setActiveGameContext(null);
+      }
+      return;
+    }
+
     setActiveGame(null);
     setActiveGameContext(null);
-    setActiveGameResultVisible(false);
-    void reloadDashboard();
-  };
+    void reloadDashboard({ silent: true });
+  }, [activeGameContext?.sesionModo, reloadDashboard, studentProfile?.sesion_modo]);
 
   const handleGameResultVisible = useCallback(() => {
     setActiveGameResultVisible(true);
@@ -1155,12 +1172,25 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     const { ScreenComponent, config, sessionContext } = activeGameScreen;
 
     return (
-      <ScreenComponent
-        onSalir={exitGame}
-        onResultadoVisible={handleGameResultVisible}
-        configuracionInicial={config}
-        contextoSesion={sessionContext}
-      />
+      <View style={styles.activeGameShell}>
+        <ScreenComponent
+          onSalir={exitGame}
+          onResultadoVisible={handleGameResultVisible}
+          configuracionInicial={config}
+          contextoSesion={sessionContext}
+        />
+        {isSyncingNextRouteStep ? (
+          <View style={styles.routeStepSyncOverlay} pointerEvents="auto">
+            <View style={styles.routeStepSyncCard}>
+              <ActivityIndicator color={colors.yellow} size="large" />
+              <Text style={styles.routeStepSyncTitle}>Preparando tu siguiente reto</Text>
+              <Text style={styles.routeStepSyncText}>
+                Estamos actualizando la ruta para mostrarte el proximo juego.
+              </Text>
+            </View>
+          </View>
+        ) : null}
+      </View>
     );
   }
 
@@ -2099,6 +2129,40 @@ function NavItem({ icon, label, active, onPress }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: DASHBOARD_BACKGROUND },
+  activeGameShell: { flex: 1 },
+  routeStepSyncOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+    backgroundColor: 'rgba(19, 33, 43, 0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+  },
+  routeStepSyncCard: {
+    width: '88%',
+    maxWidth: 420,
+    borderRadius: 28,
+    backgroundColor: '#213844',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.xl,
+    borderWidth: 2,
+    borderColor: colors.yellow,
+    ...shadows.soft,
+  },
+  routeStepSyncTitle: {
+    color: colors.white,
+    fontFamily: fonts.black,
+    fontSize: 22,
+    textAlign: 'center',
+  },
+  routeStepSyncText: {
+    color: '#EAF2F5',
+    fontFamily: fonts.semiBold,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
   safeArea: { flex: 1 },
   content: {
     paddingHorizontal: 16,

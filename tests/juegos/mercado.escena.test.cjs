@@ -281,6 +281,14 @@ test('Pantalla 2 protege layout y safe-area en 640x360 y 667x375', () => {
     estilos,
     /\.mercado-resultado__recompensa\{width:100%;max-height:100%;min-height:0/,
   );
+  assert.match(
+    estilos,
+    /\.mercado-escaparate \.mercado-producto:nth-of-type\(5\)\{grid-column:1;grid-row:2\}/,
+  );
+  assert.match(
+    estilos,
+    /\.mercado-escaparate \.mercado-producto:nth-of-type\(6\)\{grid-column:4;grid-row:2\}/,
+  );
 });
 
 test('Pantalla 2 no afirma guardado exitoso cuando la persistencia falla', () => {
@@ -554,18 +562,24 @@ test('Pantalla 3 oculta volver al tablero mientras guarda el cierre final', () =
   assert.doesNotMatch(html, /Finalizar y volver al tablero/i);
 });
 
-test('Salir de Mercado desmonta el juego antes de refrescar el tablero', () => {
+test('Salir de un juego sincroniza ruta antes del mapa y conserva salida rapida en single', () => {
   const dashboardPath = path.resolve(__dirname, '../../src/screens/DashboardScreen.jsx');
   const dashboardSource = fs.readFileSync(dashboardPath, 'utf8');
   const exitGameBody = dashboardSource.match(
-    /const exitGame = \(\) => \{([\s\S]*?)\n  \};/,
+    /const exitGame = useCallback\(async \(\) => \{([\s\S]*?)\n  \}, \[/,
   )?.[1];
 
   assert.ok(exitGameBody, 'Debe existir el flujo explicito exitGame.');
+  assert.match(exitGameBody, /shouldSyncBeforeMap/);
   assert.ok(
-    exitGameBody.indexOf('setActiveGame(null)') <
-      exitGameBody.indexOf('void reloadDashboard()'),
-    'El juego debe desmontarse antes de iniciar la recarga remota.',
+    exitGameBody.indexOf('await reloadDashboard({ silent: true })') <
+      exitGameBody.indexOf('setActiveGame(null)'),
+    'La ruta pedagogica debe refrescar el siguiente paso antes de volver al mapa.',
+  );
+  assert.ok(
+    exitGameBody.lastIndexOf('setActiveGame(null)') <
+      exitGameBody.lastIndexOf('void reloadDashboard({ silent: true })'),
+    'La actividad single debe desmontarse antes de iniciar la recarga remota.',
   );
 });
 
