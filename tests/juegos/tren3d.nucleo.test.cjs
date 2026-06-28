@@ -5,6 +5,7 @@ const {
   calcularAdaptacionInterNivel,
   generarPatronNivel,
   normalizarConfiguracionTren3D,
+  resolverNivelesPorPartidaTren3D,
   resolverConfiguracionTren3DDesdeBackend,
 } = require('../../src/features/games/tren-3d/tren3dConfiguracion.js');
 const {
@@ -33,6 +34,24 @@ test('normalizarConfiguracionTren3D limita dificultad y conserva defaults seguro
   assert.equal(configuracion.slug, SLUG_TREN_3D);
   assert.equal(configuracion.nivelesPorPartida, 4);
   assert.equal(configuracion.vagonesPorNivel, 10);
+});
+
+test('resolverNivelesPorPartidaTren3D limita Tren a un tramo en ruta pedagogica', () => {
+  assert.equal(
+    resolverNivelesPorPartidaTren3D({
+      nivelesPorPartida: 4,
+      contextoSesion: { sesionModo: 'path' },
+    }),
+    1,
+  );
+
+  assert.equal(
+    resolverNivelesPorPartidaTren3D({
+      nivelesPorPartida: 3,
+      contextoSesion: { sesionModo: 'single' },
+    }),
+    3,
+  );
 });
 
 test('generarPatronNivel crea patrones deterministas por dificultad', () => {

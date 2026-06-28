@@ -17,6 +17,7 @@ const CONFIGURACION_BASE = Object.freeze({
   versionAdaptacion: 'v2-mercado-3d-babylon',
   modoPresentacion: MODO_PRESENTACION_MERCADO,
   rondasPorPartida: 1,
+  semillaRonda: 0,
   configuracion: Object.freeze({
     presupuestoMonedas: 8,
     cantidadProductosVisibles: 3,
@@ -33,6 +34,16 @@ const asegurarEnteroPositivo = (valor, respaldo) => {
   const numero = Number(valor);
 
   if (!Number.isInteger(numero) || numero <= 0) {
+    return respaldo;
+  }
+
+  return numero;
+};
+
+const normalizarEnteroNoNegativo = (valor, respaldo = 0) => {
+  const numero = Number(valor);
+
+  if (!Number.isInteger(numero) || numero < 0) {
     return respaldo;
   }
 
@@ -81,6 +92,10 @@ export const normalizarConfiguracionMercado = (entrada = {}) => {
       entrada.rondasPorPartida,
       CONFIGURACION_BASE.rondasPorPartida,
     ),
+    semillaRonda: Math.max(
+      0,
+      normalizarEnteroNoNegativo(entrada.semillaRonda, CONFIGURACION_BASE.semillaRonda),
+    ),
     configuracion: {
       presupuestoMonedas: asegurarEnteroPositivo(
         configuracionEntrada.presupuestoMonedas,
@@ -127,9 +142,10 @@ export const resolverConfiguracionMercadoDesdeBackend = ({
 
   return normalizarConfiguracionMercado({
     ...configuracionLocal,
-    dificultad: gameConfig.dificultad ?? respuestaInicioSesion?.sesion?.dificultad,
-    rondasPorPartida: gameConfig.rondas_por_partida,
-    configuracion: {
+      dificultad: gameConfig.dificultad ?? respuestaInicioSesion?.sesion?.dificultad,
+      rondasPorPartida: gameConfig.rondas_por_partida,
+      semillaRonda: gameConfig.semilla_ronda,
+      configuracion: {
       ...configuracionLocal.configuracion,
       presupuestoMonedas: gameConfig.presupuesto_monedas,
       cantidadProductosVisibles: gameConfig.cantidad_productos_visibles,

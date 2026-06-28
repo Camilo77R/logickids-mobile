@@ -62,7 +62,7 @@ export const crearResultadoUiMercadoPremium = ({
     primaryAction: errorSincronizacionResultado ? 'retry-save' : 'continue',
     primaryDisabled: sincronizandoResultado,
     syncLabel: errorSincronizacionResultado
-      ? 'No pudimos guardar todavía. Revisa tu conexión e inténtalo otra vez.'
+      ? `No pudimos guardar todavía: ${errorSincronizacionResultado}`
       : sincronizandoResultado
         ? 'Resultado listo. Guardamos tu progreso en segundo plano.'
         : 'Tu progreso quedó guardado.',

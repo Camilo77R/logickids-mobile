@@ -19,6 +19,7 @@ import {
   generarPatronNivel,
   normalizarConfiguracionTren3D,
   obtenerParametrosDificultad,
+  resolverNivelesPorPartidaTren3D,
   resolverConfiguracionTren3DDesdeBackend,
 } from './tren3dConfiguracion';
 import {
@@ -490,8 +491,15 @@ export default function Tren3DScreen({
 }) {
   const viewport = useWindowDimensions();
   const configuracionBase = useMemo(
-    () => normalizarConfiguracionTren3D(configuracionInicial),
-    [configuracionInicial],
+    () =>
+      normalizarConfiguracionTren3D({
+        ...configuracionInicial,
+        nivelesPorPartida: resolverNivelesPorPartidaTren3D({
+          nivelesPorPartida: configuracionInicial?.nivelesPorPartida,
+          contextoSesion,
+        }),
+      }),
+    [configuracionInicial, contextoSesion],
   );
   const [configuracion, setConfiguracion] = useState(configuracionBase);
   const [preparacionLista, setPreparacionLista] = useState(false);
@@ -1086,19 +1094,32 @@ export default function Tren3DScreen({
 
   if (!preparacionLista) {
     return (
-      <SafeAreaView style={[styles.contenedor, styles.preparacionContenedor]}>
-        <Text style={styles.preparacionTitulo}>Preparando el tren</Text>
-        <Text style={styles.preparacionTexto}>
-          {sesionTren.persistencia.error ?? 'Estamos ajustando la velocidad y las vueltas para ti.'}
-        </Text>
-        {sesionTren.persistencia.error ? (
-          <TouchableOpacity
-            style={styles.preparacionBoton}
-            onPress={() => setRevisionPreparacion((revision) => revision + 1)}
-          >
-            <Text style={styles.preparacionBotonTexto}>Intentar de nuevo</Text>
-          </TouchableOpacity>
-        ) : null}
+      <SafeAreaView style={styles.contenedor}>
+        <ImageBackground
+          source={fondoTrenInicio}
+          resizeMode="cover"
+          style={styles.portadaOverlay}
+        >
+          <View style={styles.portadaSombra} />
+          <View style={styles.cargaMotorPanel}>
+            {sesionTren.persistencia.error ? null : (
+              <ActivityIndicator color={colores.alerta} size="large" />
+            )}
+            <Text style={styles.cargaMotorTitulo}>Preparando el tren</Text>
+            <Text style={styles.cargaMotorTexto}>
+              {sesionTren.persistencia.error ?? 'Un momento mientras llega a la estacion.'}
+            </Text>
+            {sesionTren.persistencia.error ? (
+              <TouchableOpacity
+                activeOpacity={0.86}
+                style={styles.botonReintentarMotor}
+                onPress={() => setRevisionPreparacion((revision) => revision + 1)}
+              >
+                <Text style={styles.botonReintentarMotorTexto}>Intentar de nuevo</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </ImageBackground>
       </SafeAreaView>
     );
   }

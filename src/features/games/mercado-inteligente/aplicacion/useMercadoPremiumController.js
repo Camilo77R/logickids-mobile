@@ -82,9 +82,15 @@ const resolverSiguientePasoSesion = ({ respuestaInicio, respuestaFinalizacion })
   };
 };
 
+const resolverIndiceRondaMercado = ({ nivel, configuracion }) =>
+  Math.max(0, nivel - 1) + normalizarEnteroPositivo(configuracion?.semillaRonda, 0);
+
 const construirEstadoInicial = (configuracion) => ({
   fase: FASES_MERCADO_PREMIUM.preparando,
-  ronda: generarRondaMercado({ configuracion, indiceRonda: 0 }),
+  ronda: generarRondaMercado({
+    configuracion,
+    indiceRonda: resolverIndiceRondaMercado({ nivel: 1, configuracion }),
+  }),
   seleccionadosIds: [],
   aciertos: 0,
   errores: 0,
@@ -314,7 +320,7 @@ export const useMercadoPremiumController = ({
     });
     const ronda = generarRondaMercado({
       configuracion,
-      indiceRonda: Math.max(0, nivel - 1),
+      indiceRonda: resolverIndiceRondaMercado({ nivel, configuracion }),
     });
 
     setConfiguracionActiva(configuracion);

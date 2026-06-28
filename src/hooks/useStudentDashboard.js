@@ -140,7 +140,10 @@ export const useStudentDashboard = (
 
   const loadDashboard = async ({ silent = false } = {}) => {
     if (!service || dashboardRequestInFlightRef.current) {
-      return;
+      if (dashboardRequestInFlightRef.current) {
+        pendingDashboardRefreshRef.current = true;
+      }
+      return null;
     }
 
     dashboardRequestInFlightRef.current = true;
@@ -157,15 +160,17 @@ export const useStudentDashboard = (
         setDashboard(nextDashboard);
         setErrorMessage('');
       }
+      return nextDashboard;
     } catch (error) {
       if (isAuthenticationError(error)) {
         onSessionExpired?.();
-        return;
+        return null;
       }
 
       if (isMountedRef.current) {
         setErrorMessage(error.message || 'No pudimos cargar tu dashboard.');
       }
+      return null;
     } finally {
       dashboardRequestInFlightRef.current = false;
 
@@ -319,6 +324,6 @@ export const useStudentDashboard = (
     isLoading,
     isRefreshing,
     errorMessage,
-    reloadDashboard: () => requestDashboardReload({ silent: true }),
+    reloadDashboard: ({ silent = true } = {}) => loadDashboard({ silent }),
   };
 };

@@ -89,6 +89,21 @@ const asegurarEnteroPositivo = (valor, respaldo) => {
 const asegurarMaxOpcionesFiguras = (valor, respaldo = MAX_OPCIONES_FIGURAS) =>
   Math.max(1, Math.min(MAX_OPCIONES_FIGURAS, asegurarEnteroPositivo(valor, respaldo)));
 
+const esRutaPedagogica = (contextoSesion = {}) =>
+  contextoSesion?.sesionModo === 'path';
+
+export const resolverNivelesPorPartidaTren3D = ({
+  nivelesPorPartida,
+  contextoSesion,
+  respaldo = CONFIGURACION_BASE.nivelesPorPartida,
+} = {}) => {
+  if (esRutaPedagogica(contextoSesion)) {
+    return 1;
+  }
+
+  return asegurarEnteroPositivo(nivelesPorPartida, respaldo);
+};
+
 export const clampDificultadTren3D = (valor) => {
   const numero = Number(valor);
   const dificultad = Number.isFinite(numero) ? Math.round(numero) : DIFICULTAD_MINIMA;

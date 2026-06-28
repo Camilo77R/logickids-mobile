@@ -51,6 +51,18 @@ const construirPersistenciaInicial = (modo) => ({
 
 const resolverMensajeError = (error) =>
   error instanceof Error ? error.message : 'Ocurrio un error al persistir la sesion del mercado.';
+const logMercadoPersistenceError = (contexto, error) => {
+  if (typeof console?.warn !== 'function') {
+    return;
+  }
+
+  console.warn(`[Mercado] ${contexto}`, {
+    message: resolverMensajeError(error),
+    status: error?.status ?? null,
+    code: error?.code ?? null,
+    data: error?.data ?? null,
+  });
+};
 
 const tieneIdentidadFinalizacion = (finalizacion) =>
   typeof finalizacion?.finalization_id === 'string' &&
@@ -168,6 +180,7 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
 
       return respuestaInicio;
     } catch (error) {
+      logMercadoPersistenceError('persistencia remota', error);
       setPersistencia((previo) => ({
         ...previo,
         estado: ESTADOS_PERSISTENCIA_MERCADO.error,
@@ -276,6 +289,7 @@ export const useSesionMercado = ({ configuracion, contextoSesion }) => {
           error: null,
         }));
       } catch (error) {
+        logMercadoPersistenceError('finalizacion remota', error);
         setPersistencia((previo) => ({
           ...previo,
           estado: ESTADOS_PERSISTENCIA_MERCADO.error,

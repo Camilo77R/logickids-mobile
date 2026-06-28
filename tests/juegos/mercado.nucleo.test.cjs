@@ -58,12 +58,14 @@ test('resolverConfiguracionMercadoDesdeBackend adapta game_config al formato loc
         categorias_permitidas: ['verduras', 'lacteos'],
         modo_objetivo: MODOS_OBJETIVO_MERCADO.categoriaObjetivo,
         ayudas_disponibles: 2,
+        semilla_ronda: 11,
       },
     },
   });
 
   assert.equal(configuracion.dificultad, 3);
   assert.equal(configuracion.rondasPorPartida, 4);
+  assert.equal(configuracion.semillaRonda, 11);
   assert.equal(configuracion.configuracion.presupuestoMonedas, 12);
   assert.deepEqual(configuracion.configuracion.categoriasPermitidas, ['verduras', 'lacteos']);
 });
@@ -103,6 +105,43 @@ test('generarOfertaMercado y generarRondaMercado producen estructuras determinis
   assert.deepEqual(oferta.map((producto) => producto.precio), [4, 2, 4, 2]);
   assert.equal(ronda.objetivo.cantidadObjetivos, 2);
   assert.match(ronda.objetivo.textoGuia, /Elige 2 productos/i);
+});
+
+test('semilla de ronda permite variar Mercado en rutas repetidas', () => {
+  const configuracion = normalizarConfiguracionMercado({
+    dificultad: 3,
+    semillaRonda: 7,
+    configuracion: {
+      categoriasPermitidas: ['frutas', 'verduras', 'lacteos', 'panaderia'],
+      cantidadProductosVisibles: 6,
+      cantidadObjetivos: 3,
+      precioMin: 2,
+      precioMax: 6,
+      modoObjetivo: MODOS_OBJETIVO_MERCADO.categoriaObjetivo,
+    },
+  });
+
+  const rondaBase = generarRondaMercado({ configuracion, indiceRonda: 0 });
+  const rondaVariada = generarRondaMercado({
+    configuracion,
+    indiceRonda: configuracion.semillaRonda,
+  });
+  const seleccion = rondaVariada.oferta
+    .filter((producto) => producto.categoria === rondaVariada.objetivo.categoriaObjetivo)
+    .slice(0, rondaVariada.objetivo.cantidadObjetivos);
+
+  assert.notDeepEqual(
+    rondaBase.oferta.map((producto) => `${producto.id}:${producto.precio}`),
+    rondaVariada.oferta.map((producto) => `${producto.id}:${producto.precio}`),
+  );
+  assert.equal(seleccion.length, rondaVariada.objetivo.cantidadObjetivos);
+  assert.equal(
+    evaluarSeleccionMercado({
+      ronda: rondaVariada,
+      productosSeleccionadosIds: seleccion.map(({ id }) => id),
+    }).exito,
+    true,
+  );
 });
 
 test('generarRondaMercado garantiza objetivos de categoria alcanzables', () => {
