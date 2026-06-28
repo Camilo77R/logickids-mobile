@@ -23,6 +23,7 @@ import {
 import { colores, espaciado, radios } from '../../../../theme/tokens';
 import { caminoArTheme, resolverColorInsigniaCaminoAr } from '../caminoArTheme';
 import { ESTADOS_CAMINO_AR } from '../caminoAr.constants';
+import { resolveAchievementIcon } from '../../core/achievementIcon';
 import { useCaminoArAudio } from '../useCaminoArAudio';
 import MascotaGuiaJuego from '../../core/MascotaGuiaJuego';
 import CaminoArGuiaInicial from './CaminoArGuiaInicial';
@@ -745,7 +746,7 @@ export default function CaminoArVistaArViro({
                   <View style={styles.listaLogrosResultado}>
                     <Text style={styles.resumenResultadoTitulo}>Logros nuevos</Text>
                     {escena.resultado.logros.map((logro) => {
-                      const iconoLogro = logro.icono ?? logro.icono_logro ?? logro.emoji ?? '★';
+                      const iconoLogro = resolveAchievementIcon(logro);
 
                       return (
                         <View

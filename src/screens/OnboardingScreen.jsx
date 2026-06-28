@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Dimensions, Image, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Dimensions, Image, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,7 +16,7 @@ const loadExpoVideoModule = () => {
   try {
     const videoModule = require('expo-video');
 
-    if (!videoModule.VideoView || !videoModule.useVideoPlayer) {
+    if (!videoModule.VideoView || !videoModule.createVideoPlayer) {
       return null;
     }
 
@@ -30,11 +30,40 @@ const expoVideoModule = loadExpoVideoModule();
 
 function WelcomeVideoPlayer({ source }) {
   const VideoView = expoVideoModule.VideoView;
-  const player = expoVideoModule.useVideoPlayer(source, (videoPlayer) => {
+  const [player, setPlayer] = useState(null);
+
+  useEffect(() => {
+    const videoPlayer = expoVideoModule.createVideoPlayer(source);
+
     videoPlayer.loop = true;
     videoPlayer.muted = true;
     videoPlayer.play();
-  });
+    setPlayer(videoPlayer);
+
+    return () => {
+      setPlayer(null);
+
+      try {
+        videoPlayer.pause();
+      } catch {
+        // Si el reproductor ya fue liberado por nativo no volvemos a fallar.
+      }
+
+      try {
+        videoPlayer.release();
+      } catch {
+        // release es idempotente para nuestro flujo de salida defensiva.
+      }
+    };
+  }, [source]);
+
+  if (!player) {
+    return (
+      <View style={styles.videoLoading}>
+        <ActivityIndicator color={colors.purple} />
+      </View>
+    );
+  }
 
   return (
     <VideoView
@@ -67,6 +96,7 @@ function WelcomeMedia() {
 }
 
 export default function OnboardingScreen({ onStart }) {
+  const [videoEnabled, setVideoEnabled] = useState(true);
   const insets = useSafeAreaInsets();
   const { width, height } = Dimensions.get('window');
   const ctaBottomPadding = insets.bottom + 22;
@@ -90,6 +120,13 @@ export default function OnboardingScreen({ onStart }) {
       videoSize,
     };
   }, [buttonSpace, height, insets.bottom, insets.top, width]);
+
+  const handleStart = useCallback(() => {
+    setVideoEnabled(false);
+    requestAnimationFrame(() => {
+      onStart?.();
+    });
+  }, [onStart]);
 
   return (
     <BrandBackground>
@@ -115,7 +152,7 @@ export default function OnboardingScreen({ onStart }) {
               },
             ]}
           >
-            <WelcomeMedia />
+            {videoEnabled ? <WelcomeMedia /> : <WelcomeVideoFallback />}
           </View>
 
           <View style={[styles.copyBlock, { marginTop: sizes.copyGap }]}>
@@ -127,7 +164,7 @@ export default function OnboardingScreen({ onStart }) {
         </View>
 
         <View pointerEvents="box-none" style={[styles.cta, { paddingBottom: ctaBottomPadding }]}>
-          <PrimaryButton title="Comenzar" onPress={onStart} />
+          <PrimaryButton title="Comenzar" onPress={handleStart} />
         </View>
       </SafeAreaView>
     </BrandBackground>
@@ -149,6 +186,13 @@ const styles = StyleSheet.create({
   video: {
     width: '100%',
     height: '100%',
+  },
+  videoLoading: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
   },
   videoFallback: {
     width: '100%',

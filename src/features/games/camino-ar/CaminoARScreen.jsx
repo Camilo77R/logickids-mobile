@@ -9,6 +9,7 @@ import { ESTADOS_CAMINO_AR } from './caminoAr.constants';
 
 export default function CaminoARScreen({
   onSalir,
+  onResultadoVisible,
   configuracionInicial,
   contextoSesion,
 }) {
@@ -165,6 +166,7 @@ export default function CaminoARScreen({
         salirActividad: onSalir,
         puedePedirPista: controlador.puedePedirPista,
         preparandoRonda,
+        contextoSesion,
       }),
     [
       continuarActividad,
@@ -172,11 +174,18 @@ export default function CaminoARScreen({
       onSalir,
       preparandoRonda,
       solicitarInicioRonda,
+      contextoSesion,
       sesionCaminoAr.persistencia,
       sesionCaminoAr.respuestaFinalizacion,
       sesionCaminoAr.respuestaInicio,
     ],
   );
+
+  useEffect(() => {
+    if (controlador.estado.resultado) {
+      onResultadoVisible?.();
+    }
+  }, [controlador.estado.resultado, onResultadoVisible]);
   const escenaEspacial = useMemo(
     () =>
       construirEscenaEspacialCaminoAr({

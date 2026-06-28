@@ -25,6 +25,9 @@ const {
   shouldCloseActiveGame,
 } = require('../../src/features/games/core/activeGameLifecycle.js');
 const {
+  resolvePostGameNavigation,
+} = require('../../src/features/games/core/postGameFlow.js');
+const {
   resolveStudentAvatarUri,
 } = require('../../src/services/studentAvatar.service.js');
 
@@ -134,6 +137,39 @@ test('restauracion elimina token rechazado pero conserva token ante red caida', 
   assert.equal(clearCount, 1);
 });
 
+test('login por QR reutiliza la sesion local si la misma instalacion ya sigue activa', async () => {
+  const authentication = createStudentAuthenticationService({
+    baseUrl: 'https://api.logickids.test/api',
+    accessService: {
+      loginByQr: async () => {
+        throw new HttpRequestError('Ya existe una sesion activa', {
+          status: 409,
+          code: 'STUDENT_SESSION_ACTIVE',
+        });
+      },
+      fetchProfile: async () => ({ id: 8, nombre: 'Perfil restaurado' }),
+    },
+    credentialStorage: {
+      load: async () => ({
+        version: STUDENT_CREDENTIAL_SCHEMA_VERSION,
+        token: 'jwt-restaurable',
+        apiBaseUrl: 'https://api.logickids.test/api',
+        deviceSessionId: 'device-session-8',
+        expiresAt: '2030-01-01T12:00:00.000Z',
+      }),
+      save: async () => {},
+      clear: async () => {},
+    },
+    installationStorage: { getOrCreate: async () => 'installation-8' },
+    appVersion: '1.0.0',
+  });
+
+  const session = await authentication.loginByQr('qr-valido');
+
+  assert.equal(session.token, 'jwt-restaurable');
+  assert.equal(session.studentProfile.nombre, 'Perfil restaurado');
+});
+
 test('participante terminal sigue bloqueado aunque la sesion de clase este activa', () => {
   const access = resolverAccesoJuegoDesdePerfil({
     perfilEstudiante: {
@@ -179,7 +215,48 @@ test('cierre del tutor prevalece sobre una pantalla de resultado visible', () =>
     participantState: 'activo',
     resultVisible: true,
     sessionActive: false,
-  }), true);
+  }), false);
+});
+
+test('navegacion post-resultado solo deja continuar cuando backend confirma el mismo juego', () => {
+  const sameGameStep = resolvePostGameNavigation({
+    sessionContext: { sesionModo: 'single', sesionTotalPasos: 3, sesionNivelEnBloque: 1 },
+    responseStartSession: {
+      sesion: { minijuego_id: 7, nivel_en_bloque: 1, total_pasos: 3 },
+    },
+    responseFinalizationSession: {
+      progreso_ruta: {
+        haySiguientePaso: true,
+        participanteEstado: 'activo',
+        siguientePaso: { minijuego_id: 7 },
+      },
+    },
+  });
+
+  assert.equal(sameGameStep.mode, 'single');
+  assert.equal(sameGameStep.currentStep, 1);
+  assert.equal(sameGameStep.totalSteps, 3);
+  assert.equal(sameGameStep.shouldContinue, true);
+  assert.equal(sameGameStep.shouldExit, false);
+  assert.equal(sameGameStep.participanteEstado, 'activo');
+  assert.deepEqual(sameGameStep.siguientePaso, { minijuego_id: 7 });
+
+  assert.equal(
+    resolvePostGameNavigation({
+      sessionContext: { sesionModo: 'path' },
+      responseStartSession: {
+        sesion: { minijuego_id: 7 },
+      },
+      responseFinalizationSession: {
+        progreso_ruta: {
+          haySiguientePaso: true,
+          participanteEstado: 'activo',
+          siguientePaso: { minijuego_id: 9 },
+        },
+      },
+    }).shouldExit,
+    true,
+  );
 });
 
 test('avatar movil usa la misma semilla estable que el frontend', () => {
