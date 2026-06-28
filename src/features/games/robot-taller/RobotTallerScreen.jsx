@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRobotTallerControlador } from './useRobotTallerControlador';
 import { construirEscenaRobotTaller } from './robotTallerEscena';
 import { useSesionRobotTaller } from './aplicacion/useSesionRobotTaller';
@@ -7,6 +7,7 @@ import RobotTallerVista from './presentacion/RobotTallerVista';
 
 export default function RobotTallerScreen({
   onSalir,
+  onResultadoVisible,
   configuracionInicial,
   contextoSesion,
 }) {
@@ -63,17 +64,25 @@ export default function RobotTallerScreen({
         },
         salirActividad: onSalir,
         reiniciarPartida: controlador.reiniciarPartida,
+        contextoSesion,
       }),
     [
       configuracionEfectiva,
       controlador.estado,
       controlador.reiniciarPartida,
+      contextoSesion,
       onSalir,
       sesionRobotTaller.respuestaInicio,
       sesionRobotTaller.respuestaFinalizacion,
       sesionRobotTaller,
     ],
   );
+
+  useEffect(() => {
+    if (controlador.estado.resultado) {
+      onResultadoVisible?.();
+    }
+  }, [controlador.estado.resultado, onResultadoVisible]);
 
   return (
     <RobotTallerVista

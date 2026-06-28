@@ -1,4 +1,4 @@
-import { isAuthenticationError } from './http.service';
+import { isAuthenticationError, isStudentSessionActiveError } from './http.service';
 import { isStudentCredentialExpired } from './studentCredential.model';
 
 const normalizeBaseUrl = (baseUrl) => String(baseUrl ?? '').trim().replace(/\/+$/, '');
@@ -31,13 +31,63 @@ export const createStudentAuthenticationService = ({
     throw new Error('Autenticacion estudiantil requiere API, instalacion y almacenamiento seguro.');
   }
 
+  const restoreStoredSession = async () => {
+    const credential = await credentialStorage.load();
+
+    if (!credential) {
+      return null;
+    }
+
+    if (isStudentCredentialExpired(credential)) {
+      await credentialStorage.clear();
+      return null;
+    }
+
+    if (normalizeBaseUrl(credential.apiBaseUrl) !== apiBaseUrl) {
+      await credentialStorage.clear();
+      return null;
+    }
+
+    try {
+      const profile = await accessService.fetchProfile(credential.token);
+      return buildStudentSession({
+        token: credential.token,
+        profile,
+        apiBaseUrl,
+        deviceSessionId: credential.deviceSessionId,
+        expiresAt: credential.expiresAt,
+      });
+    } catch (error) {
+      if (isAuthenticationError(error)) {
+        await credentialStorage.clear();
+        return null;
+      }
+
+      throw error;
+    }
+  };
+
   return Object.freeze({
     async loginByQr(qrToken) {
       const installationId = await installationStorage.getOrCreate();
-      const loginData = await accessService.loginByQr(qrToken, {
-        installationId,
-        appVersion,
-      });
+      let loginData;
+
+      try {
+        loginData = await accessService.loginByQr(qrToken, {
+          installationId,
+          appVersion,
+        });
+      } catch (error) {
+        if (isStudentSessionActiveError(error)) {
+          const restoredSession = await restoreStoredSession();
+
+          if (restoredSession) {
+            return restoredSession;
+          }
+        }
+
+        throw error;
+      }
       const session = buildStudentSession({
         token: loginData.token,
         profile: loginData.estudiante,
@@ -51,39 +101,7 @@ export const createStudentAuthenticationService = ({
     },
 
     async restore() {
-      const credential = await credentialStorage.load();
-
-      if (!credential) {
-        return null;
-      }
-
-      if (isStudentCredentialExpired(credential)) {
-        await credentialStorage.clear();
-        return null;
-      }
-
-      if (normalizeBaseUrl(credential.apiBaseUrl) !== apiBaseUrl) {
-        await credentialStorage.clear();
-        return null;
-      }
-
-      try {
-        const profile = await accessService.fetchProfile(credential.token);
-        return buildStudentSession({
-          token: credential.token,
-          profile,
-          apiBaseUrl,
-          deviceSessionId: credential.deviceSessionId,
-          expiresAt: credential.expiresAt,
-        });
-      } catch (error) {
-        if (isAuthenticationError(error)) {
-          await credentialStorage.clear();
-          return null;
-        }
-
-        throw error;
-      }
+      return restoreStoredSession();
     },
 
     async refresh(session) {

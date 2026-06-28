@@ -52,6 +52,14 @@ test('resolverNivelesPorPartidaTren3D limita Tren a un tramo en ruta pedagogica'
     }),
     3,
   );
+
+  assert.equal(
+    resolverNivelesPorPartidaTren3D({
+      nivelesPorPartida: 4,
+      contextoSesion: { sesionModo: 'single', sesionTotalPasos: 1 },
+    }),
+    1,
+  );
 });
 
 test('generarPatronNivel crea patrones deterministas por dificultad', () => {

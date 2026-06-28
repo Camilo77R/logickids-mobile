@@ -1,4 +1,5 @@
 import { PARTES_ROBOT, FASES_ENSAMBLAGE, MODO_PRESENTACION_ROBOT_TALLER } from './robotTaller.constants';
+import { resolvePostGameNavigation, resolveSessionClosure } from '../core/postGameFlow';
 
 const resolverMensajeEstado = (fase, mensaje) =>
   fase === FASES_ENSAMBLAGE.completado ? 'Robot armado. Tus resultados quedaron guardados.' : mensaje;
@@ -17,44 +18,31 @@ const construirMetricasResultado = ({ resultado }) => [
   { etiqueta: 'Precision', valor: `${resultado.estadisticas.precisionPct}%` },
 ];
 
-const construirResumenCierreSesion = ({ respuestaInicioSesion, respuestaFinalizacionSesion }) => {
-  if (!respuestaFinalizacionSesion) return null;
-  const logros = Array.isArray(respuestaFinalizacionSesion.logros_desbloqueados)
-    ? respuestaFinalizacionSesion.logros_desbloqueados
-    : [];
-  const progreso = respuestaFinalizacionSesion.progreso_ruta ?? null;
-  const siguientePaso = progreso?.siguientePaso ?? null;
-  const minijuegoActualId = Number(respuestaInicioSesion?.sesion?.minijuego_id ?? 0);
-  const siguienteMinijuegoId = Number(siguientePaso?.minijuego_id ?? 0);
-  const siguienteEsMismoJuego =
-    Boolean(siguientePaso) &&
-    minijuegoActualId > 0 &&
-    siguienteMinijuegoId > 0 &&
-    minijuegoActualId === siguienteMinijuegoId;
-
-  return {
-    logros,
-    haySiguientePaso: Boolean(progreso?.haySiguientePaso),
-    siguienteEsMismoJuego,
-    participanteEstado: progreso?.participanteEstado ?? null,
-  };
-};
-
-const construirAccionesResultado = ({ cierreSesion, continuarActividad, salirActividad }) => {
-  if (!cierreSesion) {
+const construirAccionesResultado = ({ navegacionResultado, continuarActividad, salirActividad }) => {
+  if (!navegacionResultado) {
     return {
       accionContinuar: null,
       etiquetaContinuar: null,
-      accionSalir: salirActividad,
-      etiquetaSalir: 'Volver al tablero',
+      accionSalir: null,
+      etiquetaSalir: null,
       sincronizandoCierre: true,
     };
   }
 
-  if (cierreSesion.haySiguientePaso && cierreSesion.siguienteEsMismoJuego) {
+  if (navegacionResultado.shouldContinue) {
     return {
       accionContinuar: continuarActividad,
       etiquetaContinuar: 'Siguiente nivel',
+      accionSalir: null,
+      etiquetaSalir: null,
+      sincronizandoCierre: false,
+    };
+  }
+
+  if (navegacionResultado.shouldExit) {
+    return {
+      accionContinuar: null,
+      etiquetaContinuar: null,
       accionSalir: salirActividad,
       etiquetaSalir: 'Volver al tablero',
       sincronizandoCierre: false,
@@ -64,9 +52,9 @@ const construirAccionesResultado = ({ cierreSesion, continuarActividad, salirAct
   return {
     accionContinuar: null,
     etiquetaContinuar: null,
-    accionSalir: salirActividad,
-    etiquetaSalir: 'Volver al tablero',
-    sincronizandoCierre: false,
+    accionSalir: null,
+    etiquetaSalir: null,
+    sincronizandoCierre: true,
   };
 };
 
@@ -78,13 +66,24 @@ export const construirEscenaRobotTaller = ({
   continuarActividad,
   salirActividad,
   reiniciarPartida,
+  contextoSesion,
 }) => {
   const resultadoVisible = Boolean(estado.resultado);
   const cierreSesion = resultadoVisible
-    ? construirResumenCierreSesion({ respuestaInicioSesion, respuestaFinalizacionSesion })
+    ? resolveSessionClosure({
+        responseStartSession: respuestaInicioSesion,
+        responseFinalizationSession: respuestaFinalizacionSesion,
+      })
+    : null;
+  const navegacionResultado = resultadoVisible
+    ? resolvePostGameNavigation({
+        sessionContext: contextoSesion,
+        responseStartSession: respuestaInicioSesion,
+        responseFinalizationSession: respuestaFinalizacionSesion,
+      })
     : null;
   const accionesResultado = resultadoVisible
-    ? construirAccionesResultado({ cierreSesion, continuarActividad, salirActividad })
+    ? construirAccionesResultado({ navegacionResultado, continuarActividad, salirActividad })
     : null;
 
   return {

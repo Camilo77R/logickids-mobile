@@ -6,6 +6,7 @@ import ObjetoPerdidoArVistaViro from './presentacion/ObjetoPerdidoArVistaViro';
 
 export default function ObjetoPerdidoARScreen({
   onSalir,
+  onResultadoVisible,
   configuracionInicial,
   contextoSesion,
 }) {
@@ -116,9 +117,17 @@ export default function ObjetoPerdidoARScreen({
     await iniciarActividad({ tableroDisponible });
   }, [controlador, iniciarActividad, sesionObjetoPerdido]);
 
+  useEffect(() => {
+    if (controlador.estado.resultado) {
+      onResultadoVisible?.();
+    }
+  }, [controlador.estado.resultado, onResultadoVisible]);
+
   return (
     <ObjetoPerdidoArVistaViro
       onSalir={onSalir}
+      contextoSesion={contextoSesion}
+      respuestaInicioSesion={sesionObjetoPerdido.respuestaInicio}
       persistenciaSesion={sesionObjetoPerdido.persistencia}
       respuestaFinalizacionSesion={sesionObjetoPerdido.respuestaFinalizacion}
       preparandoPartida={preparandoPartida}

@@ -101,6 +101,15 @@ export const resolverNivelesPorPartidaTren3D = ({
     return 1;
   }
 
+  const nivelesSesion = asegurarEnteroPositivo(
+    contextoSesion?.sesionTotalPasos,
+    null,
+  );
+
+  if (nivelesSesion != null) {
+    return nivelesSesion;
+  }
+
   return asegurarEnteroPositivo(nivelesPorPartida, respaldo);
 };
 

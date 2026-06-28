@@ -16,8 +16,5 @@ export const shouldCloseActiveGame = ({
     return true;
   }
 
-  return (
-    !sessionActive ||
-    PARTICIPANT_STATES_REQUIRING_EXIT.has(participantState)
-  );
+  return PARTICIPANT_STATES_REQUIRING_EXIT.has(participantState);
 };

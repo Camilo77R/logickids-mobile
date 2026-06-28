@@ -1,4 +1,5 @@
 import { ESTADOS_CAMINO_AR } from './caminoAr.constants';
+import { resolvePostGameNavigation, resolveSessionClosure } from '../core/postGameFlow';
 
 const resolverDescripcionEstado = (fase) =>
   ({
@@ -154,36 +155,6 @@ const construirMetricasResultado = ({
   ];
 };
 
-const construirResumenCierreSesion = ({
-  respuestaInicioSesion,
-  respuestaFinalizacionSesion,
-}) => {
-  if (!respuestaFinalizacionSesion) {
-    return null;
-  }
-
-  const logros = Array.isArray(respuestaFinalizacionSesion.logros_desbloqueados)
-    ? respuestaFinalizacionSesion.logros_desbloqueados
-    : [];
-  const progreso = respuestaFinalizacionSesion.progreso_ruta ?? null;
-  const siguientePaso = progreso?.siguientePaso ?? null;
-  const minijuegoActualId = Number(respuestaInicioSesion?.sesion?.minijuego_id ?? 0);
-  const siguienteMinijuegoId = Number(siguientePaso?.minijuego_id ?? 0);
-  const siguienteEsMismoJuego =
-    Boolean(siguientePaso) &&
-    minijuegoActualId > 0 &&
-    siguienteMinijuegoId > 0 &&
-    minijuegoActualId === siguienteMinijuegoId;
-
-  return {
-    logros,
-    haySiguientePaso: Boolean(progreso?.haySiguientePaso),
-    siguienteEsMismoJuego,
-    participanteEstado: progreso?.participanteEstado ?? null,
-    resumenOficial: respuestaFinalizacionSesion?.resumen_oficial ?? null,
-  };
-};
-
 const resolverMensajeProgreso = ({ cierreSesion }) => {
   if (!cierreSesion) {
     return 'Resultado listo. Guardamos tu progreso en segundo plano.';
@@ -225,11 +196,11 @@ const construirCopyResultado = ({ resultado, cierreSesion, resumenInfantil }) =>
 };
 
 const construirAccionResultado = ({
-  cierreSesion,
+  navegacionResultado,
   continuarActividad,
   salirActividad,
 }) => {
-  if (!cierreSesion) {
+  if (!navegacionResultado) {
     return {
       accionContinuar: null,
       etiquetaContinuar: null,
@@ -239,17 +210,17 @@ const construirAccionResultado = ({
     };
   }
 
-  if (cierreSesion.haySiguientePaso && cierreSesion.siguienteEsMismoJuego) {
+  if (navegacionResultado.shouldContinue) {
     return {
       accionContinuar: continuarActividad,
       etiquetaContinuar: 'Siguiente reto',
-      accionSalir: salirActividad,
-      etiquetaSalir: 'Volver al tablero',
+      accionSalir: null,
+      etiquetaSalir: null,
       sincronizandoCierre: false,
     };
   }
 
-  if (cierreSesion.haySiguientePaso && !cierreSesion.siguienteEsMismoJuego) {
+  if (navegacionResultado.shouldExit) {
     return {
       accionContinuar: null,
       etiquetaContinuar: null,
@@ -262,12 +233,9 @@ const construirAccionResultado = ({
   return {
     accionContinuar: null,
     etiquetaContinuar: null,
-    accionSalir: salirActividad,
-    etiquetaSalir:
-      cierreSesion.participanteEstado === 'abandonado'
-        ? 'Salir'
-        : 'Volver al tablero',
-    sincronizandoCierre: false,
+    accionSalir: null,
+    etiquetaSalir: null,
+    sincronizandoCierre: true,
   };
 };
 
@@ -324,6 +292,7 @@ export const construirEscenaCaminoAr = ({
   usarPista,
   puedePedirPista,
   preparandoRonda = false,
+  contextoSesion = null,
 }) => ({
   salida: {
     permitida:
@@ -380,12 +349,19 @@ export const construirEscenaCaminoAr = ({
       };
     }
 
-    const cierreSesion = construirResumenCierreSesion({
-      respuestaInicioSesion,
-      respuestaFinalizacionSesion,
+    const cierreSesion = respuestaFinalizacionSesion
+      ? resolveSessionClosure({
+          responseStartSession: respuestaInicioSesion,
+          responseFinalizationSession: respuestaFinalizacionSesion,
+        })
+      : null;
+    const navegacionResultado = resolvePostGameNavigation({
+      sessionContext: contextoSesion,
+      responseStartSession: respuestaInicioSesion,
+      responseFinalizationSession: respuestaFinalizacionSesion,
     });
     const accionesResultado = construirAccionResultado({
-      cierreSesion,
+      navegacionResultado,
       continuarActividad,
       salirActividad,
     });

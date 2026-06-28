@@ -22,6 +22,7 @@ import {
   ViroText,
 } from '@reactvision/react-viro';
 import { ESTADOS_OBJETO_PERDIDO_AR } from '../objetoPerdidoAr.constants';
+import { resolvePostGameNavigation } from '../../core/postGameFlow';
 
 const FASES_ZONA_VISIBLE = new Set([
   ESTADOS_OBJETO_PERDIDO_AR.jugando,
@@ -105,20 +106,6 @@ const formatearSegundos = (milisegundos) =>
 
 const obtenerMetricaOficial = (respuestaFinalizacionSesion, clave, respaldo) =>
   respuestaFinalizacionSesion?.resumen_oficial?.[clave] ?? respaldo;
-
-const resolverSiguientePasoMismoJuego = ({ persistenciaSesion, respuestaFinalizacionSesion }) => {
-  const progreso = respuestaFinalizacionSesion?.progreso_ruta ?? null;
-  const siguientePaso = progreso?.siguientePaso ?? null;
-  const minijuegoActualId = Number(persistenciaSesion?.respuestaInicio?.sesion?.minijuego_id ?? 0);
-  const siguienteMinijuegoId = Number(siguientePaso?.minijuego_id ?? 0);
-
-  return (
-    Boolean(progreso?.haySiguientePaso) &&
-    minijuegoActualId > 0 &&
-    siguienteMinijuegoId > 0 &&
-    minijuegoActualId === siguienteMinijuegoId
-  );
-};
 
 const obtenerPosicionDesdePlano = (anchor) =>
   anchor?.position ??
@@ -383,6 +370,7 @@ function EscenaObjetoPerdidoAr(props) {
 
 export default function ObjetoPerdidoArVistaViro({
   onSalir,
+  contextoSesion,
   configuracion,
   estado,
   iniciarActividad,
@@ -394,6 +382,7 @@ export default function ObjetoPerdidoArVistaViro({
   puedePedirPista,
   preparandoPartida,
   persistenciaSesion,
+  respuestaInicioSesion,
   respuestaFinalizacionSesion,
 }) {
   const insets = useSafeAreaInsets();
@@ -480,12 +469,13 @@ export default function ObjetoPerdidoArVistaViro({
   ]);
 
   const resultadoVisible = Boolean(estado.resultado);
-  const puedeContinuarActividad =
-    persistenciaSesion?.modo !== 'remota' ||
-    resolverSiguientePasoMismoJuego({
-      persistenciaSesion,
-      respuestaFinalizacionSesion,
-    });
+  const navegacionResultado = resolvePostGameNavigation({
+    sessionContext: contextoSesion,
+    responseStartSession: respuestaInicioSesion ?? persistenciaSesion?.respuestaInicio ?? null,
+    responseFinalizationSession: respuestaFinalizacionSesion,
+  });
+  const puedeContinuarActividad = persistenciaSesion?.modo !== 'remota'
+    || navegacionResultado.shouldContinue;
   const rondaCompletadaVisible =
     estado.fase === ESTADOS_OBJETO_PERDIDO_AR.rondaCompletada &&
     Boolean(estado.resumenRonda) &&
@@ -606,9 +596,11 @@ export default function ObjetoPerdidoArVistaViro({
                   <Text style={styles.botonSecundarioTexto}>Siguiente reto</Text>
                 </TouchableOpacity>
               ) : null}
-              <TouchableOpacity style={styles.botonPrincipal} onPress={onSalir}>
-                <Text style={styles.botonPrincipalTexto}>Volver</Text>
-              </TouchableOpacity>
+              {navegacionResultado.shouldExit || persistenciaSesion?.modo !== 'remota' ? (
+                <TouchableOpacity style={styles.botonPrincipal} onPress={onSalir}>
+                  <Text style={styles.botonPrincipalTexto}>Volver</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           </View>
         </View>

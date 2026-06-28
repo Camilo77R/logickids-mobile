@@ -31,6 +31,7 @@ import { ESTADOS_TREN_3D } from './tren3d.constants';
 import Tren3DVistaWebView from './presentacion/Tren3DVistaWebView';
 import { useTren3DAudio } from './useTren3DAudio';
 import { colores, espaciado, radios, tipografia } from '../../../theme/tokens';
+import { resolveAchievementIcon } from '../core/achievementIcon';
 
 const fondoTrenInicio = require('../../../../assets/images/tren-3d/fondo-tren.avif');
 
@@ -428,7 +429,7 @@ const TarjetaResultadoTren = ({
                       styles.logroIconoTexto,
                       esFinalCompacta && styles.logroIconoTextoFinalCompacto,
                     ]}>
-                      {logro.icono ?? logro.icono_logro ?? logro.emoji ?? '*'}
+                      {resolveAchievementIcon(logro)}
                     </Text>
                   </View>
                   <View style={styles.logroTextoContenido}>
@@ -459,24 +460,24 @@ const TarjetaResultadoTren = ({
               </TouchableOpacity>
             ) : null}
 
-            <TouchableOpacity
-              style={[
-                tarjeta.tipo === 'nivel' ? styles.botonResultadoSalir : styles.botonContinuar,
-                esCompacta && styles.botonContinuarCompacto,
-              ]}
-              onPress={tarjeta.tipo === 'nivel' ? onVolver : onVolver}
-            >
-              <Text
+            {tarjeta.tipo !== 'nivel' && !sincronizando ? (
+              <TouchableOpacity
                 style={[
-                  tarjeta.tipo === 'nivel'
-                    ? styles.botonResultadoSalirTexto
-                    : styles.botonContinuarTexto,
-                  esCompacta && styles.botonResultadoTextoCompacto,
+                  styles.botonContinuar,
+                  esCompacta && styles.botonContinuarCompacto,
                 ]}
+                onPress={onVolver}
               >
-                {tarjeta.tipo === 'nivel' ? 'Volver' : 'Volver al tablero'}
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.botonContinuarTexto,
+                    esCompacta && styles.botonResultadoTextoCompacto,
+                  ]}
+                >
+                  Volver al tablero
+                </Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       </ScrollView>
@@ -486,6 +487,7 @@ const TarjetaResultadoTren = ({
 
 export default function Tren3DScreen({
   onSalir,
+  onResultadoVisible,
   configuracionInicial,
   contextoSesion,
 }) {
@@ -631,6 +633,12 @@ export default function Tren3DScreen({
         : 'Tu viaje quedo guardado.',
     };
   }, [estado.resultado, sesionTren.respuestaFinalizacion, tarjetaResultado]);
+
+  useEffect(() => {
+    if (tarjetaResultadoVisible) {
+      onResultadoVisible?.();
+    }
+  }, [onResultadoVisible, tarjetaResultadoVisible]);
 
   useEffect(() => {
     let componenteActivo = true;

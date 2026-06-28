@@ -21,12 +21,18 @@ const AUTHENTICATION_ERROR_CODES = new Set([
   'TOKEN_INVALID',
 ]);
 
+export const STUDENT_SESSION_ACTIVE_ERROR_CODE = 'STUDENT_SESSION_ACTIVE';
+
 export const isAuthenticationError = (error) =>
   error instanceof HttpRequestError &&
   (error.status === 401 || AUTHENTICATION_ERROR_CODES.has(error.code));
 
 export const isNetworkError = (error) =>
   error instanceof HttpRequestError && error.code === 'NETWORK_ERROR';
+
+export const isStudentSessionActiveError = (error) =>
+  error instanceof HttpRequestError &&
+  error.code === STUDENT_SESSION_ACTIVE_ERROR_CODE;
 
 export const buildJsonHeaders = (token) => ({
   'Content-Type': 'application/json',
