@@ -37,6 +37,7 @@ export default function QrScannerScreen({ onBack, onCodeScanned, processing = fa
   const [scanned, setScanned] = useState(false);
   const [scanSuccess, setScanSuccess] = useState(false);
   const [torchEnabled, setTorchEnabled] = useState(false);
+  const scanLockRef = useRef(false);
   const scanLinePosition = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -50,7 +51,10 @@ export default function QrScannerScreen({ onBack, onCodeScanned, processing = fa
       setScanSuccess(false);
       Vibration.vibrate([0, 80, 60, 80]);
 
-      const retryTimer = setTimeout(() => setScanned(false), 1800);
+      const retryTimer = setTimeout(() => {
+        scanLockRef.current = false;
+        setScanned(false);
+      }, 1800);
       return () => clearTimeout(retryTimer);
     }
   }, [processing, error]);
@@ -78,10 +82,11 @@ export default function QrScannerScreen({ onBack, onCodeScanned, processing = fa
   }, [scanLinePosition]);
 
   const handleBarCodeScanned = ({ data }) => {
-    if (scanned || processing) {
+    if (scanLockRef.current || scanned || processing) {
       return;
     }
 
+    scanLockRef.current = true;
     setScanned(true);
     setScanSuccess(true);
     Vibration.vibrate(35);
