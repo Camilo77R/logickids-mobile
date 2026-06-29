@@ -32,8 +32,11 @@ import PodiumRanking from '../components/PodiumRanking';
 import StudentAvatar from '../components/StudentAvatar';
 import { colors, fonts, shadows, spacing } from '../constants/theme';
 import { resolveStudentAvatarUri } from '../services/studentAvatar.service';
+import VisualActivitiesTabScreen from './ActivitiesTabScreen';
+import VisualAchievementsTabScreen from './AchievementsTabScreen';
 import GamePathScreen from './GamePathScreen';
 import ProfileNinoScreen from './ProfileNinoScreen';
+import VisualProgressTabScreen from './ProgressTabScreen';
 
 const TERMINAL_PARTICIPANT_STATES = new Set(['completado', 'abandonado', 'cerrado']);
 const DASHBOARD_BACKGROUND = '#F5F5F5';
@@ -488,13 +491,64 @@ const buildSkillProgressCards = ({ skills, results }) => {
   });
 };
 
-const normalizeAchievement = (achievement = {}) => ({
-  id: achievement.id ?? achievement.id_logro ?? achievement.logro_id ?? achievement.nombre,
-  title: achievement.nombre ?? achievement.titulo ?? achievement.title ?? 'Logro',
-  description: achievement.descripcion ?? achievement.description ?? '',
-  gameTitle: achievement.minijuego_titulo ?? achievement.juego ?? achievement.gameTitle ?? 'Juego',
-  unlocked: achievement.desbloqueado ?? achievement.unlocked ?? achievement.obtenido ?? true,
-});
+const isAchievementUnlocked = (achievement = {}) => {
+  const explicitState =
+    achievement.isUnlocked ??
+    achievement.unlocked ??
+    achievement.desbloqueado ??
+    achievement.obtenido;
+
+  if (explicitState != null) {
+    return Boolean(explicitState);
+  }
+
+  return Boolean(achievement.id_logro ?? achievement.logro_id ?? achievement.desbloqueado_en ?? achievement.unlockedAt);
+};
+
+const getAchievementIdentity = (achievement = {}) =>
+  achievement.id_catalogo_logro ??
+  achievement.catalogo_logro_id ??
+  achievement.code ??
+  achievement.clave ??
+  achievement.clave_logro ??
+  achievement.id ??
+  achievement.id_logro ??
+  achievement.logro_id ??
+  achievement.nombre ??
+  achievement.title;
+
+const normalizeAchievement = (achievement = {}) => {
+  const id = getAchievementIdentity(achievement);
+  const unlocked = isAchievementUnlocked(achievement);
+
+  return {
+    id,
+    catalogId: achievement.id_catalogo_logro ?? achievement.catalogo_logro_id ?? null,
+    code: achievement.code ?? achievement.clave ?? achievement.clave_logro,
+    title: achievement.title ?? achievement.nombre ?? achievement.nombre_logro ?? achievement.titulo ?? 'Logro',
+    description: achievement.description ?? achievement.descripcion ?? '',
+    gameTitle: achievement.minijuego_titulo ?? achievement.juego ?? achievement.gameTitle ?? 'Juego',
+    iconKey: achievement.iconKey ?? achievement.icon_key ?? achievement.icono,
+    module: achievement.module ?? achievement.modulo ?? achievement.habilidad,
+    points: achievement.points ?? achievement.puntos ?? achievement.puntos_otorgados ?? achievement.awardedPoints ?? 1,
+    unlocked,
+    isUnlocked: unlocked,
+    unlockedAt: achievement.unlockedAt ?? achievement.desbloqueado_en ?? null,
+    progress: achievement.progress ?? (unlocked ? 1 : 0),
+    progressTarget: achievement.progressTarget ?? 1,
+  };
+};
+
+const normalizeAchievementList = (achievements = []) => {
+  const uniqueAchievements = new Map();
+
+  achievements.map(normalizeAchievement).forEach((achievement) => {
+    if (!achievement.id || uniqueAchievements.has(achievement.id)) return;
+    uniqueAchievements.set(achievement.id, achievement);
+  });
+
+  return [...uniqueAchievements.values()];
+};
 
 const buildProgressMetrics = ({ historicalSessions, results, skills, ranking = [] }) => {
   const completedResults = results.filter((result) => TERMINAL_PARTICIPANT_STATES.has(result.status ?? result.estado));
@@ -907,7 +961,6 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       (slug) => accessBySlug[slug]?.estado === ESTADOS_ACCESO_JUEGO.disponible,
     ) ??
     null;
-  const achievementsCount = achievements.length;
   const sessionStatusLabel = buildSessionStatusLabel(studentProfile);
   const dashboardAccess = resolveStudentDashboardAccess(studentProfile);
   const scrollBottomPadding = activeTab === DASHBOARD_TABS.perfil ? 92 : 128;
@@ -970,8 +1023,12 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     [safeResults, safeSkills],
   );
   const achievementCards = useMemo(
-    () => achievements.map(normalizeAchievement),
+    () => normalizeAchievementList(achievements),
     [achievements],
+  );
+  const unlockedAchievementsCount = useMemo(
+    () => achievementCards.filter((achievement) => achievement.unlocked).length,
+    [achievementCards],
   );
   const progressMetrics = useMemo(
     () =>
@@ -1228,7 +1285,8 @@ export default function DashboardScreen({ studentSession, onLogout }) {
 
           {activeTab === DASHBOARD_TABS.perfil ? (
             <ProfileNinoScreen
-              achievementsCount={achievementsCount}
+              achievements={achievementCards}
+              achievementsCount={unlockedAchievementsCount}
               activityTitle={activityCopy.title}
               activityText={activityCopy.text}
               canContinue={Boolean(availableGameSlug)}
@@ -1281,17 +1339,18 @@ export default function DashboardScreen({ studentSession, onLogout }) {
 
             </>
           ) : activeTab === DASHBOARD_TABS.actividades ? (
-            <SessionListScreen
+            <VisualActivitiesTabScreen
               sessions={dashboardSessions}
               loading={isLoading}
             />
           ) : activeTab === DASHBOARD_TABS.logros ? (
-            <AchievementsTabScreen
+            <VisualAchievementsTabScreen
               achievements={achievementCards}
               loading={isLoading}
             />
           ) : activeTab === DASHBOARD_TABS.progreso ? (
-            <ProgressTabScreen
+            <VisualProgressTabScreen
+              achievements={achievementCards}
               metrics={progressMetrics}
               sessions={dashboardSessions}
               skills={skillProgressCards}
