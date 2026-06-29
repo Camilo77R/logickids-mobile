@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     height: 54,
     borderRadius: 27,
     overflow: 'hidden',
-    backgroundColor: colors.lavender,
+    backgroundColor: colors.white,
     marginTop: spacing.sm,
     justifyContent: 'center',
     alignItems: 'center',

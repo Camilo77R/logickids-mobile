@@ -6,7 +6,6 @@ import { SvgUri } from 'react-native-svg';
 import { colors, shadows } from '../constants/theme';
 
 export default function StudentAvatar({
-  backgroundColor = colors.white,
   iconSize = 30,
   size = 58,
   uri = null,
@@ -23,7 +22,7 @@ export default function StudentAvatar({
       style={[
         styles.container,
         {
-          backgroundColor,
+          backgroundColor: colors.white,
           borderRadius: size / 2,
           height: size,
           width: size,
