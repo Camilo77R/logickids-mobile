@@ -210,6 +210,7 @@ export const createRobotTallerCheckpointState = ({
     fase: phase,
     partes: parts,
     contadorEnsambladas: assembledCount,
+    erroresAcumulados: asNonNegativeInteger(estado.erroresAcumulados),
     ordenActual: Math.min(asNonNegativeInteger(estado.ordenActual), assembledCount),
     preguntaActual: normalizeQuestion(preguntaActual, activePieceIds),
     problemaMatematico: normalizedMathProblem,
@@ -235,9 +236,10 @@ export const parseRobotTallerCheckpointState = (value, expectedConfiguration = n
     const normalized = createRobotTallerCheckpointState({
       configuracion: value.configuracion,
       estado: {
-        fase: value.fase,
-        partes: value.partes,
-        ordenActual: value.ordenActual,
+      fase: value.fase,
+      partes: value.partes,
+      erroresAcumulados: value.erroresAcumulados,
+      ordenActual: value.ordenActual,
       },
       intentosMatematicos: value.intentosMatematicos,
       mostrarModalMatematica: value.mostrarModalMatematica,
@@ -320,6 +322,7 @@ export const restoreRobotTallerCheckpointState = ({
       partes: parts,
       parteAgarrada: null,
       contadorEnsambladas: parsed.contadorEnsambladas,
+      erroresAcumulados: parsed.erroresAcumulados,
       ordenActual: parsed.ordenActual,
       mensaje: parsed.pendingFinalization
         ? 'Robot armado. Estamos confirmando tus resultados.'

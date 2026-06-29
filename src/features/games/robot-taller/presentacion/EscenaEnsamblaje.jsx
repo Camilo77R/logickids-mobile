@@ -481,7 +481,9 @@ function ParteMesh({
         ? COLOR_BLOQUEADO
         : parteDef.color;
 
-  const puedeHacerClic = !estadoParte.ensamblada && !estadoParte.bloqueadoPorMatematicas;
+  // La escena solo decide si una pieza existe para interacción visual.
+  // El controlador decide si ese toque abre reto matemático o inicia arrastre.
+  const puedeHacerClic = !estadoParte.ensamblada;
 
   const _tempTarget = useMemo(() => new THREE.Vector3(), []);
   const _baseColor = useMemo(() => new THREE.Color(), []);
