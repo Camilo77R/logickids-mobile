@@ -32,6 +32,7 @@ const construirEstadoInicial = (nivel, idMision) => {
     })),
     parteAgarrada: null,
     contadorEnsambladas: 0,
+    erroresAcumulados: 0,
     ordenActual: 0,
     mensaje: 'Toma una pieza con tu mano y colocala en su lugar.',
     resultado: null,
@@ -39,6 +40,9 @@ const construirEstadoInicial = (nivel, idMision) => {
     preguntasMatematicas: {},
   };
 };
+
+const obtenerPiezasDesbloqueadasPendientes = (estadoActual) =>
+  estadoActual.partes.filter((parte) => !parte.ensamblada && !parte.bloqueado);
 
 function mezclar(arr) {
   const m = [...arr];
@@ -171,6 +175,7 @@ export const useRobotTallerControlador = (
             partesEnsambladas: parsed.contadorEnsambladas,
             tiempoTranscurridoMs: parsed.tiempoTranscurridoMs,
             partesBase,
+            erroresReales: parsed.erroresAcumulados,
           }),
           finalizacionSesion: parsed.pendingFinalization,
         }
@@ -349,9 +354,11 @@ export const useRobotTallerControlador = (
     const nuevoEstado = {
       ...estadoRef.current,
       partes: estadoRef.current.partes.map((p) =>
-        p.id === idParte
-          ? { ...p, bloqueado: false, bloqueadoPorMatematicas: false }
-          : p,
+        p.ensamblada
+          ? p
+          : p.id === idParte
+            ? { ...p, bloqueado: false, bloqueadoPorMatematicas: false }
+            : { ...p, bloqueado: true, bloqueadoPorMatematicas: true }
       ),
       mensaje: '¡Pieza desbloqueada! Arrástrala hasta el lugar iluminado.',
       eventosSesion: [...estadoRef.current.eventosSesion, {
@@ -369,47 +376,54 @@ export const useRobotTallerControlador = (
     
   }, []);
 
-  const manejarIncorrectaMatematica = useCallback((idParte) => {
-    setMostrarModalMatematica(false);
-    setProblemaMatematico(null);
+  const manejarIncorrectaMatematica = useCallback((payload) => {
+    const idParte = typeof payload === 'string' ? payload : payload?.idParte;
+    const exhausted = Boolean(payload?.exhausted);
 
-    const intentosActuales = intentosRef.current[idParte] || 0;
-    if (idParte) {
-      const nuevoEstado = {
-        ...estadoRef.current,
-        partes: estadoRef.current.partes.map((p) =>
-          p.id === idParte
-            ? { ...p, bloqueado: false, bloqueadoPorMatematicas: false }
-            : p,
-        ),
-        mensaje: 'Pieza desbloqueada para seguir jugando. Arrástrala hasta su lugar.',
-        eventosSesion: [...estadoRef.current.eventosSesion, {
-          tipoEvento: 'fracaso_matematico',
-          habilidad: 'Lógica',
-          tiempoReaccionMs: null,
-          puntos: 0,
-          comboEnEvento: 0,
-          metadata: { parte_id: idParte, via_matematica: true },
-          timestamp: new Date().toISOString(),
-        }],
-      };
-      estadoRef.current = nuevoEstado;
-      setEstado(nuevoEstado);
+    if (!idParte) {
+      return;
     }
-    intentosRef.current[idParte] = intentosActuales + 1;
-  }, []);
+
+    intentosRef.current[idParte] = (intentosRef.current[idParte] || 0) + 1;
+
+    const nuevoEstado = {
+      ...estadoRef.current,
+      erroresAcumulados: (estadoRef.current.erroresAcumulados || 0) + 1,
+      mensaje: exhausted
+        ? 'Intentemos una nueva cuenta para desbloquear la pieza.'
+        : 'Respuesta incorrecta. Intenta otra vez.',
+    };
+    estadoRef.current = nuevoEstado;
+    setEstado(nuevoEstado);
+
+    registrarEvento(
+      construirEventoEnsamblaje({
+        tipoEvento: 'error',
+        puntos: 0,
+        metadata: {
+          parte_id: idParte,
+          origen: 'reto_matematico',
+          agotado: exhausted,
+          intentos: intentosRef.current[idParte],
+        },
+      }),
+    );
+
+    if (!exhausted) {
+      return;
+    }
+
+    const nuevoProblema = generarPreguntaMatematica(idParte);
+    setProblemaMatematico(nuevoProblema);
+    setMostrarModalMatematica(Boolean(nuevoProblema));
+  }, [generarPreguntaMatematica]);
 
 
 
   const generarPregunta = useCallback(() => {
     const est = estadoRef.current;
-    const disponibles = est.partes.filter((p) => !p.ensamblada && !p.bloqueado);
+    const disponibles = obtenerPiezasDesbloqueadasPendientes(est);
     if (disponibles.length === 0) {
-      const nuevoProblema = generarPreguntaMatematica();
-      if (nuevoProblema) {
-        setProblemaMatematico(nuevoProblema);
-        setMostrarModalMatematica(true);
-      }
       setPreguntaActual(null);
       return;
     }
@@ -422,13 +436,7 @@ export const useRobotTallerControlador = (
       funcionNecesaria: funcionDato?.funcion ?? '',
     });
     setFeedbackQuiz(null);
-  }, [generarPreguntaMatematica, todasLasPiezasDef]);
-
-  useEffect(() => {
-    if (estado.fase === FASES_ENSAMBLAGE.explotado && estado.partes.every((p) => !p.ensamblada)) {
-      generarPregunta();
-    }
-  }, [estado.fase]);
+  }, [todasLasPiezasDef]);
 
   const ensamblarPiezaQuiz = useCallback((idParte) => {
     const estadoActual = estadoRef.current;
@@ -491,6 +499,12 @@ export const useRobotTallerControlador = (
       }
       setFeedbackQuiz({ tipo: 'error', mensaje, parteId: idParte, timestamp: Date.now() });
       setTimeout(() => setFeedbackQuiz((prev) => prev?.tipo === 'error' ? null : prev), 2500);
+      const nuevoEstado = {
+        ...estadoRef.current,
+        erroresAcumulados: (estadoRef.current.erroresAcumulados || 0) + 1,
+      };
+      estadoRef.current = nuevoEstado;
+      setEstado(nuevoEstado);
     }
   }, [preguntaActual, feedbackQuiz, todasLasPiezasDef]);
 
@@ -533,6 +547,7 @@ export const useRobotTallerControlador = (
       partesEnsambladas: estadoActual.contadorEnsambladas,
       tiempoTranscurridoMs,
       partesBase,
+      erroresReales: estadoActual.erroresAcumulados,
     });
     const finalizacionIdentificada =
       observadoresRef.current.alPrepararFinalizacion?.(
@@ -592,7 +607,20 @@ export const useRobotTallerControlador = (
       return false;
     }
 
+    const piezasPendientesDesbloqueadas = obtenerPiezasDesbloqueadasPendientes(estadoActual);
+    const piezaActivaPendienteId = piezasPendientesDesbloqueadas[0]?.id ?? null;
+
     if (parte.bloqueado) {
+      if (piezaActivaPendienteId && piezaActivaPendienteId !== idParte) {
+        const siguienteEstado = {
+          ...estadoActual,
+          mensaje: 'Primero coloca la pieza que ya desbloqueaste.',
+        };
+        estadoRef.current = siguienteEstado;
+        setEstado(siguienteEstado);
+        return false;
+      }
+
       const nuevoProblema = generarPreguntaMatematica(idParte);
       if (nuevoProblema) {
         setProblemaMatematico(nuevoProblema);
@@ -700,8 +728,6 @@ export const useRobotTallerControlador = (
           if (nuevoProblema) {
             setProblemaMatematico(nuevoProblema);
             setMostrarModalMatematica(true);
-          } else {
-            generarPregunta();
           }
         }, 500);
       }
@@ -712,6 +738,7 @@ export const useRobotTallerControlador = (
       const siguienteEstado = {
         ...estadoActual,
         parteAgarrada: null,
+        erroresAcumulados: (estadoActual.erroresAcumulados || 0) + 1,
         partes: estadoActual.partes.map((p) =>
           p.id === idParte
             ? {
@@ -740,7 +767,7 @@ export const useRobotTallerControlador = (
         }),
       );
     }
-  }, [configuracion, observadores, partesBase]);
+  }, [configuracion, observadores, partesBase, generarPreguntaMatematica]);
 
   return {
     configuracion,

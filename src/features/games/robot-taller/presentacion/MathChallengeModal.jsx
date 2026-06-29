@@ -23,6 +23,13 @@ export default function MathChallengeModal({
   const [feedback, setFeedback] = useState(null);
   const [intentos, setIntentos] = useState(0);
   const escala = useRef(new Animated.Value(1)).current;
+  const firmaProblema = [
+    problema?.idParte ?? 'sin-parte',
+    problema?.operador ?? 'sin-operador',
+    problema?.a ?? 'sin-a',
+    problema?.b ?? 'sin-b',
+    problema?.respuesta ?? 'sin-respuesta',
+  ].join('-');
 
   useEffect(() => {
     if (visible) {
@@ -34,13 +41,20 @@ export default function MathChallengeModal({
         Animated.timing(escala, { toValue: 1, duration: 300, useNativeDriver: true }),
       ]).start();
     }
-  }, [escala, visible]);
+  }, [escala, firmaProblema, visible]);
+
+  const sanitizarRespuesta = (texto) => texto.replace(/[^\d]/g, '').slice(0, 3);
 
   const manejarRespuesta = () => {
     if (!problema || feedback?.tipo === 'correcto') return;
 
     const respuestaLimpia = respuestaUsuario.trim();
     if (!respuestaLimpia) return;
+
+    if (!/^\d+$/.test(respuestaLimpia)) {
+      setFeedback({ tipo: 'error', mensaje: 'Escribe solo numeros.' });
+      return;
+    }
 
     const respuestaCorrecta = parseInt(respuestaLimpia, 10);
     const correcta = respuestaCorrecta === problema.respuesta;
@@ -56,15 +70,17 @@ export default function MathChallengeModal({
     const intentosSiguientes = intentos + 1;
     setIntentos(intentosSiguientes);
     setRespuestaUsuario('');
+    onIncorrectAnswer?.({
+      idParte: problema.idParte,
+      attempts: intentosSiguientes,
+      exhausted: intentosSiguientes >= 3,
+    });
 
     if (intentosSiguientes >= 3) {
       setFeedback({
         tipo: 'error',
-        mensaje: 'No pasa nada. Desbloqueamos la pieza para seguir jugando.',
+        mensaje: 'Intentemos otra cuenta para desbloquear esta pieza.',
       });
-      setTimeout(() => {
-        onIncorrectAnswer?.(problema.idParte);
-      }, 900);
       return;
     }
 
@@ -131,7 +147,7 @@ export default function MathChallengeModal({
                 <TextInput
                   style={styles.input}
                   value={respuestaUsuario}
-                  onChangeText={setRespuestaUsuario}
+                  onChangeText={(texto) => setRespuestaUsuario(sanitizarRespuesta(texto))}
                   onSubmitEditing={manejarRespuesta}
                   keyboardType="numeric"
                   maxLength={3}

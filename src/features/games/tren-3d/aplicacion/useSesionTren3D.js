@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { crearClienteSesionesJuego } from '../../core/clienteSesionesJuego';
+import { createMobileGameOperationTracker } from '../../core/gameOperationIdentity.runtime';
 
 export const MODOS_PERSISTENCIA_TREN_3D = Object.freeze({
   local: 'local',
@@ -79,13 +80,18 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
   const sesionIdRef = useRef(null);
   const inicioSesionPromiseRef = useRef(null);
   const respuestaInicioRef = useRef(null);
+  const finalizacionPendienteRef = useRef(null);
   const colaOperacionesRef = useRef(Promise.resolve());
+  const operationTrackerRef = useRef(null);
+  operationTrackerRef.current ??= createMobileGameOperationTracker();
 
   useEffect(() => {
     sesionIdRef.current = null;
     inicioSesionPromiseRef.current = null;
     respuestaInicioRef.current = null;
+    finalizacionPendienteRef.current = null;
     colaOperacionesRef.current = Promise.resolve();
+    operationTrackerRef.current.resetAttempt();
     setPersistencia(construirPersistenciaInicial(modoPersistencia));
   }, [
     modoPersistencia,
@@ -126,6 +132,7 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
         tokenEstudiante: contextoNormalizado.tokenEstudiante,
         minijuegoId: contextoNormalizado.minijuegoId,
         dificultad: dificultadSolicitada,
+        attemptId: operationTrackerRef.current.getAttemptId(),
       });
 
       const sesionId = respuestaInicio?.sesion?.id ?? null;
@@ -168,6 +175,7 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
       return Promise.resolve();
     }
 
+    const eventoIdentificado = operationTrackerRef.current.decorateEvent(evento);
     return encadenarOperacion(async () => {
       setPersistencia((previo) => ({
         ...previo,
@@ -194,7 +202,7 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
         await clienteSesionesJuego.registrarEvento({
           tokenEstudiante: contextoNormalizado.tokenEstudiante,
           sesionId,
-          evento,
+          evento: eventoIdentificado,
         });
 
         setPersistencia((previo) => ({
@@ -219,13 +227,18 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
       return Promise.resolve();
     }
 
-    return encadenarOperacion(async () => {
-      setPersistencia((previo) => ({
-        ...previo,
-        estado: ESTADOS_PERSISTENCIA_TREN_3D.finalizando,
-        error: null,
-      }));
+    const finalizacionIdentificada =
+      typeof finalizacionSesion?.finalization_id === 'string'
+        ? finalizacionSesion
+        : operationTrackerRef.current.decorateFinalization(finalizacionSesion);
+    finalizacionPendienteRef.current = finalizacionIdentificada;
+    setPersistencia((previo) => ({
+      ...previo,
+      estado: ESTADOS_PERSISTENCIA_TREN_3D.finalizando,
+      error: null,
+    }));
 
+    return encadenarOperacion(async () => {
       try {
         const respuestaInicio = await iniciarSesionRemota(configuracion.dificultad);
         const sesionId = respuestaInicio?.sesion?.id ?? sesionIdRef.current;
@@ -242,10 +255,12 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
         const respuestaFinalizacion = await clienteSesionesJuego.finalizarSesion({
           tokenEstudiante: contextoNormalizado.tokenEstudiante,
           sesionId,
-          finalizacion: finalizacionSesion,
+          finalizacion: finalizacionIdentificada,
         });
 
         sesionIdRef.current = null;
+        finalizacionPendienteRef.current = null;
+        operationTrackerRef.current.clearFinalization();
 
         setPersistencia((previo) => ({
           ...previo,
@@ -299,6 +314,23 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
     };
   }, [iniciarSesionRemota, persistenciaRemotaHabilitada]);
 
+  const prepararNuevaRonda = useCallback(() => {
+    sesionIdRef.current = null;
+    inicioSesionPromiseRef.current = null;
+    respuestaInicioRef.current = null;
+    finalizacionPendienteRef.current = null;
+    operationTrackerRef.current.resetAttempt();
+    setPersistencia((previo) => ({
+      ...previo,
+      estado: ESTADOS_PERSISTENCIA_TREN_3D.inactiva,
+      sesionId: null,
+      eventosPendientes: 0,
+      error: null,
+      respuestaInicio: null,
+      respuestaFinalizacion: null,
+    }));
+  }, []);
+
   return {
     persistencia,
     observadoresJuego,
@@ -306,5 +338,6 @@ export const useSesionTren3D = ({ configuracion, contextoSesion }) => {
     respuestaInicio: persistencia.respuestaInicio ?? respuestaInicioRef.current,
     respuestaFinalizacion: persistencia.respuestaFinalizacion,
     prepararRonda,
+    prepararNuevaRonda,
   };
 };

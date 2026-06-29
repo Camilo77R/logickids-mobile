@@ -227,6 +227,7 @@ const FiguraPatron = ({ paso, completado }) => {
 const TarjetaResultadoTren = ({
   tarjeta,
   sincronizando,
+  puedeContinuar = true,
   onContinuar,
   onVolver,
   viewport,
@@ -449,7 +450,7 @@ const TarjetaResultadoTren = ({
           ) : null}
 
           <View style={[styles.resultadoBotones, esCompacta && styles.resultadoBotonesCompacto]}>
-            {tarjeta.tipo === 'nivel' ? (
+            {tarjeta.tipo === 'nivel' && !sincronizando && puedeContinuar ? (
               <TouchableOpacity
                 style={[styles.botonContinuar, esCompacta && styles.botonContinuarCompacto]}
                 onPress={onContinuar}
@@ -460,7 +461,7 @@ const TarjetaResultadoTren = ({
               </TouchableOpacity>
             ) : null}
 
-            {tarjeta.tipo !== 'nivel' && !sincronizando ? (
+            {tarjeta.tipo !== 'nivel' && !sincronizando && puedeContinuar ? (
               <TouchableOpacity
                 style={[
                   styles.botonContinuar,
@@ -512,6 +513,7 @@ export default function Tren3DScreen({
   const [webViewKey, setWebViewKey] = useState(0);
   const webViewRef = useRef(null);
   const inicioPartidaRef = useRef(Date.now());
+  const inicioNivelRef = useRef(Date.now());
   const acumuladoRef = useRef({
     aciertos: 0,
     errores: 0,
@@ -539,6 +541,9 @@ export default function Tren3DScreen({
     configuracion,
     contextoSesion,
   });
+  const resultadoSincronizado =
+    !sesionTren.persistenciaRemotaHabilitada ||
+    sesionTren.persistencia.estado === 'finalizada';
 
   const [estado, setEstado] = useState({
     fase: ESTADOS_TREN_3D.esperando,
@@ -559,6 +564,7 @@ export default function Tren3DScreen({
     seleccionClave: null,
   });
   const [tarjetaResultado, setTarjetaResultado] = useState(null);
+  const [guardandoResultado, setGuardandoResultado] = useState(false);
 
   useEffect(() => {
     let vigente = true;
@@ -633,6 +639,17 @@ export default function Tren3DScreen({
         : 'Tu viaje quedo guardado.',
     };
   }, [estado.resultado, sesionTren.respuestaFinalizacion, tarjetaResultado]);
+
+  useEffect(() => {
+    if (!tarjetaResultado) {
+      setGuardandoResultado(false);
+      return;
+    }
+
+    if (resultadoSincronizado) {
+      setGuardandoResultado(false);
+    }
+  }, [resultadoSincronizado, tarjetaResultado]);
 
   useEffect(() => {
     if (tarjetaResultadoVisible) {
@@ -753,8 +770,6 @@ export default function Tren3DScreen({
       dificultadFinal: dificultadRef.current,
       estado: estadoFinal,
     });
-
-    sesionTren.observadoresJuego.alFinalizarPartida(resultado);
     setEstado((previo) => ({
       ...previo,
       fase: ESTADOS_TREN_3D.finalizado,
@@ -765,6 +780,19 @@ export default function Tren3DScreen({
     ultimaMisionCompletadaRef.current = misionCompletada;
     setTarjetaResultado(construirTarjetaFinal(resultado, misionCompletada));
   };
+
+  const construirResultadoNivelRemoto = useCallback((mensaje, {
+    erroresNivel,
+  } = {}) => construirResumenPartidaTren3D({
+    configuracion,
+    aciertos: mensaje.aciertos,
+    errores: erroresNivel,
+    comboMaximo: mensaje.comboMaximo ?? 0,
+    nivelAlcanzado: nivelRef.current,
+    tiempoTotalMs: mensaje.tiempoNivelMs ?? Math.max(0, Date.now() - inicioNivelRef.current),
+    dificultadFinal: dificultadRef.current,
+    estado: 'completado',
+  }), [configuracion]);
 
   const restaurarPortrait = useCallback(async () => {
     try {
@@ -888,6 +916,12 @@ export default function Tren3DScreen({
       }),
     );
 
+    const resultadoNivelRemoto = construirResultadoNivelRemoto(mensaje, {
+      erroresNivel: erroresAdaptativos,
+    });
+    setGuardandoResultado(true);
+    sesionTren.observadoresJuego.alFinalizarPartida(resultadoNivelRemoto);
+
     acumuladoRef.current = {
       ...acumuladoRef.current,
       errores: acumuladoRef.current.errores + vagonesPendientes,
@@ -975,22 +1009,65 @@ export default function Tren3DScreen({
     });
   };
 
-  const continuarNivel = () => {
+  const continuarNivel = async () => {
     const pendiente = siguienteNivelPendienteRef.current;
 
-    if (!pendiente) {
-      setTarjetaResultado(null);
+    if (!pendiente || !resultadoSincronizado) {
       return;
     }
 
+    sesionTren.prepararNuevaRonda();
+    const preparacion = await sesionTren.prepararRonda(pendiente.dificultad);
+
+    if (!preparacion?.lista) {
+      return;
+    }
+
+    const configuracionPreparada = resolverConfiguracionTren3DDesdeBackend({
+      configuracionLocal: {
+        ...configuracion,
+        dificultad: pendiente.dificultad,
+      },
+      respuestaInicioSesion: preparacion.respuestaInicio,
+    });
+    const parametrosPreparados = {
+      ...pendiente.parametros,
+      dificultad: configuracionPreparada.dificultad,
+      velocidadTren:
+        configuracionPreparada.parametrosNivel?.velocidadTren ?? pendiente.parametros.velocidadTren,
+      vueltasMaximas:
+        configuracionPreparada.parametrosNivel?.vueltasMaximas ?? pendiente.parametros.vueltasMaximas,
+      vagonesPorNivel:
+        configuracionPreparada.parametrosNivel?.vagonesPorNivel ?? pendiente.parametros.vagonesPorNivel,
+      maxOpcionesFiguras:
+        configuracionPreparada.parametrosNivel?.maxOpcionesFiguras ?? pendiente.parametros.maxOpcionesFiguras,
+      opacidadFiguraGuia:
+        configuracionPreparada.parametrosNivel?.opacidadFiguraGuia ?? pendiente.parametros.opacidadFiguraGuia,
+    };
+
+    setConfiguracion(configuracionPreparada);
     nivelRef.current = pendiente.siguienteNivel;
-    dificultadRef.current = pendiente.dificultad;
+    dificultadRef.current = configuracionPreparada.dificultad;
+    inicioNivelRef.current = Date.now();
     siguienteNivelPendienteRef.current = null;
+    setGuardandoResultado(false);
     setTarjetaResultado(null);
-    inyectarNuevoNivel({ webViewRef, parametros: pendiente.parametros });
+    inyectarNuevoNivel({ webViewRef, parametros: parametrosPreparados });
     setEstado((previo) => ({
       ...previo,
       fase: ESTADOS_TREN_3D.esperando,
+      aciertos: 0,
+      errores: 0,
+      comboMaximo: 0,
+      puntaje: 0,
+      dificultad: configuracionPreparada.dificultad,
+      vueltasMaximas: parametrosPreparados.vueltasMaximas,
+      vueltasRestantes: parametrosPreparados.vueltasMaximas,
+      maxOpcionesFiguras: parametrosPreparados.maxOpcionesFiguras,
+      patronActual: parametrosPreparados.patron,
+      vagonesCompletados: 0,
+      vagonesResueltos: [],
+      seleccionClave: null,
       mensaje: 'El siguiente tren esta entrando. Preparate.',
     }));
   };
@@ -1007,6 +1084,7 @@ export default function Tren3DScreen({
     if (mensaje.tipo === 'motorListo') {
       partidaIniciadaRef.current = true;
       inicioPartidaRef.current = Date.now();
+      inicioNivelRef.current = Date.now();
       setMotorListo(true);
       setErrorMotor(null);
       sesionTren.observadoresJuego.alIniciarPartida({
@@ -1291,7 +1369,8 @@ export default function Tren3DScreen({
 
       <TarjetaResultadoTren
         tarjeta={tarjetaResultadoVisible}
-        sincronizando={sesionTren.persistencia.estado === 'finalizando'}
+        sincronizando={guardandoResultado || !resultadoSincronizado}
+        puedeContinuar={!guardandoResultado && resultadoSincronizado}
         onContinuar={continuarNivel}
         onVolver={salir}
         viewport={viewport}

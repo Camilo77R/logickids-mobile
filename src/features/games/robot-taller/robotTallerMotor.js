@@ -155,11 +155,16 @@ export const construirResumenPartidaEnsamblaje = ({
   partesEnsambladas,
   tiempoTranscurridoMs,
   partesBase,
+  erroresReales = null,
 }) => {
   const base = partesBase ?? PARTES_ROBOT;
   const totalPartes = base.length;
   const aciertos = partesEnsambladas;
-  const errores = Math.max(0, totalPartes - aciertos);
+  const errores = erroresReales == null
+    ? Math.max(0, totalPartes - aciertos)
+    : Number.isFinite(Number(erroresReales))
+    ? Math.max(0, Math.trunc(Number(erroresReales)))
+    : Math.max(0, totalPartes - aciertos);
   const puntajeBase = Math.max(Math.round((aciertos / totalPartes) * 100) - errores * 5, 0);
   const comboMaximo = exito ? totalPartes : Math.max(aciertos - 1, 0);
 

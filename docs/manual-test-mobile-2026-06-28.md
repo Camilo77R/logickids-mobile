@@ -289,3 +289,330 @@ El sistema ya esta mejor en flujo y cierre que antes, pero todavia no puede cons
 - inconsistencia de metricas en Robot
 - reingreso indebido en Tren `single`
 - copy final no afinado en ultimo juego de ruta
+
+## Actualizacion Tren - cierre parcial del 2026-06-28
+
+Despues de la siguiente ronda de ajustes en `Tren` se confirmo esto:
+
+- ya no se reproduce el bug grave donde una actividad `single` de 2 intentos
+  terminaba dejando entrar a otra corrida completa adicional
+- el backend ya esta reflejando mejor las metricas por nivel:
+  - `Nivel 1` llego a verse con `1` error
+  - `Nivel 2` llego a verse con `2` errores
+- eso indica que la persistencia oficial por intento mejoro y ya no parece
+  clonar exactamente el mismo resultado entre ambos niveles como antes
+
+### Ajuste tecnico aplicado
+
+Se agrego un bloqueo visual local en `Tren` para el resultado intermedio y el
+resultado final:
+
+- el juego marca `guardandoResultado` apenas arranca la finalizacion del nivel
+- mientras ese estado este activo no debe aparecer `Continuar`
+- mientras ese estado este activo no debe aparecer `Volver al tablero`
+- la accion solo debe verse cuando el cierre ya convergio
+
+### Lo pendiente de validar manualmente
+
+- confirmar que ya no aparezca primero `Continuar` y luego cambie a mensaje de guardado
+- confirmar que en el ultimo intento ya no aparezca `Volver al tablero` antes de terminar el guardado
+- confirmar que el flujo se siente igual de limpio que `Mercado` y `Camino AR`
+
+### Lectura actual
+
+`Tren single` ya no esta en estado critico.
+
+Ahora mismo el riesgo principal ya no es duplicar la actividad completa, sino
+pulir la experiencia visual del guardado y terminar de asegurar que la
+presentacion del cierre sea infantilmente clara y determinista.
+
+## Actualizacion Robot - reto matematico y checkpoint del 2026-06-28
+
+Despues de la siguiente ronda de ajustes en `Robot Lógico` se confirmo esto:
+
+- los errores reales por nivel ya dejaron de verse clonados completamente
+- el flujo general de `single` con 3 intentos ya cierra bien la sesion
+- aparecio un bug fino de reanudacion:
+  - si una pieza quedaba bloqueada
+  - el estudiante fallaba varias veces
+  - salia al dashboard o reabria la app
+  - al volver, la cuenta podia aparecer un instante y desaparecer
+  - la pieza quedaba atrapada en el mismo punto sin posibilidad real de continuar
+
+### Causa tecnica encontrada
+
+El modal del reto matematico estaba reseteando su estado visual con una firma
+demasiado fragil.
+
+La identidad del reto dependia de `timestamp`, pero al restaurar desde
+checkpoint ese dato no siempre estaba presente.
+
+Eso abria una grieta:
+
+- el backend/logica si podia tener un reto nuevo
+- pero la UI podia seguir tratandolo como si fuera el mismo
+- resultado:
+  - feedback viejo pegado
+  - intentos viejos pegados
+  - flash del modal
+  - sensacion de pieza bloqueada para siempre
+
+### Ajuste tecnico aplicado
+
+Se rehizo la identidad visual del reto matematico para que dependa del
+contenido real del problema:
+
+- pieza
+- operador
+- operando A
+- operando B
+- respuesta esperada
+
+Con eso el modal ya no depende de un dato efimero para saber si realmente
+cambio de reto.
+
+### Validacion automatica despues del ajuste
+
+- `npm run test:juegos` → `92/92`
+- `npm run test:app` → `20/20`
+
+### Validacion manual pendiente
+
+Probar especificamente este caso:
+
+1. entrar a `Robot Lógico`
+2. fallar varias veces una cuenta de la misma pieza
+3. salir al dashboard
+4. volver a entrar
+5. tocar la pieza bloqueada otra vez
+
+Resultado esperado:
+
+- el modal debe quedarse visible de forma estable
+- debe mostrar una cuenta utilizable
+- no debe cerrarse solo
+- la pieza no debe quedar atrapada sin salida
+
+## Actualizacion integral - ronda completa de pruebas del 2026-06-28
+
+Despues de seguir probando todos los juegos en `single` y revisar de nuevo el
+flujo de `Robot Lógico`, la lectura actual del sistema cambia asi:
+
+- el flujo funcional general ya esta mucho mas estable que al inicio de la ronda
+- los cierres por nivel en `single` ya se comportan mejor en todos los juegos
+- la persistencia oficial por nivel ya refleja mejor lo que realmente se jugo
+- el problema dominante ya no es "se rompio la sesion", sino:
+  - lentitud percibida
+  - polish visual
+  - deuda de UX infantil en algunos juegos
+
+## Regresion manual por juego
+
+### Tren de Figuras
+
+#### Caso probado: 3 intentos en `single`
+
+Resultado observado:
+
+- funciono correctamente con 3 intentos
+- cada nivel quedo guardado como su propio resultado oficial
+- ya no reaparecio el bug donde una sesion de 2 o 3 intentos terminaba
+  habilitando otra corrida completa adicional
+
+Evidencia reportada:
+
+- `Nivel 1 de 3` con puntaje y errores propios
+- `Nivel 2 de 3` con puntaje y errores propios
+- `Nivel 3 de 3` con puntaje y errores propios
+
+Lectura actual:
+
+- `Tren single` ya puede considerarse funcionalmente estable
+- el punto pendiente sigue siendo UX:
+  - la espera de guardado se siente lenta
+  - el copy del estado de guardado se siente "duro"
+
+### Mercado Inteligente
+
+#### Caso probado: 3 intentos en `single`
+
+Resultado observado:
+
+- funciono correctamente
+- se cerraron bien los 3 niveles
+- las metricas finales quedaron consistentes con los errores hechos a proposito
+  en el ultimo nivel
+- el regreso al dashboard fue correcto
+
+Lectura actual:
+
+- `Mercado` esta bien a nivel de flujo y persistencia
+- sigue sintiendose lento en cierres/transiciones
+- UX visual mas madura que `Robot`, pero todavia dependiente de la latencia del guardado
+
+### Camino AR
+
+#### Caso probado: 3 intentos en `single`
+
+Resultado observado:
+
+- funciono correctamente
+- los 3 niveles se guardaron bien
+- cerro bien la sesion
+- marco bien en web
+
+Observacion de producto:
+
+- si el estudiante falla una secuencia, hoy el nivel se corta y pasa al
+  resultado
+- esto no necesariamente es un bug tecnico
+- queda como decision pedagogica pendiente:
+  - si debe cortar inmediatamente al primer error
+  - o si deberia dejar terminar toda la secuencia para contabilizar mas errores
+
+Lectura actual:
+
+- `Camino AR` esta funcionalmente bien
+- la duda restante es de diseño pedagogico, no de persistencia
+
+### Robot Lógico
+
+#### Casos probados
+
+- `single` con 2 intentos
+- `single` con 3 intentos
+- errores reales dentro del reto matematico
+- reingreso tras checkpoint
+- piezas bloqueadas y desbloqueadas
+
+#### Problemas que se detectaron en la ronda
+
+1. Las metricas por nivel se clonaban o quedaban incoherentes.
+2. El reto matematico podia aceptar entradas no numericas.
+3. Despues de varios intentos fallidos, el modal podia quedar en estado roto.
+4. La UI podia quedarse con una pieza bloqueada sin salida clara.
+5. El juego podia mezclar piezas y retos:
+   - se desbloqueaba una pieza y aparecia otra como siguiente
+   - podia parecer que otra pieza ya estaba lista para arrastrar
+   - la pregunta podia cambiar de pieza fuera de tiempo
+   - incluso se podia disparar un cierre final antes de que la ultima pieza
+     estuviera realmente resuelta
+
+#### Ajustes aplicados
+
+- se corrigio la captura de errores reales por nivel para que la finalizacion
+  use el acumulado oficial en vez de inferir errores por piezas faltantes
+- el reto matematico ahora rechaza input no numerico
+- el modal ya no depende de `timestamp` para reconocer que el reto cambio
+- se elimino el auto-desbloqueo implicito despues de varios fallos
+- la escena dejo de bloquear el toque antes de que el controlador decidiera
+  si correspondia abrir reto o permitir arrastre
+- se forzo una regla mas segura:
+  - solo puede existir una pieza desbloqueada pendiente a la vez
+  - primero se desbloquea
+  - luego se coloca
+  - solo despues nace la siguiente pregunta
+
+#### Resultado observado al final de la ronda
+
+- el flujo ya funciona bien
+- las metricas por nivel quedaron razonables y separadas
+- la sesion cierra bien
+- el dashboard y web reflejan mejor los intentos reales
+
+Evidencia manual final compartida por Camilo:
+
+- `Nivel 1 de 3` guardado con sus errores
+- `Nivel 2 de 3` guardado con sus errores
+- `Nivel 3 de 3` guardado como completado
+
+#### Deuda abierta en Robot
+
+- sigue sintiendose lento
+- no comparte el mismo polish visual de respuestas/transiciones que otros juegos
+- la silueta/guia visual del robot y las piezas reales no estan del todo
+  alineadas, lo que puede ser engañoso para el niño
+
+Lectura actual:
+
+- `Robot Lógico` ya quedo mucho mejor a nivel funcional
+- no conviene reabrir ahora su logica central
+- lo que queda es:
+  - rendimiento percibido
+  - feedback visual
+  - alineacion 3D
+
+### Objeto Perdido
+
+#### Caso probado: 2 intentos en `single`
+
+Resultado observado:
+
+- la sesion se activo rapido
+- los resultados aparecieron algo lento
+- mostro bien el siguiente reto
+- al final dejo volver y la sesion ya estaba cerrada correctamente
+
+Lectura actual:
+
+- funcionalmente estable
+- pendiente menor:
+  - copy final en `ruta` si es el ultimo juego
+  - lentitud de resultado mientras guarda
+
+## Cambios de lectura tecnica frente al inicio
+
+Al inicio de la ronda, los riesgos principales eran:
+
+- duplicacion de sesiones
+- reapertura indebida
+- resultados clonados
+- checkpoints que reaparecian mal
+
+Al cierre de esta ronda, los riesgos principales pasan a ser:
+
+- latencia percibida
+- polish de guardado/cierre
+- consistencia visual entre juegos
+- deuda visual especifica en `Robot`
+
+## Estado actual por prioridad
+
+### Resuelto o casi resuelto
+
+- `Tren single` ya no duplica la actividad
+- `Mercado single` cierra bien
+- `Camino AR single` cierra bien
+- `Robot` ya no mezcla piezas/retos como antes y guarda mejor sus metricas
+- `Objeto Perdido single` cierra bien
+
+### Pendiente funcional menor
+
+- revisar si el copy final de `Objeto Perdido` en `ruta` cambia cuando es el ultimo juego
+- confirmar si `Camino AR` debe cortar al primer error o dejar terminar la secuencia
+
+### Pendiente de experiencia / performance
+
+- latencia general del guardado al volver al dashboard
+- `Robot` especialmente lento en sensacion de runtime
+- `Robot` con deuda visual:
+  - feedback menos pulido
+  - assets/transiciones mas crudos
+  - desalineacion entre guia visual y piezas reales
+
+## Conclusión actual
+
+La ronda ya no deja el proyecto en estado critico de logica de sesion.
+
+Lo que se gano de verdad en esta fecha fue:
+
+- `single` mucho mas estable
+- cierres mas deterministas
+- mejor correspondencia entre lo jugado y lo persistido
+- `Robot Lógico` rescatado de varios bugs graves de orquestacion
+
+La siguiente fase recomendable ya no es "seguir metiendo logica", sino:
+
+1. documentar y cerrar estos fixes funcionales
+2. si hay tiempo, atacar performance percibida
+3. despues, hacer polish visual puntual por juego
