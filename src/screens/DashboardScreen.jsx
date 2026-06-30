@@ -144,6 +144,33 @@ const buildSessionStatusLabel = (profile) => {
   return 'Esperando actividad del tutor';
 };
 
+const parsePositiveInt = (value) => {
+  const numericValue = Number(value);
+  return Number.isInteger(numericValue) && numericValue > 0 ? numericValue : null;
+};
+
+const resolveRouteStepSyncCopy = ({ sessionContext = null, profile = null } = {}) => {
+  const currentStep = parsePositiveInt(
+    sessionContext?.sesionPasoActual ?? profile?.sesion_paso_actual,
+  );
+  const totalSteps = parsePositiveInt(
+    sessionContext?.sesionTotalPasos ?? profile?.sesion_total_pasos,
+  );
+  const isLastStep = Boolean(currentStep && totalSteps && currentStep >= totalSteps);
+
+  if (isLastStep) {
+    return {
+      title: 'Cerrando tu ruta',
+      text: 'Estamos guardando tu ultimo resultado para volver al tablero con tu progreso actualizado.',
+    };
+  }
+
+  return {
+    title: 'Preparando tu siguiente reto',
+    text: 'Estamos actualizando la ruta para mostrarte el proximo juego.',
+  };
+};
+
 const resolveStudentDashboardAccess = (profile) => {
   if (!profile) {
     return {
@@ -964,6 +991,14 @@ export default function DashboardScreen({ studentSession, onLogout }) {
   const sessionStatusLabel = buildSessionStatusLabel(studentProfile);
   const dashboardAccess = resolveStudentDashboardAccess(studentProfile);
   const scrollBottomPadding = activeTab === DASHBOARD_TABS.perfil ? 92 : 128;
+  const routeStepSyncCopy = useMemo(
+    () =>
+      resolveRouteStepSyncCopy({
+        sessionContext: activeGameContext,
+        profile: studentProfile,
+      }),
+    [activeGameContext, studentProfile],
+  );
   const precisionValue = progressSummary.averagePrecision == null
     ? 'Sin datos'
     : `${progressSummary.averagePrecision}%`;
@@ -1240,9 +1275,9 @@ export default function DashboardScreen({ studentSession, onLogout }) {
           <View style={styles.routeStepSyncOverlay} pointerEvents="auto">
             <View style={styles.routeStepSyncCard}>
               <ActivityIndicator color={colors.yellow} size="large" />
-              <Text style={styles.routeStepSyncTitle}>Preparando tu siguiente reto</Text>
+              <Text style={styles.routeStepSyncTitle}>{routeStepSyncCopy.title}</Text>
               <Text style={styles.routeStepSyncText}>
-                Estamos actualizando la ruta para mostrarte el proximo juego.
+                {routeStepSyncCopy.text}
               </Text>
             </View>
           </View>
