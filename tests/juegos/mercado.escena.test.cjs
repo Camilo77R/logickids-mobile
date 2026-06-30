@@ -572,13 +572,13 @@ test('Salir de un juego sincroniza ruta antes del mapa y conserva salida rapida 
   assert.ok(exitGameBody, 'Debe existir el flujo explicito exitGame.');
   assert.match(exitGameBody, /shouldSyncBeforeMap/);
   assert.ok(
-    exitGameBody.indexOf('await reloadDashboard({ silent: true })') <
+    exitGameBody.indexOf('await reloadAfterGameExit()') <
       exitGameBody.indexOf('setActiveGame(null)'),
     'La ruta pedagogica debe refrescar el siguiente paso antes de volver al mapa.',
   );
   assert.ok(
     exitGameBody.lastIndexOf('setActiveGame(null)') <
-      exitGameBody.lastIndexOf('void reloadDashboard({ silent: true })'),
+      exitGameBody.lastIndexOf('void reloadAfterGameExit()'),
     'La actividad single debe desmontarse antes de iniciar la recarga remota.',
   );
 });

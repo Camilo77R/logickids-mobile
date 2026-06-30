@@ -616,3 +616,127 @@ La siguiente fase recomendable ya no es "seguir metiendo logica", sino:
 1. documentar y cerrar estos fixes funcionales
 2. si hay tiempo, atacar performance percibida
 3. despues, hacer polish visual puntual por juego
+
+## Actualizacion complementaria - ronda de validacion del 2026-06-30
+
+Durante una ronda posterior de pruebas manuales, Camilo confirmo una mejora
+clara en rendimiento percibido y cierre de sesion en varios juegos, incluso
+sin haber movido la logica pedagogica.
+
+### Lectura global
+
+- el guardado y el retorno al dashboard se sintieron mucho mas rapidos
+- varias sesiones cerraron casi de inmediato y quedaron reflejadas correctamente
+  en web
+- la mejora ya no parece depender de comprar mas infraestructura primero
+- el foco actual se mueve de "persistencia rota" a:
+  - pulido visual
+  - tactilidad
+  - micro-latencias de UX
+
+### Camino AR - 2 intentos en `single`
+
+Resultado observado:
+
+- el flujo funcional fue correcto
+- en un momento, al mover el tablero, este desaparecio visualmente
+- luego sono audio del juego y parecio un bug fuerte
+- despues aparecio `Volver`, se pulso, regreso al tablero y el flujo continuo
+  bien
+- el siguiente reto aparecio correctamente
+- en el segundo intento, al fallar, salio `Volver al tablero`
+- aproximadamente un segundo despues se cerro la sesion en dashboard
+
+Lectura actual:
+
+- el cierre de sesion de `Camino AR` esta funcionando bien
+- existe un detalle visual potencial relacionado con movimiento del tablero o
+  render temporal, pero no dejo la sesion corrupta
+- esto ya no se ve como bug de persistencia, sino como posible glitch visual o
+  de escena
+
+### Mercado Inteligente - 2 intentos en `single`
+
+Resultado observado:
+
+- todo funciono bien
+- el flujo se sintio rapido
+- el guardado y la salida al dashboard fueron inmediatos
+- la sesion se cerro de una
+- en web quedo bien marcada
+
+Lectura actual:
+
+- `Mercado` queda confirmado como estable en flujo y persistencia
+- ya no aparece como candidato principal a problemas de latencia
+
+### Tren de Figuras - 2 intentos en `single`
+
+Resultado observado:
+
+- el flujo general estuvo bien
+- `Continuar` aparece de inmediato
+- `Volver al tablero` aparece de inmediato
+- luego el dashboard tarda alrededor de 3 segundos en reflejar el cierre final
+- al abrir el juego se ve por unos segundos una pantalla negra con elementos
+  sueltos antes de que cargue la escena del tren
+- el tacto del tren sigue sintiendose menos responsivo que otros juegos
+
+Lectura actual:
+
+- `Tren` ya no esta fallando en cierre de sesion
+- el problema dominante cambia a UX:
+  - pantalla negra inicial con carga fea
+  - percepcion de tacto lento
+  - transicion visual de entrada menos infantilmente pulida
+
+### Objeto Perdido - 2 intentos en `single`
+
+Resultado observado:
+
+- muy rapido en guardado
+- transicion a resultado rapida
+- cierre de sesion rapido
+- web reflejo correctamente el estado final
+
+Lectura actual:
+
+- `Objeto Perdido` queda mejor posicionado de lo que parecia en rondas previas
+- ya no destaca por problema funcional, sino por polish menor
+
+## Cambio de lectura del sistema
+
+Esta ronda cambia de nuevo la prioridad tecnica:
+
+- el proyecto ya no esta dominado por errores graves de cierre
+- la persistencia y sincronizacion general estan mucho mas sanas
+- la infraestructura actual puede seguir sirviendo para pruebas y presentacion
+  mientras no reaparezca latencia anomala sostenida
+
+### Pendientes que ahora si quedan como prioridad real
+
+1. `Tren`
+   - mejorar la pantalla de entrada
+   - evitar el flash/negro inicial con elementos sueltos
+   - revisar sensibilidad tactil
+
+2. `Camino AR`
+   - revisar el evento donde el tablero desaparece temporalmente al moverlo
+   - confirmar si fue glitch puntual o reproducible
+
+3. `Robot Lógico`
+   - seguir atacando la experiencia visual y tactil
+   - mantener vigilancia sobre pieza antena y alineacion de la guia
+
+## Conclusion de esta ronda
+
+La evidencia manual mas reciente ya no justifica hablar de crisis funcional en
+los cierres de `single`.
+
+La foto actual es esta:
+
+- `Camino`, `Mercado` y `Objeto Perdido` ya cierran rapido y marcan bien
+- `Tren` funciona, pero necesita pulido visual y mejor respuesta tactil
+- el sistema en general se siente mas confiable
+- los siguientes cambios deben ser pequenos y quirurgicos, enfocados en UX y no
+  en reescribir flujos ya estabilizados

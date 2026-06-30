@@ -2,9 +2,8 @@ import React, { useRef, useMemo, useCallback, useEffect, useState } from 'react'
 import { View, StyleSheet, Text } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { PARTES_ROBOT, NIVELES, PIEZAS_ALTERNATIVAS, obtenerPartesRobot } from '../robotTaller.constants';
+import { PIEZAS_ALTERNATIVAS, obtenerPartesRobot } from '../robotTaller.constants';
 import { createHologramMat, sharedTime, sharedScanState } from './materiales/WorkshopShader';
-import MarkVILoader from './MarkVILoader';
 
 const CYAN = '#00ffff';
 const CYAN_DARK = '#004466';
@@ -567,6 +566,14 @@ function ParteMesh({
 
   const colorHex = useMemo(() => new THREE.Color(color), [color]);
   const rot = parteDef.rotacionObjetivo;
+  const hitAreaSize = useMemo(() => {
+    const [x = 0.3, y = 0.3, z = x] = parteDef.tamanio ?? [];
+    return [
+      Math.max(x * 1.6, 0.55),
+      Math.max(y * 1.45, 0.55),
+      Math.max(z * 1.6, 0.55),
+    ];
+  }, [parteDef.tamanio]);
 
   const obtenerPuntoLocal = (event) => {
     if (!schematicRef?.current || !event.raycaster) {
@@ -624,6 +631,10 @@ function ParteMesh({
   return (
     <group ref={groupRef} onPointerDown={manejarPointerDown} rotation={rot}>
       {esActiva && !estadoParte.agarrada && <AnilloPieza posicion={parteDef.posicionExplotada} />}
+      <mesh onPointerDown={manejarPointerDown}>
+        <boxGeometry args={hitAreaSize} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
       <mesh ref={meshRef}>
         {geo}
         <meshStandardMaterial color={colorHex} metalness={0.3} roughness={0.4}
@@ -638,50 +649,6 @@ function ParteMesh({
       {parteDef.detalle && parteDef.detalle.map((subDef, i) => (
         <SubParteDetalle key={i} def={subDef} color={subDef.color} parentRef={meshRef} />
       ))}
-    </group>
-  );
-}
-
-function SiluetaEnsamblada({ nivel, partesRobot }) {
-  const nivelConfig = NIVELES[nivel] ?? NIVELES[1];
-  if (!nivelConfig.mostrarSiluetas) return null;
-  const partesBase = partesRobot ?? PARTES_ROBOT;
-  // Material fantasma más visible para que los niños identifiquen dónde va cada pieza
-  return (
-    <group>
-      {partesBase.map((parteDef) => {
-        const baseGeoFactor = 1.0;
-        const skeletonMat = createHologramMat('#00E5FF', 0.5, 1.8, 0, false, true);
-        skeletonMat.wireframe = true;
-        const mainGeo = parteDef.forma === 'sphere'
-          ? <sphereGeometry args={[parteDef.tamanio[0] * baseGeoFactor, 16, 16]} />
-          : parteDef.forma === 'cylinder'
-            ? <cylinderGeometry args={[parteDef.tamanio[0] * baseGeoFactor, parteDef.tamanio[0] * baseGeoFactor, parteDef.tamanio[1] * baseGeoFactor, 12]} />
-            : parteDef.forma === 'cone'
-              ? <coneGeometry args={[parteDef.tamanio[0] * baseGeoFactor, parteDef.tamanio[1] * baseGeoFactor, 12]} />
-              : <boxGeometry args={[parteDef.tamanio[0] * baseGeoFactor, parteDef.tamanio[1] * baseGeoFactor, (parteDef.tamanio[2] ?? parteDef.tamanio[0]) * baseGeoFactor]} />;
-        const rot = parteDef.rotacionObjetivo;
-        const meshRot = rot;
-        return (
-          <group key={`skeleton-${parteDef.id}`} position={parteDef.posicionObjetivo}>
-            <group rotation={meshRot}>
-              {/* Esqueleto interno luminoso */}
-              <mesh>
-                {mainGeo}
-                <primitive object={skeletonMat} attach="material" />
-              </mesh>
-              {/* Sub-detalles esqueleto */}
-              {parteDef.detalle && parteDef.detalle.map((subDef, i) => {
-                const subGeo = subDef.forma === 'sphere' ? <sphereGeometry args={[subDef.tamanio[0] * baseGeoFactor, 12, 12]} />
-                  : subDef.forma === 'cylinder' ? <cylinderGeometry args={[subDef.tamanio[0] * baseGeoFactor, (subDef.tamanio[2] ?? subDef.tamanio[0]) * baseGeoFactor, subDef.tamanio[1] * baseGeoFactor, 10]} />
-                  : subDef.forma === 'cone' ? <coneGeometry args={[subDef.tamanio[0] * baseGeoFactor, subDef.tamanio[1] * baseGeoFactor, 10]} />
-                  : <boxGeometry args={[subDef.tamanio[0] * baseGeoFactor, subDef.tamanio[1] * baseGeoFactor, (subDef.tamanio[2] ?? subDef.tamanio[0]) * baseGeoFactor]} />;
-                return <mesh key={i} position={subDef.offset}>{subGeo}<primitive object={skeletonMat} attach="material" /></mesh>;
-              })}
-            </group>
-          </group>
-        );
-      })}
     </group>
   );
 }
@@ -845,7 +812,6 @@ function Escena3D({
       <ambientLight color="#ffffff" intensity={0.5} />
       <pointLight position={[0, 3, 8]} intensity={2.0} color="#ffffff" distance={30} />
       <pointLight position={[0, -2, 5]} intensity={1.0} color={VERDE_HOLO} distance={20} />
-      <SiluetaEnsamblada nivel={nivel} partesRobot={partesRobot} />
       {estado.partes.map((estadoParte) => {
         const parteDef = partesRobot.find((p) => p.id === estadoParte.id) ?? alternativas.find((a) => a.id === estadoParte.id);
         if (!parteDef) return null;
@@ -863,7 +829,6 @@ function Escena3D({
           />
         );
       })}
-      <MarkVILoader />
       {estado.partes.filter(p => !p.ensamblada).map((ep) => {
         const pDef = partesRobot.find((p) => p.id === ep.id)
           ?? alternativas.find((p) => p.id === ep.id);
@@ -916,8 +881,8 @@ function PlanoArrastre({ arrastreRef, schematicRef, onMoverParte, onSoltarParte 
         const nx = punto.x + arrastre.offset[0];
         const ny = punto.y + arrastre.offset[1];
         const nz = punto.z + arrastre.offset[2];
-        if (arrastre.mesh) {
-          arrastre.mesh.position.set(nx, ny, nz);
+        if (arrastre.node) {
+          arrastre.node.position.set(nx, ny, nz);
         }
         onMoverParte?.(arrastre.idParte, [nx, ny, nz]);
       }}
@@ -970,10 +935,10 @@ function EscenaEnsamblaje({
     prevMensajeRef.current = mensaje;
   }, [estado.mensaje]);
 
-  const manejarInicioArrastre = useCallback((idParte, posicionInicial, offset) => {
+  const manejarInicioArrastre = useCallback((idParte, posicionInicial, offset, node) => {
     const agarro = onAgarrarParte?.(idParte, posicionInicial);
     if (agarro) {
-      arrastreRef.current = { idParte, offset };
+      arrastreRef.current = { idParte, offset, node };
     }
     return agarro;
   }, [onAgarrarParte]);
