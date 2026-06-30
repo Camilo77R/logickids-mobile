@@ -751,6 +751,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     isRefreshing,
     errorMessage,
     reloadDashboard,
+    reloadAfterGameExit,
   } = useStudentDashboard(studentSession, {
     onSessionExpired: onLogout,
   });
@@ -1140,7 +1141,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
     if (shouldSyncBeforeMap) {
       try {
         setIsSyncingNextRouteStep(true);
-        await reloadDashboard({ silent: true });
+        await reloadAfterGameExit();
       } finally {
         setIsSyncingNextRouteStep(false);
         setActiveGame(null);
@@ -1151,8 +1152,8 @@ export default function DashboardScreen({ studentSession, onLogout }) {
 
     setActiveGame(null);
     setActiveGameContext(null);
-    void reloadDashboard({ silent: true });
-  }, [activeGameContext?.sesionModo, reloadDashboard, studentProfile?.sesion_modo]);
+    void reloadAfterGameExit();
+  }, [activeGameContext?.sesionModo, reloadAfterGameExit, studentProfile?.sesion_modo]);
 
   const handleGameResultVisible = useCallback(() => {
     setActiveGameResultVisible(true);

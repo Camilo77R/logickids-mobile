@@ -189,7 +189,7 @@ export const useStudentDashboard = (
     }
   };
 
-  const requestDashboardReload = useEffectEvent(({ silent = true } = {}) => {
+  const queueDashboardReload = (silent = true) => {
     if (!service) {
       return;
     }
@@ -200,11 +200,18 @@ export const useStudentDashboard = (
     }
 
     void loadDashboard({ silent });
+  };
+
+  const requestDashboardReload = useEffectEvent(({ silent = true } = {}) => {
+    queueDashboardReload(silent);
   });
 
-  const refreshProfileSnapshot = useEffectEvent(async () => {
+  const refreshProfileSnapshot = useEffectEvent(async ({ triggerDashboardReload = false } = {}) => {
     if (!service || profileRefreshInFlightRef.current || dashboardRequestInFlightRef.current) {
-      return;
+      if (triggerDashboardReload && dashboardRequestInFlightRef.current) {
+        pendingDashboardRefreshRef.current = true;
+      }
+      return null;
     }
 
     profileRefreshInFlightRef.current = true;
@@ -227,12 +234,19 @@ export const useStudentDashboard = (
           };
         });
       }
+
+      if (triggerDashboardReload) {
+        queueDashboardReload(true);
+      }
+
+      return freshProfile;
     } catch (error) {
       if (isAuthenticationError(error)) {
         onSessionExpired?.();
       }
 
       // El polling de respaldo no debe tumbar la UI ni interrumpir la clase.
+      return null;
     } finally {
       profileRefreshInFlightRef.current = false;
     }
@@ -325,5 +339,6 @@ export const useStudentDashboard = (
     isRefreshing,
     errorMessage,
     reloadDashboard: ({ silent = true } = {}) => loadDashboard({ silent }),
+    reloadAfterGameExit: () => refreshProfileSnapshot({ triggerDashboardReload: true }),
   };
 };

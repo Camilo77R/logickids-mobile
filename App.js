@@ -25,7 +25,10 @@ import {
   loadApiBaseUrlSetting,
   saveApiBaseUrlSetting,
 } from './src/services/apiSettings.service';
+import { installDevelopmentWarningFilters } from './src/dev/installDevelopmentWarningFilters';
 import { extractQrToken } from './src/utils/qrToken';
+
+installDevelopmentWarningFilters();
 
 export default function App() {
   const [fontsLoaded] = useFonts({
