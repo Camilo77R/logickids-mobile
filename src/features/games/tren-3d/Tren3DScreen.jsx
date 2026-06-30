@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Animated,
   ImageBackground,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,6 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { TIPOS_EVENTO_SESION } from '../core/contratoSesionJuego';
 import { useSesionTren3D } from './aplicacion/useSesionTren3D';
@@ -1217,6 +1217,7 @@ export default function Tren3DScreen({
           key={webViewKey}
           webViewRef={webViewRef}
           onMensaje={manejarMensaje}
+          onErrorMotor={setErrorMotor}
           parametrosIniciales={parametrosIniciales}
         />
       ) : null}
@@ -1274,98 +1275,102 @@ export default function Tren3DScreen({
         </ImageBackground>
       ) : null}
 
-      <View style={styles.barraSuperior}>
-        <View style={styles.barraSuperiorTexto}>
-          <Text style={styles.titulo}>Tren Patrones</Text>
-          <Text style={styles.subtitulo} numberOfLines={2}>{estado.mensaje}</Text>
-        </View>
-        <View style={styles.vueltasBadge}>
-          <Text style={styles.vueltasBadgeLabel}>Vueltas</Text>
-          <Text style={styles.vueltasBadgeValor}>
-            {estado.vueltasRestantes}/{estado.vueltasMaximas}
-          </Text>
-        </View>
-        <TouchableOpacity style={styles.botonSalir} onPress={salir}>
-          <Text style={styles.botonSalirTexto}>Salir</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.barraPatron}>
-        <Text style={styles.barraPatronTitulo}>Patron del nivel</Text>
-        <ScrollView
-          showsVerticalScrollIndicator
-          contentContainerStyle={styles.listaPatron}
-        >
-          {estado.patronActual.map((paso) => (
-            <FiguraPatron
-              key={`${paso.posicion}-${paso.clave}`}
-              paso={paso}
-              completado={estado.vagonesResueltos.includes(paso.posicion)}
-            />
-          ))}
-        </ScrollView>
-      </View>
-
-      <View style={styles.barraBotones}>
-        <ScrollView
-          showsVerticalScrollIndicator
-          contentContainerStyle={styles.listaBotones}
-        >
-          {opcionesUnicas.map((opcion) => (
-            <TouchableOpacity
-              key={opcion.clave}
-              activeOpacity={0.8}
-              disabled={!esFaseSeleccionable(estado.fase)}
-              style={[
-                styles.botonNativo,
-                { backgroundColor: opcion.colorHex },
-                estado.seleccionClave === opcion.clave && styles.botonNativoActivo,
-                !esFaseSeleccionable(estado.fase) && { opacity: 0.5 },
-              ]}
-              onPress={() => seleccionarFiguraNativa(opcion)}
-            >
-              {SIMBOLOS_FIGURA_PLANA[opcion.figuraId] ? (
-                <Text style={styles.figuraBotonSimbolo}>
-                  {SIMBOLOS_FIGURA_PLANA[opcion.figuraId]}
-                </Text>
-              ) : (
-                <View
-                  style={[
-                    styles.figuraBoton,
-                    opcion.figuraId === 'circulo' && styles.figuraBotonCirculo,
-                  ]}
-                />
-              )}
-              <Text style={styles.botonNativoTexto} numberOfLines={1}>
-                {opcion.figuraLabel}
+      {juegoSolicitado ? (
+        <>
+          <View style={styles.barraSuperior}>
+            <View style={styles.barraSuperiorTexto}>
+              <Text style={styles.titulo}>Tren Patrones</Text>
+              <Text style={styles.subtitulo} numberOfLines={2}>{estado.mensaje}</Text>
+            </View>
+            <View style={styles.vueltasBadge}>
+              <Text style={styles.vueltasBadgeLabel}>Vueltas</Text>
+              <Text style={styles.vueltasBadgeValor}>
+                {estado.vueltasRestantes}/{estado.vueltasMaximas}
               </Text>
+            </View>
+            <TouchableOpacity style={styles.botonSalir} onPress={salir}>
+              <Text style={styles.botonSalirTexto}>Salir</Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+          </View>
 
-      <View style={styles.panelMetricas}>
-        <View style={styles.metrica}>
-          <Text style={styles.metricaValor}>{estado.nivel}/{configuracion.nivelesPorPartida}</Text>
-          <Text style={styles.metricaLabel}>Nivel</Text>
-        </View>
-        <View style={styles.metrica}>
-          <Text style={styles.metricaValor}>{estado.dificultad}</Text>
-          <Text style={styles.metricaLabel}>Dificultad</Text>
-        </View>
-        <View style={styles.metrica}>
-          <Text style={styles.metricaValor}>{estado.aciertos}</Text>
-          <Text style={styles.metricaLabel}>Aciertos</Text>
-        </View>
-        <View style={styles.metrica}>
-          <Text style={styles.metricaValor}>{estado.errores}</Text>
-          <Text style={styles.metricaLabel}>Errores</Text>
-        </View>
-        <View style={styles.metrica}>
-          <Text style={styles.metricaValor}>{estado.puntaje}</Text>
-          <Text style={styles.metricaLabel}>Puntos</Text>
-        </View>
-      </View>
+          <View style={styles.barraPatron}>
+            <Text style={styles.barraPatronTitulo}>Patron del nivel</Text>
+            <ScrollView
+              showsVerticalScrollIndicator
+              contentContainerStyle={styles.listaPatron}
+            >
+              {estado.patronActual.map((paso) => (
+                <FiguraPatron
+                  key={`${paso.posicion}-${paso.clave}`}
+                  paso={paso}
+                  completado={estado.vagonesResueltos.includes(paso.posicion)}
+                />
+              ))}
+            </ScrollView>
+          </View>
+
+          <View style={styles.barraBotones}>
+            <ScrollView
+              showsVerticalScrollIndicator
+              contentContainerStyle={styles.listaBotones}
+            >
+              {opcionesUnicas.map((opcion) => (
+                <TouchableOpacity
+                  key={opcion.clave}
+                  activeOpacity={0.8}
+                  disabled={!esFaseSeleccionable(estado.fase)}
+                  style={[
+                    styles.botonNativo,
+                    { backgroundColor: opcion.colorHex },
+                    estado.seleccionClave === opcion.clave && styles.botonNativoActivo,
+                    !esFaseSeleccionable(estado.fase) && { opacity: 0.5 },
+                  ]}
+                  onPress={() => seleccionarFiguraNativa(opcion)}
+                >
+                  {SIMBOLOS_FIGURA_PLANA[opcion.figuraId] ? (
+                    <Text style={styles.figuraBotonSimbolo}>
+                      {SIMBOLOS_FIGURA_PLANA[opcion.figuraId]}
+                    </Text>
+                  ) : (
+                    <View
+                      style={[
+                        styles.figuraBoton,
+                        opcion.figuraId === 'circulo' && styles.figuraBotonCirculo,
+                      ]}
+                    />
+                  )}
+                  <Text style={styles.botonNativoTexto} numberOfLines={1}>
+                    {opcion.figuraLabel}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          <View style={styles.panelMetricas}>
+            <View style={styles.metrica}>
+              <Text style={styles.metricaValor}>{estado.nivel}/{configuracion.nivelesPorPartida}</Text>
+              <Text style={styles.metricaLabel}>Nivel</Text>
+            </View>
+            <View style={styles.metrica}>
+              <Text style={styles.metricaValor}>{estado.dificultad}</Text>
+              <Text style={styles.metricaLabel}>Dificultad</Text>
+            </View>
+            <View style={styles.metrica}>
+              <Text style={styles.metricaValor}>{estado.aciertos}</Text>
+              <Text style={styles.metricaLabel}>Aciertos</Text>
+            </View>
+            <View style={styles.metrica}>
+              <Text style={styles.metricaValor}>{estado.errores}</Text>
+              <Text style={styles.metricaLabel}>Errores</Text>
+            </View>
+            <View style={styles.metrica}>
+              <Text style={styles.metricaValor}>{estado.puntaje}</Text>
+              <Text style={styles.metricaLabel}>Puntos</Text>
+            </View>
+          </View>
+        </>
+      ) : null}
 
       <TarjetaResultadoTren
         tarjeta={tarjetaResultadoVisible}

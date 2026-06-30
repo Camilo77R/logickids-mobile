@@ -1,17 +1,21 @@
 const serializar = (valor) => JSON.stringify(valor).replace(/</g, '\\u003c');
 export const generarHtmlMotorBabylon = (parametrosIniciales, opciones = {}) => {
   const parametros = serializar(parametrosIniciales);
+  const babylonScriptUri = opciones.babylonScriptUri ?? '';
   const fondoTrenUri = opciones.fondoTrenUri ?? '';
   const fondoTren = fondoTrenUri
     ? `url(${serializar(fondoTrenUri)}) center center / cover no-repeat,`
     : '';
+  const babylonScriptTag = babylonScriptUri
+    ? `<script src=${serializar(babylonScriptUri)}></script>`
+    : '<script src="https://cdn.babylonjs.com/babylon.js"></script>';
 
   return `<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    ${babylonScriptTag}
     <style>
       html, body, #renderCanvas { width: 100%; height: 100%; margin: 0; overflow: hidden; touch-action: none; }
       body {
@@ -183,12 +187,23 @@ export const generarHtmlMotorBabylon = (parametrosIniciales, opciones = {}) => {
           esperado.outlineWidth = 0.045;
           esperado.metadata = { tipo: 'vagon', decoracion: true, indice: indice, paso: paso };
 
+          var hitbox = BABYLON.MeshBuilder.CreateBox(
+            'hitbox-vagon-' + indice,
+            { width: 1.12, height: 1.28, depth: 1.08 },
+            scene
+          );
+          hitbox.position = new BABYLON.Vector3(x, 0.2, 0);
+          hitbox.material = material('hitbox-vagon-mat-' + indice, '#ffffff');
+          hitbox.material.alpha = 0.01;
+          hitbox.metadata = { tipo: 'vagon', hitbox: true, indice: indice, paso: paso };
+
           base.parent = grupoTren;
           ruedaA.parent = grupoTren;
           ruedaB.parent = grupoTren;
           esperado.parent = grupoTren;
+          hitbox.parent = grupoTren;
 
-          vagones.push(base, ruedaA, ruedaB, esperado);
+          vagones.push(base, ruedaA, ruedaB, esperado, hitbox);
         }
 
         function crearLocomotora() {
@@ -234,7 +249,7 @@ export const generarHtmlMotorBabylon = (parametrosIniciales, opciones = {}) => {
             tipo: 'seleccionActualizada',
             clave: paso ? paso.clave : null
           });
-          dibujarNivel();
+          actualizarVisualesNivel();
         }
 
         function reportarNivelCompletado() {
@@ -315,7 +330,7 @@ export const generarHtmlMotorBabylon = (parametrosIniciales, opciones = {}) => {
           });
 
           marcarSeleccion(null);
-          dibujarNivel();
+          actualizarVisualesNivel();
 
           if (nivelCompletado) {
             estadoTren = 'saliendo';
@@ -329,6 +344,39 @@ export const generarHtmlMotorBabylon = (parametrosIniciales, opciones = {}) => {
           estado.patron.forEach(crearVagon);
           crearNube('nube-a', -3.8, 2.15, 1.8, 0.85);
           crearNube('nube-b', 2.9, 2.35, 1.9, 0.75);
+        }
+
+        function actualizarVisualesNivel() {
+          vagones.forEach(function (mesh) {
+            if (!mesh || !mesh.metadata || mesh.metadata.tipo !== 'vagon') {
+              return;
+            }
+
+            var indice = mesh.metadata.indice;
+            var paso = mesh.metadata.paso;
+
+            if (indice == null || !paso) {
+              return;
+            }
+
+            var completado = !!estado.completados[indice];
+            var seleccionado = estado.seleccion && estado.seleccion.clave === paso.clave;
+
+            if (mesh.metadata.decoracion) {
+              mesh.visibility = completado ? 1 : estado.opacidadFiguraGuia;
+              return;
+            }
+
+            if (mesh.name.indexOf('vagon-') === 0 && mesh.material) {
+              mesh.material.diffuseColor = color3(
+                completado
+                  ? '#64d28a'
+                  : seleccionado
+                    ? '#ffd85f'
+                    : '#4bb2e6'
+              );
+            }
+          });
         }
 
         window.iniciarNuevoNivel = function (params) {
