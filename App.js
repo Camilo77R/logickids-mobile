@@ -12,9 +12,13 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { canConfigureApiAtRuntime } from './src/config/runtimeEnvironment';
 import { colors } from './src/constants/theme';
 import {
-  STUDENT_AUTH_STATES,
   useStudentAuthentication,
 } from './src/features/student-auth/useStudentAuthentication';
+import { STUDENT_AUTH_STATES } from './src/features/student-auth/studentAuthState';
+import {
+  resolveStudentRecoveryScreenCopy,
+  STUDENT_RECOVERY_ACTIONS,
+} from './src/features/student-auth/studentSessionRecovery';
 import DashboardScreen from './src/screens/DashboardScreen';
 import LoginQrScreen from './src/screens/LoginQrScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
@@ -26,6 +30,10 @@ import {
   saveApiBaseUrlSetting,
 } from './src/services/apiSettings.service';
 import { installDevelopmentWarningFilters } from './src/dev/installDevelopmentWarningFilters';
+import {
+  isNetworkError,
+  isStudentSessionRecoveryRequiredError,
+} from './src/services/http.service';
 import { extractQrToken } from './src/utils/qrToken';
 
 installDevelopmentWarningFilters();
@@ -49,6 +57,10 @@ export default function App() {
   const authentication = useStudentAuthentication({
     apiBaseUrl,
     ready: apiSettingsLoaded,
+  });
+  const sessionRecoveryCopy = resolveStudentRecoveryScreenCopy({
+    recoveryReason: authentication.recoveryReason,
+    errorMessage: authentication.error,
   });
 
   useEffect(() => {
@@ -129,11 +141,24 @@ export default function App() {
     setScannerError('');
 
     try {
-      await authentication.loginByQr(qrToken);
-      setRoute('dashboard');
+      const authenticatedSession = await authentication.loginByQr(qrToken);
+
+      if (authenticatedSession) {
+        setRoute('dashboard');
+      }
     } catch (error) {
       const message = error.message || 'No fue posible validar el codigo QR.';
       setScannerError(message);
+
+      if (isStudentSessionRecoveryRequiredError(error)) {
+        return;
+      }
+
+      if (isNetworkError(error)) {
+        Alert.alert('Sin conexion', message);
+        return;
+      }
+
       Alert.alert('QR no validado', message);
     } finally {
       qrRequestInFlightRef.current = false;
@@ -148,6 +173,43 @@ export default function App() {
       setScannerError('');
       setRoute('onboarding');
     }
+  };
+
+  const handleReturnToScanner = () => {
+    setScannerError('');
+    setProcessingQr(false);
+    setRoute(needsApiConfiguration ? 'login' : 'scanner');
+  };
+
+  const handleReturnToHome = () => {
+    setScannerError('');
+    setProcessingQr(false);
+    setRoute('onboarding');
+  };
+
+  const handlePrimaryRecoveryAction = async () => {
+    if (sessionRecoveryCopy.primaryActionKind === STUDENT_RECOVERY_ACTIONS.scan) {
+      handleReturnToScanner();
+      return true;
+    }
+
+    if (sessionRecoveryCopy.primaryActionKind === STUDENT_RECOVERY_ACTIONS.home) {
+      handleReturnToHome();
+      return true;
+    }
+
+    return authentication.retryRecovery();
+  };
+
+  const handleSecondaryRecoveryAction = async () => {
+    authentication.dismissRecovery();
+
+    if (sessionRecoveryCopy.secondaryActionKind === STUDENT_RECOVERY_ACTIONS.home) {
+      handleReturnToHome();
+      return;
+    }
+
+    handleReturnToScanner();
   };
 
   if (
@@ -168,9 +230,12 @@ export default function App() {
     return (
       <SafeAreaProvider>
         <SessionRecoveryScreen
-          message={authentication.error}
-          onRetry={authentication.restore}
-          onUseAnotherQr={handleLogout}
+          message={sessionRecoveryCopy.message}
+          onRetry={handlePrimaryRecoveryAction}
+          onUseAnotherQr={handleSecondaryRecoveryAction}
+          title={sessionRecoveryCopy.title}
+          primaryActionLabel={sessionRecoveryCopy.primaryActionLabel}
+          secondaryActionLabel={sessionRecoveryCopy.secondaryActionLabel}
         />
       </SafeAreaProvider>
     );

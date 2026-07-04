@@ -54,6 +54,34 @@ El backend devuelve:
 El mobile guarda el token en memoria de la sesion actual y lo manda como
 `Authorization: Bearer <token>` en rutas protegidas.
 
+### Regla de recuperacion de sesion en el mismo dispositivo
+
+Si el backend responde `STUDENT_SESSION_ACTIVE`, eso no significa que el QR sea
+invalido.
+
+Significa:
+
+- el dispositivo ya tiene una sesion infantil activa en backend
+- el mobile debe intentar restaurar la credencial local guardada
+
+Comportamiento esperado:
+
+- si la credencial local sigue valida, entra directo al dashboard
+- si la credencial local ya no puede recuperarse, el mobile debe enviar al flujo
+  de recuperacion de sesion
+- no debe mostrar `QR no validado` para ese caso
+- el boton de reintento del mobile debe volver a intentar la recuperacion local
+  sin expulsar al estudiante del flujo de recuperacion
+- si despues del reintento la credencial local sigue sin poder recuperarse, el
+  mobile debe indicar que el tutor o el colegio deben liberar o recuperar la
+  sesion desde el panel oficial
+
+Limitacion actual del contrato:
+
+- hoy no existe un endpoint dedicado para recuperar una sesion de dispositivo
+  solo con `installation_id` cuando la credencial local ya se perdio
+- en ese caso el mobile solo puede informar recuperacion requerida
+
 ## 2. Acceso al dashboard
 
 ### Regla

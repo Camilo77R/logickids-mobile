@@ -22,7 +22,10 @@ export const createStudentAccessService = (baseUrl) => {
   const apiBaseUrl = normalizeBaseUrl(baseUrl);
 
   return {
-    async loginByQr(qrToken, { installationId, appVersion } = {}) {
+    async loginByQr(
+      qrToken,
+      { installationId, appVersion, deviceConflictStrategy } = {},
+    ) {
       const endpoint = `${apiBaseUrl}${QR_LOGIN_PATH}`;
       let response;
 
@@ -34,6 +37,7 @@ export const createStudentAccessService = (baseUrl) => {
             qr_token: qrToken.trim(),
             installation_id: installationId,
             app_version: appVersion,
+            device_conflict_strategy: deviceConflictStrategy,
           }),
         });
       } catch (error) {

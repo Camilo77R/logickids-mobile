@@ -1,7 +1,28 @@
-import { isAuthenticationError, isStudentSessionActiveError } from './http.service';
+import {
+  createStudentSessionRecoveryRequiredError,
+  isAuthenticationError,
+  isStudentSessionActiveError,
+  resolveStudentSessionConflictReason,
+  STUDENT_SESSION_CONFLICT_REASONS,
+} from './http.service';
 import { isStudentCredentialExpired } from './studentCredential.model';
 
 const normalizeBaseUrl = (baseUrl) => String(baseUrl ?? '').trim().replace(/\/+$/, '');
+export const STUDENT_DEVICE_CONFLICT_STRATEGIES = Object.freeze({
+  replaceExistingDeviceSession: 'replace_existing_device_session',
+});
+
+const buildSessionRecoveryMessage = (conflictReason) => {
+  if (conflictReason === STUDENT_SESSION_CONFLICT_REASONS.studentActiveElsewhere) {
+    return 'Este estudiante ya tiene una sesion infantil activa en otro dispositivo y no pudimos recuperarla automaticamente desde aqui.';
+  }
+
+  if (conflictReason === STUDENT_SESSION_CONFLICT_REASONS.deviceOccupied) {
+    return 'Este dispositivo ya esta en uso con otra sesion infantil activa. Cierra esa sesion o pide al tutor que libere el dispositivo correcto antes de continuar.';
+  }
+
+  return 'Este dispositivo ya tiene una sesion infantil activa y no pudimos recuperarla automaticamente.';
+};
 
 const buildStudentSession = ({
   token,
@@ -68,7 +89,7 @@ export const createStudentAuthenticationService = ({
   };
 
   return Object.freeze({
-    async loginByQr(qrToken) {
+    async loginByQr(qrToken, { deviceConflictStrategy } = {}) {
       const installationId = await installationStorage.getOrCreate();
       let loginData;
 
@@ -76,6 +97,7 @@ export const createStudentAuthenticationService = ({
         loginData = await accessService.loginByQr(qrToken, {
           installationId,
           appVersion,
+          deviceConflictStrategy,
         });
       } catch (error) {
         if (isStudentSessionActiveError(error)) {
@@ -84,6 +106,14 @@ export const createStudentAuthenticationService = ({
           if (restoredSession) {
             return restoredSession;
           }
+
+          const conflictReason = resolveStudentSessionConflictReason(error);
+
+          throw createStudentSessionRecoveryRequiredError(
+            buildSessionRecoveryMessage(conflictReason),
+            error,
+            conflictReason,
+          );
         }
 
         throw error;
