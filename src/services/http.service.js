@@ -22,6 +22,42 @@ const AUTHENTICATION_ERROR_CODES = new Set([
 ]);
 
 export const STUDENT_SESSION_ACTIVE_ERROR_CODE = 'STUDENT_SESSION_ACTIVE';
+export const STUDENT_SESSION_RECOVERY_REQUIRED_ERROR_CODE =
+  'STUDENT_SESSION_RECOVERY_REQUIRED';
+export const STUDENT_SESSION_CONFLICT_REASONS = Object.freeze({
+  studentActiveElsewhere: 'student_active_elsewhere',
+  deviceOccupied: 'device_occupied',
+  unknown: 'unknown',
+});
+
+const normalizeErrorMessage = (message) =>
+  String(message ?? '').trim().toLowerCase();
+
+export const resolveStudentSessionConflictReason = (error) => {
+  const normalizedMessage = normalizeErrorMessage(error?.message);
+
+  if (normalizedMessage.includes('otro dispositivo')) {
+    return STUDENT_SESSION_CONFLICT_REASONS.studentActiveElsewhere;
+  }
+
+  if (normalizedMessage.includes('dispositivo ya tiene una sesion infantil activa')) {
+    return STUDENT_SESSION_CONFLICT_REASONS.deviceOccupied;
+  }
+
+  return STUDENT_SESSION_CONFLICT_REASONS.unknown;
+};
+
+export const createStudentSessionRecoveryRequiredError = (
+  message = 'Este dispositivo ya tiene una sesion infantil activa y no pudimos recuperarla automaticamente.',
+  cause = null,
+  recoveryReason = STUDENT_SESSION_CONFLICT_REASONS.unknown,
+) => {
+  const error = new Error(message, cause ? { cause } : undefined);
+  error.name = 'StudentSessionRecoveryRequiredError';
+  error.code = STUDENT_SESSION_RECOVERY_REQUIRED_ERROR_CODE;
+  error.recoveryReason = recoveryReason;
+  return error;
+};
 
 export const isAuthenticationError = (error) =>
   error instanceof HttpRequestError &&
@@ -33,6 +69,10 @@ export const isNetworkError = (error) =>
 export const isStudentSessionActiveError = (error) =>
   error instanceof HttpRequestError &&
   error.code === STUDENT_SESSION_ACTIVE_ERROR_CODE;
+
+export const isStudentSessionRecoveryRequiredError = (error) =>
+  error instanceof Error &&
+  error.code === STUDENT_SESSION_RECOVERY_REQUIRED_ERROR_CODE;
 
 export const buildJsonHeaders = (token) => ({
   'Content-Type': 'application/json',

@@ -1,5 +1,5 @@
-import React from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,7 +10,30 @@ import { colors, fonts, spacing } from '../constants/theme';
 
 const logo = require('../../assets/branding/logo-logickids.png');
 
-export default function SessionRecoveryScreen({ message, onRetry, onUseAnotherQr }) {
+export default function SessionRecoveryScreen({
+  message,
+  onRetry,
+  onUseAnotherQr,
+  title = 'Estamos reconectando',
+  primaryActionLabel = 'Intentar de nuevo',
+  secondaryActionLabel = 'Usar otro codigo QR',
+}) {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handlePrimaryPress = async () => {
+    if (!onRetry || submitting) {
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      await onRetry();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <BrandBackground>
       <StatusBar style="dark" />
@@ -20,17 +43,31 @@ export default function SessionRecoveryScreen({ message, onRetry, onUseAnotherQr
           <View style={styles.iconContainer}>
             <Ionicons name="cloud-offline-outline" size={46} color={colors.purple} />
           </View>
-          <Text style={styles.title}>Estamos reconectando</Text>
+          <Text style={styles.title}>{title}</Text>
           <Text style={styles.message}>
-            {message || 'No pudimos confirmar tu sesion con el colegio. Tu acceso sigue guardado de forma segura.'}
+            {message || 'No pudimos confirmar tu sesion con el colegio. Si este dispositivo ya tenia acceso, vamos a intentar recuperarlo de forma segura.'}
           </Text>
         </View>
 
         <View style={styles.actions}>
-          <PrimaryButton title="Intentar de nuevo" onPress={onRetry} />
-          <Text accessibilityRole="button" onPress={onUseAnotherQr} style={styles.secondaryAction}>
-            Usar otro codigo QR
-          </Text>
+          <PrimaryButton
+            title={primaryActionLabel}
+            onPress={handlePrimaryPress}
+            loading={submitting}
+          />
+          <Pressable
+            accessibilityRole="button"
+            disabled={submitting}
+            hitSlop={10}
+            onPress={onUseAnotherQr}
+            style={({ pressed }) => [
+              styles.secondaryActionButton,
+              pressed && styles.secondaryActionButtonPressed,
+              submitting && styles.secondaryActionButtonDisabled,
+            ]}
+          >
+            <Text style={styles.secondaryAction}>{secondaryActionLabel}</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     </BrandBackground>
@@ -85,6 +122,14 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: 14,
     textAlign: 'center',
+  },
+  secondaryActionButton: {
     paddingVertical: spacing.sm,
+  },
+  secondaryActionButtonPressed: {
+    opacity: 0.72,
+  },
+  secondaryActionButtonDisabled: {
+    opacity: 0.55,
   },
 });

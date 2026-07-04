@@ -6,22 +6,31 @@ import { createStudentAccessService } from '../../services/studentAccess.service
 import { createStudentAuthenticationService } from '../../services/studentAuthentication.service';
 import { studentCredentialStorage } from '../../services/studentCredentialStorage.service';
 import { studentInstallationStorage } from '../../services/studentInstallation.service';
-import { isAuthenticationError } from '../../services/http.service';
-
-export const STUDENT_AUTH_STATES = Object.freeze({
-  anonymous: 'anonymous',
-  authenticated: 'authenticated',
-  recovery: 'recovery',
-  restoring: 'restoring',
-});
+import {
+  isAuthenticationError,
+  isStudentSessionRecoveryRequiredError,
+  STUDENT_SESSION_CONFLICT_REASONS,
+} from '../../services/http.service';
+import {
+  STUDENT_AUTH_RECOVERY_REASONS,
+  STUDENT_AUTH_STATES,
+} from './studentAuthState';
+import {
+  dismissStudentRecoverySession,
+  retryStudentRecoverySession,
+} from './studentSessionRecovery';
 
 export const useStudentAuthentication = ({ apiBaseUrl, ready }) => {
   const [session, setSession] = useState(null);
   const [state, setState] = useState(STUDENT_AUTH_STATES.restoring);
   const [error, setError] = useState('');
+  const [recoveryReason, setRecoveryReason] = useState(
+    STUDENT_AUTH_RECOVERY_REASONS.unknown,
+  );
   const requestIdRef = useRef(0);
   const logoutInFlightRef = useRef(false);
   const revalidationInFlightRef = useRef(false);
+  const recoveryQrTokenRef = useRef('');
   const previousAppStateRef = useRef(AppState.currentState);
   const service = useMemo(() => {
     if (!apiBaseUrl) {
@@ -46,6 +55,7 @@ export const useStudentAuthentication = ({ apiBaseUrl, ready }) => {
     const requestId = ++requestIdRef.current;
     setState(STUDENT_AUTH_STATES.restoring);
     setError('');
+    setRecoveryReason(STUDENT_AUTH_RECOVERY_REASONS.unknown);
 
     if (!service) {
       setSession(null);
@@ -66,6 +76,7 @@ export const useStudentAuthentication = ({ apiBaseUrl, ready }) => {
           ? STUDENT_AUTH_STATES.authenticated
           : STUDENT_AUTH_STATES.anonymous,
       );
+      setRecoveryReason(STUDENT_AUTH_RECOVERY_REASONS.unknown);
     } catch (restoreError) {
       if (requestId !== requestIdRef.current) {
         return;
@@ -73,6 +84,7 @@ export const useStudentAuthentication = ({ apiBaseUrl, ready }) => {
 
       setSession(null);
       setError(restoreError.message || 'No pudimos verificar tu sesion guardada.');
+      setRecoveryReason(STUDENT_AUTH_RECOVERY_REASONS.connectivity);
       setState(STUDENT_AUTH_STATES.recovery);
     }
   }, [ready, service]);
@@ -90,11 +102,31 @@ export const useStudentAuthentication = ({ apiBaseUrl, ready }) => {
       throw new Error('La conexion segura con el colegio no esta disponible.');
     }
 
-    const authenticatedSession = await service.loginByQr(qrToken);
-    setSession(authenticatedSession);
-    setError('');
-    setState(STUDENT_AUTH_STATES.authenticated);
-    return authenticatedSession;
+    try {
+      recoveryQrTokenRef.current = qrToken;
+      const authenticatedSession = await service.loginByQr(qrToken);
+      setSession(authenticatedSession);
+      setError('');
+      setRecoveryReason(STUDENT_AUTH_RECOVERY_REASONS.unknown);
+      setState(STUDENT_AUTH_STATES.authenticated);
+      recoveryQrTokenRef.current = '';
+      return authenticatedSession;
+    } catch (loginError) {
+      if (isStudentSessionRecoveryRequiredError(loginError)) {
+        setSession(null);
+        setError(loginError.message);
+        setRecoveryReason(
+          loginError.recoveryReason === STUDENT_SESSION_CONFLICT_REASONS.deviceOccupied
+            ? STUDENT_AUTH_RECOVERY_REASONS.deviceOccupied
+            : STUDENT_AUTH_RECOVERY_REASONS.studentSessionActive,
+        );
+        setState(STUDENT_AUTH_STATES.recovery);
+        return null;
+      }
+
+      recoveryQrTokenRef.current = '';
+      throw loginError;
+    }
   }, [service]);
 
   const logout = useCallback(async () => {
@@ -114,11 +146,14 @@ export const useStudentAuthentication = ({ apiBaseUrl, ready }) => {
 
       setSession(null);
       setError('');
+      setRecoveryReason(STUDENT_AUTH_RECOVERY_REASONS.unknown);
       setState(STUDENT_AUTH_STATES.anonymous);
+      recoveryQrTokenRef.current = '';
       return true;
     } catch (logoutError) {
       setSession(null);
       setError(logoutError.message || 'No pudimos cerrar la sesion de forma segura.');
+      setRecoveryReason(STUDENT_AUTH_RECOVERY_REASONS.connectivity);
       setState(STUDENT_AUTH_STATES.recovery);
       return false;
     } finally {
@@ -137,8 +172,44 @@ export const useStudentAuthentication = ({ apiBaseUrl, ready }) => {
 
     setSession(null);
     setError('');
+    setRecoveryReason(STUDENT_AUTH_RECOVERY_REASONS.unknown);
     setState(STUDENT_AUTH_STATES.anonymous);
+    recoveryQrTokenRef.current = '';
   }, [service, session]);
+
+  const retryRecovery = useCallback(async () => {
+    setState(STUDENT_AUTH_STATES.restoring);
+    setError('');
+    const resolution = await retryStudentRecoverySession({
+      service,
+      recoveryReason,
+      recoveryQrToken: recoveryQrTokenRef.current,
+    });
+
+    if (resolution.clearQrToken) {
+      recoveryQrTokenRef.current = '';
+    }
+
+    setSession(resolution.session);
+    setError(resolution.errorMessage);
+    setRecoveryReason(resolution.recoveryReason);
+    setState(resolution.nextState);
+
+    return resolution.success;
+  }, [recoveryReason, service]);
+
+  const dismissRecovery = useCallback(() => {
+    const resolution = dismissStudentRecoverySession();
+
+    if (resolution.clearQrToken) {
+      recoveryQrTokenRef.current = '';
+    }
+
+    setSession(resolution.session);
+    setError(resolution.errorMessage);
+    setRecoveryReason(resolution.recoveryReason);
+    setState(resolution.nextState);
+  }, []);
 
   const revalidate = useCallback(async () => {
     if (!session || !service || revalidationInFlightRef.current) {
@@ -159,10 +230,13 @@ export const useStudentAuthentication = ({ apiBaseUrl, ready }) => {
         await service.clearLocalCredential();
         setSession(null);
         setError('');
+        setRecoveryReason(STUDENT_AUTH_RECOVERY_REASONS.unknown);
         setState(STUDENT_AUTH_STATES.anonymous);
+        recoveryQrTokenRef.current = '';
       } else {
         setSession(null);
         setError(refreshError.message || 'Sin conexion. Reconecta para continuar jugando.');
+        setRecoveryReason(STUDENT_AUTH_RECOVERY_REASONS.connectivity);
         setState(STUDENT_AUTH_STATES.recovery);
       }
     } finally {
@@ -189,9 +263,12 @@ export const useStudentAuthentication = ({ apiBaseUrl, ready }) => {
 
   return {
     clearForApiChange,
+    dismissRecovery,
     error,
     loginByQr,
     logout,
+    recoveryReason,
+    retryRecovery,
     restore,
     session,
     state,

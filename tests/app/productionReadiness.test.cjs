@@ -9,6 +9,8 @@ const {
 } = require('../../src/config/runtimeEnvironment.js');
 const {
   HttpRequestError,
+  isStudentSessionRecoveryRequiredError,
+  STUDENT_SESSION_CONFLICT_REASONS,
 } = require('../../src/services/http.service.js');
 const {
   parseStudentCredential,
@@ -17,6 +19,18 @@ const {
 const {
   createStudentAuthenticationService,
 } = require('../../src/services/studentAuthentication.service.js');
+const {
+  STUDENT_AUTH_RECOVERY_REASONS,
+  STUDENT_AUTH_STATES,
+} = require('../../src/features/student-auth/studentAuthState.js');
+const {
+  dismissStudentRecoverySession,
+  resolveStudentRecoveryScreenCopy,
+  retryStudentRecoverySession,
+  STUDENT_DEVICE_OCCUPIED_RECOVERY_MESSAGE,
+  STUDENT_RECOVERY_ACTIONS,
+  STUDENT_SESSION_ACTIVE_RECOVERY_MESSAGE,
+} = require('../../src/features/student-auth/studentSessionRecovery.js');
 const {
   ESTADOS_ACCESO_JUEGO,
   resolverAccesoJuegoDesdePerfil,
@@ -168,6 +182,223 @@ test('login por QR reutiliza la sesion local si la misma instalacion ya sigue ac
 
   assert.equal(session.token, 'jwt-restaurable');
   assert.equal(session.studentProfile.nombre, 'Perfil restaurado');
+});
+
+test('login por QR pide recuperacion si la sesion activa no tiene credencial local recuperable', async () => {
+  const authentication = createStudentAuthenticationService({
+    baseUrl: 'https://api.logickids.test/api',
+    accessService: {
+      loginByQr: async () => {
+        throw new HttpRequestError('El dispositivo ya tiene una sesion infantil activa', {
+          status: 409,
+          code: 'STUDENT_SESSION_ACTIVE',
+        });
+      },
+      fetchProfile: async () => ({ id: 9, nombre: 'No deberia restaurarse' }),
+    },
+    credentialStorage: {
+      load: async () => null,
+      save: async () => {},
+      clear: async () => {},
+    },
+    installationStorage: { getOrCreate: async () => 'installation-9' },
+    appVersion: '1.0.0',
+  });
+
+  await assert.rejects(
+    () => authentication.loginByQr('qr-valido'),
+    (error) => {
+      assert.equal(isStudentSessionRecoveryRequiredError(error), true);
+      assert.match(error.message, /sesion infantil activa/i);
+      assert.equal(
+        error.recoveryReason,
+        STUDENT_SESSION_CONFLICT_REASONS.deviceOccupied,
+      );
+      return true;
+    },
+  );
+});
+
+test('login por QR limpia credencial expirada y pide recuperacion cuando backend mantiene sesion activa', async () => {
+  let cleared = false;
+  const authentication = createStudentAuthenticationService({
+    baseUrl: 'https://api.logickids.test/api',
+    accessService: {
+      loginByQr: async () => {
+        throw new HttpRequestError('El dispositivo ya tiene una sesion infantil activa', {
+          status: 409,
+          code: 'STUDENT_SESSION_ACTIVE',
+        });
+      },
+      fetchProfile: async () => ({ id: 10, nombre: 'No deberia restaurarse' }),
+    },
+    credentialStorage: {
+      load: async () => ({
+        version: STUDENT_CREDENTIAL_SCHEMA_VERSION,
+        token: 'jwt-expirado',
+        apiBaseUrl: 'https://api.logickids.test/api',
+        deviceSessionId: 'device-session-10',
+        expiresAt: '2020-01-01T12:00:00.000Z',
+      }),
+      save: async () => {},
+      clear: async () => { cleared = true; },
+    },
+    installationStorage: { getOrCreate: async () => 'installation-10' },
+    appVersion: '1.0.0',
+  });
+
+  await assert.rejects(
+    () => authentication.loginByQr('qr-valido'),
+    (error) => {
+      assert.equal(isStudentSessionRecoveryRequiredError(error), true);
+      assert.equal(cleared, true);
+      assert.equal(
+        error.recoveryReason,
+        STUDENT_SESSION_CONFLICT_REASONS.deviceOccupied,
+      );
+      return true;
+    },
+  );
+});
+
+test('login por QR distingue cuando el estudiante ya esta activo en otro dispositivo', async () => {
+  const authentication = createStudentAuthenticationService({
+    baseUrl: 'https://api.logickids.test/api',
+    accessService: {
+      loginByQr: async () => {
+        throw new HttpRequestError('El estudiante ya tiene una sesion activa en otro dispositivo', {
+          status: 409,
+          code: 'STUDENT_SESSION_ACTIVE',
+        });
+      },
+      fetchProfile: async () => ({ id: 11, nombre: 'No deberia restaurarse' }),
+    },
+    credentialStorage: {
+      load: async () => null,
+      save: async () => {},
+      clear: async () => {},
+    },
+    installationStorage: { getOrCreate: async () => 'installation-11' },
+    appVersion: '1.0.0',
+  });
+
+  await assert.rejects(
+    () => authentication.loginByQr('qr-valido'),
+    (error) => {
+      assert.equal(isStudentSessionRecoveryRequiredError(error), true);
+      assert.equal(
+        error.recoveryReason,
+        STUDENT_SESSION_CONFLICT_REASONS.studentActiveElsewhere,
+      );
+      assert.match(error.message, /otro dispositivo/i);
+      return true;
+    },
+  );
+});
+
+test('copy de recovery distingue sesion activa de problemas de conectividad', () => {
+  assert.deepEqual(
+    resolveStudentRecoveryScreenCopy({
+      recoveryReason: STUDENT_AUTH_RECOVERY_REASONS.studentSessionActive,
+      errorMessage: 'No deberia verse este mensaje',
+    }),
+    {
+      title: 'Sesion activa detectada',
+      message: STUDENT_SESSION_ACTIVE_RECOVERY_MESSAGE,
+      primaryActionLabel: 'Reintentar recuperacion',
+      secondaryActionLabel: 'Volver al escaner',
+      primaryActionKind: STUDENT_RECOVERY_ACTIONS.retry,
+      secondaryActionKind: STUDENT_RECOVERY_ACTIONS.scan,
+    },
+  );
+
+  assert.deepEqual(
+    resolveStudentRecoveryScreenCopy({
+      recoveryReason: STUDENT_AUTH_RECOVERY_REASONS.deviceOccupied,
+      errorMessage: 'No deberia verse este mensaje tampoco',
+    }),
+    {
+      title: 'Dispositivo en uso',
+      message: STUDENT_DEVICE_OCCUPIED_RECOVERY_MESSAGE,
+      primaryActionLabel: 'Liberar dispositivo y entrar',
+      secondaryActionLabel: 'Volver al escaner',
+      primaryActionKind: STUDENT_RECOVERY_ACTIONS.retry,
+      secondaryActionKind: STUDENT_RECOVERY_ACTIONS.scan,
+    },
+  );
+
+  assert.deepEqual(
+    resolveStudentRecoveryScreenCopy({
+      recoveryReason: STUDENT_AUTH_RECOVERY_REASONS.connectivity,
+      errorMessage: 'Sin conexion',
+    }),
+    {
+      title: 'Estamos reconectando',
+      message: 'Sin conexion',
+      primaryActionLabel: 'Intentar de nuevo',
+      secondaryActionLabel: 'Volver al escaner',
+      primaryActionKind: STUDENT_RECOVERY_ACTIONS.retry,
+      secondaryActionKind: STUDENT_RECOVERY_ACTIONS.scan,
+    },
+  );
+});
+
+test('reintento de recovery reutiliza el mismo QR cuando la sesion activa sigue bloqueada', async () => {
+  let receivedOptions = null;
+  const resolution = await retryStudentRecoverySession({
+    service: {
+      loginByQr: async (_qrToken, options) => {
+        receivedOptions = options;
+        throw Object.assign(new Error('Sigue activa y aun no se puede recuperar'), {
+          code: 'STUDENT_SESSION_RECOVERY_REQUIRED',
+          recoveryReason: STUDENT_SESSION_CONFLICT_REASONS.deviceOccupied,
+        });
+      },
+      restore: async () => null,
+    },
+    recoveryReason: STUDENT_AUTH_RECOVERY_REASONS.deviceOccupied,
+    recoveryQrToken: 'qr-reusable',
+  });
+
+  assert.equal(resolution.success, false);
+  assert.equal(resolution.nextState, STUDENT_AUTH_STATES.recovery);
+  assert.equal(
+    resolution.recoveryReason,
+    STUDENT_AUTH_RECOVERY_REASONS.deviceOccupied,
+  );
+  assert.equal(resolution.clearQrToken, false);
+  assert.deepEqual(receivedOptions, {
+    deviceConflictStrategy: 'replace_existing_device_session',
+  });
+});
+
+test('reintento de recovery restaura sesion valida y limpia el QR retenido', async () => {
+  const resolution = await retryStudentRecoverySession({
+    service: {
+      loginByQr: async () => {
+        throw new Error('No deberia intentar login por QR');
+      },
+      restore: async () => ({ token: 'jwt', studentProfile: { id: 1 } }),
+    },
+    recoveryReason: STUDENT_AUTH_RECOVERY_REASONS.connectivity,
+    recoveryQrToken: '',
+  });
+
+  assert.equal(resolution.success, true);
+  assert.equal(resolution.nextState, STUDENT_AUTH_STATES.authenticated);
+  assert.equal(resolution.clearQrToken, true);
+  assert.equal(resolution.session.token, 'jwt');
+});
+
+test('salir de recovery hacia el escaner limpia el estado atrapado', () => {
+  const resolution = dismissStudentRecoverySession();
+
+  assert.equal(resolution.success, false);
+  assert.equal(resolution.nextState, STUDENT_AUTH_STATES.anonymous);
+  assert.equal(resolution.recoveryReason, STUDENT_AUTH_RECOVERY_REASONS.unknown);
+  assert.equal(resolution.errorMessage, '');
+  assert.equal(resolution.clearQrToken, true);
+  assert.equal(resolution.session, null);
 });
 
 test('participante terminal sigue bloqueado aunque la sesion de clase este activa', () => {
