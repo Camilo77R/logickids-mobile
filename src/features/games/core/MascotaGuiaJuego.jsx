@@ -92,13 +92,14 @@ export default function MascotaGuiaJuego({
         style={[
           styles.cardMascotaMarco,
           variante === 'intro' && styles.cardMascotaMarcoIntro,
+          pantallaAngosta && styles.cardMascotaMarcoCompacto,
           { transform: [{ translateY: desplazamientoY }, { scale: escala }] },
         ]}
       >
         <Image source={MASCOTA_GUIA_JUEGO} style={styles.cardMascota} resizeMode="cover" />
       </Animated.View>
 
-      <View style={styles.cardContenido}>
+      <View style={[styles.cardContenido, pantallaAngosta && styles.cardContenidoCompacto]}>
         {titulo ? <Text style={styles.cardTitulo}>{titulo}</Text> : null}
         {mensaje ? <Text style={styles.cardMensaje}>{mensaje}</Text> : null}
 
@@ -111,7 +112,11 @@ export default function MascotaGuiaJuego({
       </View>
 
       {accion && onAccion ? (
-        <TouchableOpacity activeOpacity={0.88} onPress={onAccion} style={styles.cardBoton}>
+        <TouchableOpacity
+          activeOpacity={0.88}
+          onPress={onAccion}
+          style={[styles.cardBoton, pantallaAngosta && styles.cardBotonCompacto]}
+        >
           <Text style={styles.cardBotonTexto}>{accion}</Text>
         </TouchableOpacity>
       ) : null}
@@ -168,6 +173,9 @@ const styles = StyleSheet.create({
     height: 126,
     borderRadius: 34,
   },
+  cardMascotaMarcoCompacto: {
+    alignSelf: 'center',
+  },
   cardMascota: {
     width: '112%',
     height: '112%',
@@ -177,6 +185,12 @@ const styles = StyleSheet.create({
   cardContenido: {
     flex: 1,
     gap: 7,
+  },
+  cardContenidoCompacto: {
+    flexGrow: 0,
+    flexShrink: 1,
+    flexBasis: 'auto',
+    width: '100%',
   },
   cardTitulo: {
     color: '#3F2512',
@@ -229,6 +243,10 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
     shadowOffset: { width: 0, height: 7 },
     elevation: 8,
+  },
+  cardBotonCompacto: {
+    width: '100%',
+    minWidth: 0,
   },
   cardBotonTexto: {
     color: '#FFFFFF',

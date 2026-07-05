@@ -110,11 +110,14 @@ export const useObjetoPerdidoArControlador = (
     ejecutarObservadorSeguro(observadores.alRegistrarEvento, evento);
   };
 
-  const finalizarPartida = (motivo = 'Actividad completada. Tus resultados fueron guardados.') => {
+  const finalizarPartida = (
+    motivo = 'Actividad completada. Tus resultados fueron guardados.',
+    estadoBase = estadoRef.current,
+  ) => {
     limpiarTemporizadores();
     detenerCuentaRegresiva();
 
-    const estadoActual = estadoRef.current;
+    const estadoActual = estadoBase;
     const tiempoTranscurridoMs = inicioPartidaRef.current
       ? Date.now() - inicioPartidaRef.current
       : 0;
@@ -141,6 +144,7 @@ export const useObjetoPerdidoArControlador = (
       tiempoTranscurridoMs,
     });
 
+    estadoRef.current = estadoFinal;
     setEstado(estadoFinal);
 
     ejecutarObservadorSeguro(observadores.alFinalizarPartida, {
@@ -365,45 +369,32 @@ export const useObjetoPerdidoArControlador = (
       }),
     );
 
-    registrarEvento(
-      construirEventoObjetoPerdidoAr({
-        tipoEvento: 'nivel_completado',
-        tiempoReaccionMs,
-        puntos: 0,
-        comboEnEvento: combo,
-        metadata: {
-          ronda: ronda.numeroRonda,
-          objetoObjetivo: ronda.objetivoId,
-          tiempoRestanteMs: Math.max(0, Math.round(estadoActual.tiempoRestanteMs)),
-          ayudaUsada: estadoActual.ayudasUsadas > 0,
-          ayudasUsadas: estadoActual.ayudasUsadas,
-          reason: 'objeto_encontrado',
-        },
-      }),
-    );
+    const estadoDespuesDeAcierto = {
+      ...estadoActual,
+      aciertos: estadoActual.aciertos + 1,
+      comboActual: combo,
+      comboMaximo: Math.max(estadoActual.comboMaximo, combo),
+      objetoActivoId: objetoId,
+      resumenRonda: null,
+      mensaje: 'Muy bien, lo encontraste.',
+    };
+
+    if (ronda.numeroRonda >= configuracion.configuracion.rondasPorPartida) {
+      finalizarPartida(
+        'Actividad completada. Tus resultados fueron guardados.',
+        estadoDespuesDeAcierto,
+      );
+      return;
+    }
 
     detenerCuentaRegresiva();
-    setEstado((previo) => ({
-      ...previo,
-      fase: ESTADOS_OBJETO_PERDIDO_AR.rondaCompletada,
-      aciertos: previo.aciertos + 1,
-      comboActual: combo,
-      comboMaximo: Math.max(previo.comboMaximo, combo),
-      objetoActivoId: objetoId,
-      mensaje: 'Muy bien, lo encontraste.',
-    }));
+    estadoRef.current = estadoDespuesDeAcierto;
+    setEstado(estadoDespuesDeAcierto);
 
-    setEstado((previo) => ({
-      ...previo,
-      resumenRonda: {
-        numeroRonda: ronda.numeroRonda,
-        rondasPorPartida: configuracion.configuracion.rondasPorPartida,
-        objetoObjetivo: ronda.objetivo,
-        puntosGanados: 10,
-        tiempoRestanteMs: Math.max(0, Math.round(estadoActual.tiempoRestanteMs)),
-        esUltimaRonda: ronda.numeroRonda >= configuracion.configuracion.rondasPorPartida,
-      },
-    }));
+    const siguiente = setTimeout(() => {
+      iniciarRonda(ronda.numeroRonda + 1);
+    }, 550);
+    temporizadoresRef.current.push(siguiente);
   };
 
   const usarPista = () => {

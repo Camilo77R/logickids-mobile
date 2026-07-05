@@ -139,19 +139,12 @@ const construirMetricasResultado = ({
     resultado,
     respuestaFinalizacionSesion,
   });
-  const estrellasVisuales = resolverEstrellasVisualesResultado(resultado);
 
   return [
     { etiqueta: 'Puntaje', valor: datosResultado.puntaje },
     { etiqueta: 'Aciertos', valor: datosResultado.aciertos },
     { etiqueta: 'Errores', valor: datosResultado.errores },
-    { etiqueta: 'Precision', valor: `${resultado.estadisticas.precisionPct}%` },
-    {
-      etiqueta: 'Tiempo',
-      valor: `${Math.ceil(resultado.estadisticas.tiempoTotalMs / 1000)} s`,
-    },
     { etiqueta: 'Combo', valor: datosResultado.comboMaximo },
-    { etiqueta: 'Estrellas', valor: estrellasVisuales },
   ];
 };
 
