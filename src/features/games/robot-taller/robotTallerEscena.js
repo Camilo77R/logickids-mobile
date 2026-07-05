@@ -11,12 +11,81 @@ const construirMetricas = ({ estado, configuracion }) => [
   { etiqueta: 'Ensambladas', valor: estado.contadorEnsambladas },
 ];
 
-const construirMetricasResultado = ({ resultado }) => [
-  { etiqueta: 'Puntaje', valor: resultado.estadisticas.puntaje },
-  { etiqueta: 'Aciertos', valor: resultado.estadisticas.aciertos },
-  { etiqueta: 'Errores', valor: resultado.estadisticas.errores },
-  { etiqueta: 'Precision', valor: `${resultado.estadisticas.precisionPct}%` },
-];
+const resolverNumeroFinito = (valor, respaldo = 0) => {
+  const numero = Number(valor);
+  return Number.isFinite(numero) ? numero : respaldo;
+};
+
+const construirMetricasResultado = ({ resultado, respuestaFinalizacionSesion }) => {
+  const resumenOficial = respuestaFinalizacionSesion?.resumen_oficial ?? {};
+
+  return [
+    {
+      etiqueta: 'Puntaje',
+      valor: resolverNumeroFinito(
+        resumenOficial.puntaje,
+        resultado.estadisticas.puntaje,
+      ),
+    },
+    {
+      etiqueta: 'Aciertos',
+      valor: resolverNumeroFinito(
+        resumenOficial.aciertos,
+        resultado.estadisticas.aciertos,
+      ),
+    },
+    {
+      etiqueta: 'Errores',
+      valor: resolverNumeroFinito(
+        resumenOficial.errores,
+        resultado.estadisticas.errores,
+      ),
+    },
+    {
+      etiqueta: 'Combo',
+      valor: `x${resolverNumeroFinito(
+        resumenOficial.combo_maximo,
+        resultado.estadisticas.comboMaximo,
+      )}`,
+    },
+  ];
+};
+
+const GUIA_INICIAL_ROBOT_TALLER = Object.freeze({
+  titulo: '¡Bienvenido al Taller del Robot!',
+  mensaje: 'Yo te acompaño mientras armas el robot. Gana piezas, arrastralas a su lugar y completa el reto.',
+  pasos: [
+    'Resuelve la cuenta para desbloquear una pieza.',
+    'Toca la pieza ganada y arrastrala hasta su silueta brillante.',
+    'Completa todo el robot para terminar la mision.',
+  ],
+  accion: 'Empezar mision',
+});
+
+const calcularEstrellasResultado = (resultado) => {
+  const precision = Number(resultado?.estadisticas?.precisionPct ?? 0);
+
+  if (precision >= 90) return 3;
+  if (precision >= 70) return 2;
+  if (precision > 0) return 1;
+  return 0;
+};
+
+const construirDescripcionResultado = ({ resultado }) => (
+  resultado.detalles.ensamblajeCompleto
+    ? 'Completaste el robot y dejaste todas sus piezas en el lugar correcto.'
+    : 'Avanzaste en el ensamblaje y tus resultados quedaron listos para seguir aprendiendo.'
+);
+
+const construirMensajeProgreso = ({ sincronizandoCierre, resultado }) => {
+  if (sincronizandoCierre) {
+    return 'Estamos guardando tu resultado para dejar el robot listo en tu progreso.';
+  }
+
+  return resultado.detalles.ensamblajeCompleto
+    ? 'Tu robot quedo armado y tus resultados ya fueron guardados.'
+    : 'Tu avance ya quedo guardado para esta actividad.';
+};
 
 const construirAccionesResultado = ({ navegacionResultado, continuarActividad, salirActividad }) => {
   if (!navegacionResultado) {
@@ -103,6 +172,12 @@ export const construirEscenaRobotTaller = ({
         { etiqueta: 'Progreso', valor: `${estado.contadorEnsambladas}/${PARTES_ROBOT.length}` },
       ],
     },
+    guiaInicial: {
+      titulo: GUIA_INICIAL_ROBOT_TALLER.titulo,
+      mensaje: GUIA_INICIAL_ROBOT_TALLER.mensaje,
+      pasos: GUIA_INICIAL_ROBOT_TALLER.pasos,
+      accion: GUIA_INICIAL_ROBOT_TALLER.accion,
+    },
     salida: {
       permitida: estado.fase === FASES_ENSAMBLAGE.explotado || resultadoVisible,
       etiqueta: 'Volver',
@@ -110,8 +185,20 @@ export const construirEscenaRobotTaller = ({
     resultado: resultadoVisible
       ? {
           visible: true,
+          cinta: estado.resultado.detalles.ensamblajeCompleto ? 'VICTORIA' : 'RETO TERMINADO',
+          insignia: 'Robot Logico · Logica',
           titulo: estado.resultado.detalles.ensamblajeCompleto ? 'Robot armado' : 'Buen intento',
-          metricas: construirMetricasResultado({ resultado: estado.resultado }),
+          descripcion: construirDescripcionResultado({ resultado: estado.resultado }),
+          estrellas: calcularEstrellasResultado(estado.resultado),
+          metricas: construirMetricasResultado({
+            resultado: estado.resultado,
+            respuestaFinalizacionSesion,
+          }),
+          mostrarCelebracion: Boolean(estado.resultado.detalles.ensamblajeCompleto),
+          mensajeProgreso: construirMensajeProgreso({
+            sincronizandoCierre: accionesResultado?.sincronizandoCierre ?? false,
+            resultado: estado.resultado,
+          }),
           logros: cierreSesion?.logros ?? [],
           accionContinuar: accionesResultado?.accionContinuar ?? null,
           etiquetaContinuar: accionesResultado?.etiquetaContinuar ?? null,

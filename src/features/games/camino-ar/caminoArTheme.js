@@ -22,9 +22,9 @@ export const caminoArTheme = Object.freeze({
     naranja: '#FFAC4A',
   },
   botones: {
-    primario: '#FFB703',
-    primarioTexto: '#14314F',
-    secundario: '#43C8FF',
+    primario: '#8E35D5',
+    primarioTexto: '#FFFFFF',
+    secundario: '#FFBF1F',
     secundarioTexto: '#FFFFFF',
     terciario: '#FFFFFF',
     terciarioTexto: '#31516D',
@@ -37,12 +37,12 @@ export const caminoArTheme = Object.freeze({
     resultado: '#FF9F5A',
   },
   metricas: [
-    { fondo: 'rgba(78,200,255,0.22)', borde: 'rgba(78,200,255,0.28)' },
-    { fondo: 'rgba(62,217,168,0.22)', borde: 'rgba(62,217,168,0.28)' },
-    { fondo: 'rgba(255,216,107,0.28)', borde: 'rgba(255,216,107,0.30)' },
-    { fondo: 'rgba(255,125,142,0.22)', borde: 'rgba(255,125,142,0.28)' },
-    { fondo: 'rgba(140,121,255,0.20)', borde: 'rgba(140,121,255,0.26)' },
-    { fondo: 'rgba(255,172,74,0.24)', borde: 'rgba(255,172,74,0.30)' },
+    { fondo: '#B25AF6', borde: '#6E22B5', texto: '#FFFFFF', subtitulo: '#F7EAFF' },
+    { fondo: '#FFC21A', borde: '#D68C00', texto: '#3B220F', subtitulo: '#6A4300' },
+    { fondo: '#29C67A', borde: '#188B53', texto: '#FFFFFF', subtitulo: '#E8FFF3' },
+    { fondo: '#B25AF6', borde: '#6E22B5', texto: '#FFFFFF', subtitulo: '#F7EAFF' },
+    { fondo: '#FFC21A', borde: '#D68C00', texto: '#3B220F', subtitulo: '#6A4300' },
+    { fondo: '#29C67A', borde: '#188B53', texto: '#FFFFFF', subtitulo: '#E8FFF3' },
   ],
 });
 

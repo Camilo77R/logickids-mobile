@@ -507,22 +507,13 @@ export default function CaminoArVistaArViro({
     { length: resumenResultado.estrellasMaximas },
     (_, indice) => indice < resumenResultado.estrellas,
   );
-  const metricasResultadoInfantil = [
-    {
-      etiqueta: 'Aciertos',
-      valor: `${resumenResultado.aciertos}/${resumenResultado.patronLongitud}`,
-    },
-    {
-      etiqueta: resumenResultado.patronResuelto ? 'Errores' : 'Faltaron',
-      valor: resumenResultado.patronResuelto
-        ? resumenResultado.errores
-        : resumenResultado.faltaron,
-    },
-    {
-      etiqueta: 'Combo',
-      valor: `x${resumenResultado.combo}`,
-    },
-  ];
+  const metricasResultadoInfantil = (escena.resultado.metricas ?? []).map((metrica) => ({
+    etiqueta: metrica.etiqueta,
+    valor:
+      metrica.etiqueta === 'Combo'
+        ? `x${metrica.valor}`
+        : metrica.valor,
+  }));
 
   return (
     <View style={styles.contenedor}>
@@ -535,7 +526,7 @@ export default function CaminoArVistaArViro({
       />
 
       <SafeAreaView pointerEvents="box-none" style={styles.overlaySeguro}>
-        {!escena.resultado.visible ? (
+        {!escena.resultado.visible && !mostrarGuiaInicial ? (
           <View pointerEvents="box-none" style={styles.layoutOverlay}>
             <View
               pointerEvents="box-none"
@@ -631,7 +622,7 @@ export default function CaminoArVistaArViro({
               ) : null}
             </View>
           </View>
-        ) : (
+        ) : escena.resultado.visible ? (
           <View style={styles.resultadoOverlay}>
             {escena.resultado.mostrarCelebracion ? <ConfettiCelebracion /> : null}
 
@@ -716,23 +707,40 @@ export default function CaminoArVistaArViro({
                 </View>
 
                 <View style={styles.gridMetricasResultado}>
-                  {metricasResultadoInfantil.map((metrica, indice) => (
+                  {metricasResultadoInfantil.map((metrica, indice) => {
+                    const paletaMetrica =
+                      caminoArTheme.metricas[indice % caminoArTheme.metricas.length];
+
+                    return (
                     <View
                       key={metrica.etiqueta}
                       style={[
                         styles.cardMetricaResultado,
                         {
-                          backgroundColor:
-                            caminoArTheme.metricas[indice % caminoArTheme.metricas.length].fondo,
-                          borderColor:
-                            caminoArTheme.metricas[indice % caminoArTheme.metricas.length].borde,
+                          backgroundColor: paletaMetrica.fondo,
+                          borderColor: paletaMetrica.borde,
                         },
                       ]}
                     >
-                      <Text style={styles.cardMetricaEtiqueta}>{metrica.etiqueta}</Text>
-                      <Text style={styles.cardMetricaValor}>{metrica.valor}</Text>
+                      <Text
+                        style={[
+                          styles.cardMetricaEtiqueta,
+                          { color: paletaMetrica.subtitulo ?? styles.cardMetricaEtiqueta.color },
+                        ]}
+                      >
+                        {metrica.etiqueta}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.cardMetricaValor,
+                          { color: paletaMetrica.texto ?? styles.cardMetricaValor.color },
+                        ]}
+                      >
+                        {metrica.valor}
+                      </Text>
                     </View>
-                  ))}
+                    );
+                  })}
                 </View>
 
                 <View style={styles.panelResumenResultado}>
@@ -801,7 +809,7 @@ export default function CaminoArVistaArViro({
               </View>
             </ScrollView>
           </View>
-        )}
+        ) : null}
       </SafeAreaView>
 
       {mostrarGuiaInicial ? (
@@ -1073,10 +1081,10 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     paddingHorizontal: espaciado.lg,
     borderRadius: radios.pill,
-    backgroundColor: '#45CC54',
+    backgroundColor: '#8E35D5',
     borderWidth: 3,
-    borderColor: '#247E2D',
-    shadowColor: '#145A25',
+    borderColor: '#F5C84B',
+    shadowColor: '#4E1A82',
     shadowOpacity: 0.38,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 7 },
@@ -1116,12 +1124,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: radios.pill,
-    backgroundColor: '#FFF2C7',
+    backgroundColor: '#3E2370',
     borderWidth: 2,
-    borderColor: '#F2C858',
+    borderColor: '#F5C84B',
   },
   resultadoNivelTexto: {
-    color: '#5A2F17',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -1153,7 +1161,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   resultadoRecompensaLabel: {
-    color: '#D66D00',
+    color: '#8E35D5',
     fontSize: 11,
     fontWeight: '900',
     textAlign: 'center',
@@ -1246,9 +1254,9 @@ const styles = StyleSheet.create({
     marginTop: espaciado.sm,
     padding: espaciado.sm,
     borderRadius: 22,
-    backgroundColor: '#FFF2C7',
+    backgroundColor: '#EAD7FF',
     borderWidth: 2,
-    borderColor: '#FFD166',
+    borderColor: '#8E35D5',
     gap: espaciado.xs,
   },
   resumenResultadoTitulo: {
@@ -1305,10 +1313,10 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     paddingVertical: 17,
     alignItems: 'center',
-    backgroundColor: '#39C84F',
+    backgroundColor: '#8E35D5',
     borderWidth: 4,
-    borderColor: '#1F7B31',
-    shadowColor: '#145923',
+    borderColor: '#F5C84B',
+    shadowColor: '#4E1A82',
     shadowOpacity: 0.42,
     shadowRadius: 0,
     shadowOffset: { width: 0, height: 8 },
@@ -1318,7 +1326,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '900',
     fontSize: 16,
-    textShadowColor: '#1B6B2C',
+    textShadowColor: '#4E1A82',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 0,
   },
@@ -1327,21 +1335,21 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     paddingVertical: 17,
     alignItems: 'center',
-    backgroundColor: '#29B8F2',
+    backgroundColor: '#FFC21A',
     borderWidth: 4,
-    borderColor: '#087CAD',
-    shadowColor: '#075E85',
+    borderColor: '#D68C00',
+    shadowColor: '#A56B00',
     shadowOpacity: 0.36,
     shadowRadius: 0,
     shadowOffset: { width: 0, height: 6 },
     elevation: 6,
   },
   botonResultadoSalirTexto: {
-    color: '#FFFFFF',
+    color: '#3B220F',
     fontWeight: '900',
     fontSize: 15,
-    textShadowColor: '#075E85',
-    textShadowOffset: { width: 0, height: 2 },
+    textShadowColor: 'transparent',
+    textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 0,
   },
 });

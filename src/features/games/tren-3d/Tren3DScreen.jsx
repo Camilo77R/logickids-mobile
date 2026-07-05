@@ -31,9 +31,23 @@ import { ESTADOS_TREN_3D } from './tren3d.constants';
 import Tren3DVistaWebView from './presentacion/Tren3DVistaWebView';
 import { useTren3DAudio } from './useTren3DAudio';
 import { colores, espaciado, radios, tipografia } from '../../../theme/tokens';
-import { resolveAchievementIcon } from '../core/achievementIcon';
+import {
+  GameMissionGuideOverlay,
+  GameResultOverlay,
+} from '../core/GameShellOverlays';
 
 const fondoTrenInicio = require('../../../../assets/images/tren-3d/fondo-tren.avif');
+
+const GUIA_INICIAL_TREN = Object.freeze({
+  titulo: '¡Bienvenido al Tren de Patrones!',
+  mensaje: 'Yo te acompaño durante el viaje. Mira el patron, elige la figura correcta y completa cada tramo del tren.',
+  pasos: [
+    'Observa el patron del nivel antes de elegir.',
+    'Toca la figura correcta para llenar el siguiente vagon.',
+    'Completa el tramo y sigue al siguiente reto del viaje.',
+  ],
+  accion: 'Empezar mision',
+});
 
 const construirParametrosNivel = ({ dificultad, configuracion }) => {
   const parametrosBackend = configuracion.parametrosNivel;
@@ -80,6 +94,11 @@ const calcularPrecision = ({ aciertos = 0, errores = 0 }) => {
   return Number(((aciertos / totalIntentos) * 100).toFixed(2));
 };
 
+const resolverNumeroFinito = (valor, respaldo = 0) => {
+  const numero = Number(valor);
+  return Number.isFinite(numero) ? numero : respaldo;
+};
+
 const calcularEstrellasResultado = (resultado) => {
   const estrellasOficiales =
     resultado?.finalizacionSesion?.estrellas_obtenidas ??
@@ -112,15 +131,15 @@ const SIMBOLOS_FIGURA_PLANA = Object.freeze({
 
 const ConfettiCelebracionTren = () => {
   const piezas = [
-    { id: 'aqua-1', left: '8%', top: 18, color: colores.acento, rotate: '18deg' },
+    { id: 'aqua-1', left: '8%', top: 18, color: '#FFC107', rotate: '18deg' },
     { id: 'sol-1', left: '19%', top: 54, color: colores.alerta, rotate: '-12deg' },
     { id: 'verde-1', left: '34%', top: 24, color: colores.exito, rotate: '31deg' },
     { id: 'rosa-1', left: '56%', top: 16, color: colores.error, rotate: '-28deg' },
-    { id: 'aqua-2', left: '72%', top: 52, color: colores.acento, rotate: '9deg' },
+    { id: 'aqua-2', left: '72%', top: 52, color: '#8E35D5', rotate: '9deg' },
     { id: 'sol-2', left: '88%', top: 28, color: colores.alerta, rotate: '-18deg' },
     { id: 'verde-2', left: '13%', top: 132, color: colores.exito, rotate: '-38deg' },
     { id: 'rosa-2', left: '29%', top: 152, color: colores.error, rotate: '42deg' },
-    { id: 'aqua-3', left: '47%', top: 118, color: colores.acento, rotate: '-8deg' },
+    { id: 'aqua-3', left: '47%', top: 118, color: '#FFC107', rotate: '-8deg' },
     { id: 'sol-3', left: '64%', top: 142, color: colores.alerta, rotate: '35deg' },
     { id: 'verde-3', left: '82%', top: 118, color: colores.exito, rotate: '-44deg' },
   ];
@@ -237,252 +256,193 @@ const TarjetaResultadoTren = ({
   }
 
   const esTarjetaNivel = tarjeta.tipo === 'nivel';
-  const esTarjetaFinal = tarjeta.tipo === 'final';
-  const esPortraitFinal = esTarjetaFinal && (viewport?.height ?? 0) >= (viewport?.width ?? 999);
-  const esCompacta = !esPortraitFinal && (
+  const esCompacta = (
     (viewport?.height ?? 999) <= 430 || (viewport?.width ?? 999) <= 780
-  );
-  const esFinalCompacta = esTarjetaFinal && esCompacta;
-  const estrellas = Array.from(
-    { length: 3 },
-    (_, indice) => indice < tarjeta.estrellas,
   );
   const metricasVisibles = esTarjetaNivel
     ? tarjeta.metricas.slice(0, 4)
     : tarjeta.metricas.filter((metrica) => (
-      ['Aciertos', 'Precision', 'Puntos', 'Nivel'].includes(metrica.etiqueta)
+      ['Puntaje', 'Aciertos', 'Errores', 'Combo'].includes(metrica.etiqueta)
     ));
-  const logrosVisibles = tarjeta.logros;
+  if (esTarjetaNivel) {
+    const estrellas = Array.from(
+      { length: 3 },
+      (_, indice) => indice < tarjeta.estrellas,
+    );
 
-  return (
-    <View style={styles.resultadoOverlay}>
-      {tarjeta.mostrarCelebracion ? <ConfettiCelebracionTren /> : null}
+    return (
+      <View style={styles.resultadoOverlay}>
+        {tarjeta.mostrarCelebracion ? <ConfettiCelebracionTren /> : null}
 
-      <View pointerEvents="none" style={styles.resultadoDecoracion}>
-        <View style={[styles.resultadoBurbujaFondo, styles.resultadoBurbujaAqua]} />
-        <View style={[styles.resultadoBurbujaFondo, styles.resultadoBurbujaSol]} />
-        <View style={[styles.resultadoBurbujaFondo, styles.resultadoBurbujaRosa]} />
-        <Text style={[styles.resultadoIconoFondo, styles.resultadoIconoUno]}>*</Text>
-        <Text style={[styles.resultadoIconoFondo, styles.resultadoIconoDos]}>+</Text>
-        <Text style={[styles.resultadoIconoFondo, styles.resultadoIconoTres]}>o</Text>
-      </View>
+        <View pointerEvents="none" style={styles.resultadoDecoracion}>
+          <View style={[styles.resultadoBurbujaFondo, styles.resultadoBurbujaAqua]} />
+          <View style={[styles.resultadoBurbujaFondo, styles.resultadoBurbujaSol]} />
+          <View style={[styles.resultadoBurbujaFondo, styles.resultadoBurbujaRosa]} />
+          <Text style={[styles.resultadoIconoFondo, styles.resultadoIconoUno]}>★</Text>
+          <Text style={[styles.resultadoIconoFondo, styles.resultadoIconoDos]}>✦</Text>
+          <Text style={[styles.resultadoIconoFondo, styles.resultadoIconoTres]}>●</Text>
+        </View>
 
-      <ScrollView
-        bounces={false}
-        showsVerticalScrollIndicator={esPortraitFinal}
-        contentContainerStyle={[
-          styles.panelResultadoContenido,
-          esTarjetaNivel && styles.panelResultadoContenidoNivel,
-          esTarjetaFinal && styles.panelResultadoContenidoFinal,
-          esPortraitFinal && styles.panelResultadoContenidoFinalPortrait,
-          esCompacta && styles.panelResultadoContenidoCompacto,
-          esFinalCompacta && styles.panelResultadoContenidoFinalCompacto,
-        ]}
-      >
-        <View
-          style={[
-            styles.panelResultado,
-            esTarjetaNivel && styles.panelResultadoNivel,
-            esTarjetaFinal && styles.panelResultadoFinal,
-            esPortraitFinal && styles.panelResultadoFinalPortrait,
-            esCompacta && styles.panelResultadoCompacto,
-            esFinalCompacta && styles.panelResultadoFinalCompacto,
+        <ScrollView
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.panelResultadoContenido,
+            styles.panelResultadoContenidoNivel,
+            esCompacta && styles.panelResultadoContenidoCompacto,
           ]}
         >
           <View
             style={[
-              styles.resultadoCinta,
-              esTarjetaNivel && styles.resultadoCintaNivel,
-              esTarjetaFinal && styles.resultadoCintaFinal,
-              esCompacta && styles.resultadoCintaCompacta,
+              styles.panelResultado,
+              styles.panelResultadoNivel,
+              esCompacta && styles.panelResultadoCompacto,
             ]}
           >
-            <Text style={[styles.resultadoCintaTexto, esCompacta && styles.resultadoCintaTextoCompacto]}>
-              {tarjeta.cinta}
-            </Text>
-          </View>
-
-          <View
-            style={[
-              styles.resultadoHero,
-              esTarjetaNivel && styles.resultadoHeroNivel,
-              esTarjetaFinal && styles.resultadoHeroFinal,
-              esPortraitFinal && styles.resultadoHeroFinalPortrait,
-              esCompacta && styles.resultadoHeroCompacto,
-              esFinalCompacta && styles.resultadoHeroFinalCompacto,
-            ]}
-          >
-            <View style={styles.resultadoAura} />
-            <View style={styles.resultadoNivelPill}>
-              <Text style={[styles.resultadoNivelTexto, esCompacta && styles.resultadoNivelTextoCompacto]}>
-                {tarjeta.insignia}
+            <View
+              style={[
+                styles.resultadoCinta,
+                styles.resultadoCintaNivel,
+                esCompacta && styles.resultadoCintaCompacta,
+              ]}
+            >
+              <Text style={[styles.resultadoCintaTexto, esCompacta && styles.resultadoCintaTextoCompacto]}>
+                {tarjeta.cinta}
               </Text>
             </View>
 
-            <Text style={[
-              styles.tituloResultado,
-              esCompacta && styles.tituloResultadoCompacto,
-              esFinalCompacta && styles.tituloResultadoFinalCompacto,
-            ]}>
-              {tarjeta.titulo}
-            </Text>
+            <View
+              style={[
+                styles.resultadoHero,
+                styles.resultadoHeroNivel,
+                esCompacta && styles.resultadoHeroCompacto,
+              ]}
+            >
+              <View style={styles.resultadoAura} />
+              <View style={styles.resultadoNivelPill}>
+                <Text style={[styles.resultadoNivelTexto, esCompacta && styles.resultadoNivelTextoCompacto]}>
+                  {tarjeta.insignia}
+                </Text>
+              </View>
 
-            <View style={[styles.estrellasResultado, esCompacta && styles.estrellasResultadoCompacta]}>
-              {estrellas.map((activa, indice) => (
+              <Text style={[styles.tituloResultado, esCompacta && styles.tituloResultadoCompacto]}>
+                {tarjeta.titulo}
+              </Text>
+
+              <View style={[styles.estrellasResultado, esCompacta && styles.estrellasResultadoCompacta]}>
+                {estrellas.map((activa, indice) => (
+                  <View
+                    key={`estrella-tren-${indice}`}
+                    style={[
+                      styles.estrellaBurbuja,
+                      !activa && styles.estrellaBurbujaInactiva,
+                      esCompacta && styles.estrellaBurbujaCompacta,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.estrellaResultado,
+                        !activa && styles.estrellaResultadoInactiva,
+                        esCompacta && styles.estrellaResultadoCompacta,
+                      ]}
+                    >
+                      {activa ? '★' : '☆'}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            <View
+              style={[
+                styles.gridMetricasResultado,
+                styles.gridMetricasResultadoNivel,
+                esCompacta && styles.gridMetricasResultadoCompacta,
+              ]}
+            >
+              {metricasVisibles.map((metrica, indice) => (
                 <View
-                  key={`estrella-tren-${indice}`}
+                  key={`${metrica.etiqueta}-${String(metrica.valor)}-${indice}`}
                   style={[
-                    styles.estrellaBurbuja,
-                    !activa && styles.estrellaBurbujaInactiva,
-                    esCompacta && styles.estrellaBurbujaCompacta,
+                    styles.cardMetricaResultado,
+                    styles[`cardMetricaResultado${indice % 3}`],
+                    styles.cardMetricaResultadoNivel,
+                    esCompacta && styles.cardMetricaResultadoCompacta,
                   ]}
                 >
                   <Text
                     style={[
-                      styles.estrellaResultado,
-                      !activa && styles.estrellaResultadoInactiva,
-                      esCompacta && styles.estrellaResultadoCompacta,
+                      styles.cardMetricaEtiqueta,
+                      (indice % 3 === 0 || indice % 3 === 2) && styles.cardMetricaTextoClaro,
+                      esCompacta && styles.cardMetricaEtiquetaCompacta,
                     ]}
                   >
-                    *
+                    {metrica.etiqueta}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.cardMetricaValor,
+                      (indice % 3 === 0 || indice % 3 === 2) && styles.cardMetricaTextoClaro,
+                      esCompacta && styles.cardMetricaValorCompacto,
+                    ]}
+                  >
+                    {metrica.valor}
                   </Text>
                 </View>
               ))}
             </View>
 
-            {!esTarjetaNivel ? (
-              <View style={[styles.resultadoRecompensa, esCompacta && styles.resultadoRecompensaCompacta]}>
-                <Text style={styles.resultadoRecompensaLabel}>Premio del tren</Text>
-                <Text style={[styles.resultadoTexto, esCompacta && styles.resultadoTextoCompacto]}>
-                  {tarjeta.descripcion}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          <View
-            style={[
-              styles.gridMetricasResultado,
-              esTarjetaNivel && styles.gridMetricasResultadoNivel,
-              esCompacta && styles.gridMetricasResultadoCompacta,
-            ]}
-          >
-            {metricasVisibles.map((metrica, indice) => (
-              <View
-                key={metrica.etiqueta}
-                style={[
-                  styles.cardMetricaResultado,
-                  styles[`cardMetricaResultado${indice % 3}`],
-                  esTarjetaNivel && styles.cardMetricaResultadoNivel,
-                  esCompacta && styles.cardMetricaResultadoCompacta,
-                ]}
-              >
-                <Text style={[styles.cardMetricaEtiqueta, esCompacta && styles.cardMetricaEtiquetaCompacta]}>
-                  {metrica.etiqueta}
-                </Text>
-                <Text style={[styles.cardMetricaValor, esCompacta && styles.cardMetricaValorCompacto]}>
-                  {metrica.valor}
-                </Text>
-              </View>
-            ))}
-          </View>
-
-          <View
-            style={[
-              styles.panelResumenResultado,
-              esTarjetaNivel && styles.panelResumenResultadoNivel,
-              esCompacta && styles.panelResumenResultadoCompacto,
-            ]}
-          >
-            <Text style={[styles.resumenResultadoTitulo, esCompacta && styles.resumenResultadoTituloCompacto]}>
-              {tarjeta.resumenTitulo}
-            </Text>
-            <Text style={[styles.resultadoSecundario, esCompacta && styles.resultadoSecundarioCompacto]}>
-              {sincronizando
-                ? 'Guardando tu viaje...'
-                : tarjeta.resumenTexto}
-            </Text>
-          </View>
-
-          {logrosVisibles?.length ? (
-            <View style={[
-              styles.listaLogrosResultado,
-              esCompacta && styles.listaLogrosResultadoCompacta,
-              esFinalCompacta && styles.listaLogrosResultadoFinalCompacta,
-            ]}>
+            <View
+              style={[
+                styles.panelResumenResultado,
+                styles.panelResumenResultadoNivel,
+                esCompacta && styles.panelResumenResultadoCompacto,
+              ]}
+            >
               <Text style={[styles.resumenResultadoTitulo, esCompacta && styles.resumenResultadoTituloCompacto]}>
-                Premios ganados
+                {tarjeta.resumenTitulo}
               </Text>
-              {logrosVisibles.map((logro) => (
-                <View
-                  key={logro.id ?? logro.nombre_logro ?? logro.nombre}
-                  style={[
-                    styles.logroResultadoCard,
-                    esCompacta && styles.logroResultadoCardCompacta,
-                    esFinalCompacta && styles.logroResultadoCardFinalCompacta,
-                  ]}
-                >
-                  <View style={[
-                    styles.logroIconoBurbuja,
-                    esFinalCompacta && styles.logroIconoBurbujaFinalCompacta,
-                  ]}>
-                    <Text style={[
-                      styles.logroIconoTexto,
-                      esFinalCompacta && styles.logroIconoTextoFinalCompacto,
-                    ]}>
-                      {resolveAchievementIcon(logro)}
-                    </Text>
-                  </View>
-                  <View style={styles.logroTextoContenido}>
-                    <Text
-                      style={[styles.logroResultadoTitulo, esCompacta && styles.logroResultadoTituloCompacto]}
-                      numberOfLines={esCompacta ? 1 : undefined}
-                    >
-                      {logro.nombre_logro ?? logro.nombre}
-                    </Text>
-                    {logro.descripcion && !esCompacta ? (
-                      <Text style={styles.logroResultadoTexto}>{logro.descripcion}</Text>
-                    ) : null}
-                  </View>
-                </View>
-              ))}
+              <Text style={[styles.resultadoSecundario, esCompacta && styles.resultadoSecundarioCompacto]}>
+                {sincronizando ? 'Guardando tu viaje...' : tarjeta.resumenTexto}
+              </Text>
             </View>
-          ) : null}
 
-          <View style={[styles.resultadoBotones, esCompacta && styles.resultadoBotonesCompacto]}>
-            {tarjeta.tipo === 'nivel' && !sincronizando && puedeContinuar ? (
-              <TouchableOpacity
-                style={[styles.botonContinuar, esCompacta && styles.botonContinuarCompacto]}
-                onPress={onContinuar}
-              >
-                <Text style={[styles.botonContinuarTexto, esCompacta && styles.botonResultadoTextoCompacto]}>
-                  Continuar
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-
-            {tarjeta.tipo !== 'nivel' && !sincronizando && puedeContinuar ? (
-              <TouchableOpacity
-                style={[
-                  styles.botonContinuar,
-                  esCompacta && styles.botonContinuarCompacto,
-                ]}
-                onPress={onVolver}
-              >
-                <Text
-                  style={[
-                    styles.botonContinuarTexto,
-                    esCompacta && styles.botonResultadoTextoCompacto,
-                  ]}
+            <View style={[styles.resultadoBotones, esCompacta && styles.resultadoBotonesCompacto]}>
+              {!sincronizando && puedeContinuar ? (
+                <TouchableOpacity
+                  style={[styles.botonContinuar, esCompacta && styles.botonContinuarCompacto]}
+                  onPress={onContinuar}
                 >
-                  Volver al tablero
-                </Text>
-              </TouchableOpacity>
-            ) : null}
+                  <Text style={[styles.botonContinuarTexto, esCompacta && styles.botonResultadoTextoCompacto]}>
+                    Continuar
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
-        </View>
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  return (
+    <GameResultOverlay
+      ribbonText={tarjeta.cinta}
+      badgeText={tarjeta.insignia}
+      title={tarjeta.titulo}
+      rewardTitle="Premio del tren"
+      description={tarjeta.descripcion}
+      starsEarned={tarjeta.estrellas}
+      metrics={metricasVisibles}
+      progressTitle={tarjeta.resumenTitulo}
+      progressMessage={tarjeta.resumenTexto}
+      achievements={tarjeta.logros ?? []}
+      exitLabel="Volver al tablero"
+      onExit={!sincronizando && puedeContinuar ? onVolver : null}
+      celebrating={tarjeta.mostrarCelebracion}
+      syncing={sincronizando}
+      viewport={viewport}
+    />
   );
 };
 
@@ -628,6 +588,36 @@ export default function Tren3DScreen({
 
     return {
       ...tarjetaResultado,
+      metricas: [
+        {
+          etiqueta: 'Puntaje',
+          valor: resolverNumeroFinito(
+            respuestaFinalizacion.resumen_oficial?.puntaje,
+            estado.resultado?.estadisticas?.puntaje ?? 0,
+          ),
+        },
+        {
+          etiqueta: 'Aciertos',
+          valor: resolverNumeroFinito(
+            respuestaFinalizacion.resumen_oficial?.aciertos,
+            estado.resultado?.estadisticas?.aciertos ?? 0,
+          ),
+        },
+        {
+          etiqueta: 'Errores',
+          valor: resolverNumeroFinito(
+            respuestaFinalizacion.resumen_oficial?.errores,
+            estado.resultado?.estadisticas?.errores ?? 0,
+          ),
+        },
+        {
+          etiqueta: 'Combo',
+          valor: `x${resolverNumeroFinito(
+            respuestaFinalizacion.resumen_oficial?.combo_maximo,
+            estado.resultado?.estadisticas?.comboMaximo ?? 0,
+          )}`,
+        },
+      ],
       estrellas: ultimaMisionCompletadaRef.current
         ? calcularEstrellasResultado(resultadoConOficial)
         : Math.min(1, calcularEstrellasResultado(resultadoConOficial)),
@@ -714,40 +704,64 @@ export default function Tren3DScreen({
     }
   }, []);
 
-  const construirTarjetaFinal = (resultado, misionCompletada = true) => ({
-    tipo: 'final',
-    cinta: resultado.finalizacionSesion.estado === 'abandonado' ? 'PARTIDA PAUSADA' : 'RETO TERMINADO',
-    insignia: 'Tren Patrones',
-    titulo:
-      resultado.finalizacionSesion.estado === 'abandonado'
-        ? 'Volvemos al tablero'
-        : misionCompletada
-          ? 'El tren llego a la meta'
-          : 'El tren volvera mas preparado',
-    descripcion:
-      resultado.finalizacionSesion.estado === 'abandonado'
-        ? 'Puedes volver a intentarlo cuando quieras.'
-        : misionCompletada
-          ? 'Completaste la secuencia del tren. Buen trabajo.'
-          : 'Las vueltas terminaron, pero cada intento entreno tu mirada de patrones.',
-    estrellas: calcularEstrellasResultado(resultado),
-    mostrarCelebracion:
-      resultado.finalizacionSesion.estado === 'completado' && misionCompletada,
-    metricas: [
-      { etiqueta: 'Aciertos', valor: resultado.estadisticas.aciertos },
-      { etiqueta: 'Errores', valor: resultado.estadisticas.errores },
-      { etiqueta: 'Combo', valor: `x${resultado.estadisticas.comboMaximo}` },
-      { etiqueta: 'Precision', valor: `${resultado.estadisticas.precisionPct}%` },
-      { etiqueta: 'Puntos', valor: resultado.estadisticas.puntaje },
-      { etiqueta: 'Nivel', valor: `${resultado.estadisticas.nivelAlcanzado}/${configuracion.nivelesPorPartida}` },
-    ],
-    resumenTitulo: resultado.finalizacionSesion.estado === 'abandonado' ? 'Viaje pausado' : 'Gran trabajo',
-    resumenTexto:
-      resultado.finalizacionSesion.estado === 'abandonado'
-        ? 'Tu avance quedo listo para continuar despues.'
-        : 'Tu viaje quedo guardado.',
-    logros: resultado.logros_desbloqueados ?? [],
-  });
+  const construirTarjetaFinal = (resultado, misionCompletada = true) => {
+    const resumenOficial = resultado.resumen_oficial ?? {};
+    const puntajeOficial = resolverNumeroFinito(
+      resumenOficial.puntaje,
+      resultado.estadisticas.puntaje,
+    );
+    const aciertosOficiales = resolverNumeroFinito(
+      resumenOficial.aciertos,
+      resultado.estadisticas.aciertos,
+    );
+    const erroresOficiales = resolverNumeroFinito(
+      resumenOficial.errores,
+      resultado.estadisticas.errores,
+    );
+    const comboOficial = resolverNumeroFinito(
+      resumenOficial.combo_maximo,
+      resultado.estadisticas.comboMaximo,
+    );
+
+    return {
+      tipo: 'final',
+      cinta:
+        resultado.finalizacionSesion.estado === 'abandonado'
+          ? 'PARTIDA PAUSADA'
+          : 'RETO TERMINADO',
+      insignia: 'Tren Patrones',
+      titulo:
+        resultado.finalizacionSesion.estado === 'abandonado'
+          ? 'Volvemos al tablero'
+          : misionCompletada
+            ? 'El tren llego a la meta'
+            : 'El tren volvera mas preparado',
+      descripcion:
+        resultado.finalizacionSesion.estado === 'abandonado'
+          ? 'Puedes volver a intentarlo cuando quieras.'
+          : misionCompletada
+            ? 'Completaste la secuencia del tren. Buen trabajo.'
+            : 'Las vueltas terminaron, pero cada intento entreno tu mirada de patrones.',
+      estrellas: calcularEstrellasResultado(resultado),
+      mostrarCelebracion:
+        resultado.finalizacionSesion.estado === 'completado' && misionCompletada,
+      metricas: [
+        { etiqueta: 'Puntaje', valor: puntajeOficial },
+        { etiqueta: 'Aciertos', valor: aciertosOficiales },
+        { etiqueta: 'Errores', valor: erroresOficiales },
+        { etiqueta: 'Combo', valor: `x${comboOficial}` },
+      ],
+      resumenTitulo:
+        resultado.finalizacionSesion.estado === 'abandonado'
+          ? 'Viaje pausado'
+          : 'Gran trabajo',
+      resumenTexto:
+        resultado.finalizacionSesion.estado === 'abandonado'
+          ? 'Tu avance quedo listo para continuar despues.'
+          : 'Tu viaje quedo guardado.',
+      logros: resultado.logros_desbloqueados ?? [],
+    };
+  };
 
   const finalizarPartida = ({
     estadoFinal = 'completado',
@@ -1229,19 +1243,13 @@ export default function Tren3DScreen({
           style={styles.portadaOverlay}
         >
           <View style={styles.portadaSombra} />
-          <View style={styles.portadaContenido}>
-            <Text style={styles.portadaTitulo}>Tren Patrones</Text>
-            <Text style={styles.portadaSubtitulo}>
-              Listo para el viaje de patrones.
-            </Text>
-            <TouchableOpacity
-              activeOpacity={0.86}
-              style={styles.botonJugarPortada}
-              onPress={iniciarJuegoDesdePortada}
-            >
-              <Text style={styles.botonJugarPortadaTexto}>Jugar</Text>
-            </TouchableOpacity>
-          </View>
+          <GameMissionGuideOverlay
+            title={GUIA_INICIAL_TREN.titulo}
+            message={GUIA_INICIAL_TREN.mensaje}
+            steps={GUIA_INICIAL_TREN.pasos}
+            actionLabel={GUIA_INICIAL_TREN.accion}
+            onStart={iniciarJuegoDesdePortada}
+          />
           <TouchableOpacity style={styles.botonSalirPortada} onPress={salir}>
             <Text style={styles.botonSalirTexto}>Salir</Text>
           </TouchableOpacity>
@@ -1830,8 +1838,8 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   panelResultadoContenidoNivel: {
-    paddingHorizontal: 96,
-    paddingVertical: 28,
+    paddingHorizontal: 72,
+    paddingVertical: 26,
   },
   panelResultadoContenidoFinal: {
     paddingHorizontal: 112,
@@ -1889,12 +1897,12 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   panelResultadoNivel: {
-    maxWidth: 500,
-    borderRadius: 18,
+    maxWidth: 540,
+    borderRadius: 20,
     borderWidth: 3,
-    paddingTop: 28,
-    paddingHorizontal: 12,
-    paddingBottom: 12,
+    paddingTop: 30,
+    paddingHorizontal: 14,
+    paddingBottom: 14,
   },
   resultadoCinta: {
     position: 'absolute',
@@ -1904,10 +1912,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: espaciado.lg,
     borderRadius: radios.pill,
-    backgroundColor: '#FF3E8A',
+    backgroundColor: '#8E35D5',
     borderWidth: 3,
     borderColor: colores.alerta,
-    shadowColor: '#6D1446',
+    shadowColor: '#2B173D',
     shadowOpacity: 0.38,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 7 },
@@ -1950,14 +1958,15 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: '#FFFFFF',
     borderWidth: 3,
-    borderColor: '#8BE8FF',
+    borderColor: '#FFC107',
     gap: 8,
   },
   resultadoHeroNivel: {
+    minHeight: 126,
     borderRadius: 16,
-    paddingVertical: 9,
-    paddingHorizontal: 10,
-    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 8,
   },
   resultadoHeroFinal: {
     gap: 6,
@@ -2117,7 +2126,7 @@ const styles = StyleSheet.create({
   },
   gridMetricasResultadoNivel: {
     flexWrap: 'nowrap',
-    gap: 7,
+    gap: 9,
   },
   gridMetricasResultadoCompacta: {
     gap: 5,
@@ -2136,8 +2145,8 @@ const styles = StyleSheet.create({
   },
   cardMetricaResultadoNivel: {
     minWidth: 0,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     borderRadius: 14,
   },
   cardMetricaResultadoCompacta: {
@@ -2148,19 +2157,19 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   cardMetricaResultado0: {
-    backgroundColor: '#EAFBFF',
-    borderColor: '#A9EFFF',
+    backgroundColor: '#8E35D5',
+    borderColor: '#2B173D',
   },
   cardMetricaResultado1: {
-    backgroundColor: '#FFF2C7',
-    borderColor: '#FFD166',
+    backgroundColor: '#FFC107',
+    borderColor: '#F19A00',
   },
   cardMetricaResultado2: {
-    backgroundColor: '#F1E9FF',
-    borderColor: '#C7B5FF',
+    backgroundColor: '#18C47A',
+    borderColor: '#0E8F59',
   },
   cardMetricaEtiqueta: {
-    color: '#324B66',
+    color: '#2B173D',
     fontSize: 10,
     textTransform: 'uppercase',
     letterSpacing: 0,
@@ -2170,9 +2179,12 @@ const styles = StyleSheet.create({
     fontSize: 8,
   },
   cardMetricaValor: {
-    color: '#251B57',
+    color: '#2B173D',
     fontSize: 16,
     fontWeight: '900',
+  },
+  cardMetricaTextoClaro: {
+    color: '#FFFFFF',
   },
   cardMetricaValorCompacto: {
     fontSize: 13,
@@ -2181,14 +2193,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
     padding: 8,
     borderRadius: 14,
-    backgroundColor: '#FFF2C7',
+    backgroundColor: '#F3E8FA',
     borderWidth: 2,
-    borderColor: '#FFD166',
+    borderColor: '#8E35D5',
     gap: espaciado.xs,
   },
   panelResumenResultadoNivel: {
     borderRadius: 14,
-    paddingVertical: 8,
+    paddingVertical: 10,
   },
   panelResumenResultadoCompacto: {
     marginTop: 6,
@@ -2199,7 +2211,7 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   resumenResultadoTitulo: {
-    color: '#251B57',
+    color: '#2B173D',
     fontWeight: '900',
     textAlign: 'center',
   },
@@ -2207,7 +2219,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   resultadoSecundario: {
-    color: '#405C78',
+    color: '#2B173D',
     lineHeight: 17,
     fontWeight: '700',
     textAlign: 'center',
@@ -2303,10 +2315,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingVertical: 12,
     alignItems: 'center',
-    backgroundColor: '#36D990',
+    backgroundColor: '#8E35D5',
     borderWidth: 3,
     borderColor: '#FFFFFF',
-    shadowColor: '#0B8B55',
+    shadowColor: '#2B173D',
     shadowOpacity: 0.32,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 8 },
@@ -2318,7 +2330,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   botonContinuarTexto: {
-    color: '#073B2A',
+    color: '#FFFFFF',
     fontWeight: '900',
     fontSize: 15,
   },

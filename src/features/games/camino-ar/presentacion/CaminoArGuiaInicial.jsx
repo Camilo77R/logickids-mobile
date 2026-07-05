@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import {
   Animated,
   Image,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -46,13 +47,15 @@ const crearAnimacionMascota = (valorAnimado) =>
     ]),
   );
 
-function PasoGuia({ numero, titulo, descripcion }) {
+function PasoGuia({ numero, titulo, descripcion, compacto = false }) {
   return (
-    <View style={styles.paso}>
-      <Text style={styles.pasoNumero}>{numero}</Text>
+    <View style={[styles.paso, compacto && styles.pasoCompacto]}>
+      <Text style={[styles.pasoNumero, compacto && styles.pasoNumeroCompacto]}>{numero}</Text>
       <View style={styles.pasoContenido}>
-        <Text style={styles.pasoTitulo}>{titulo}</Text>
-        <Text style={styles.pasoDescripcion}>{descripcion}</Text>
+        <Text style={[styles.pasoTitulo, compacto && styles.pasoTituloCompacto]}>{titulo}</Text>
+        <Text style={[styles.pasoDescripcion, compacto && styles.pasoDescripcionCompacto]}>
+          {descripcion}
+        </Text>
       </View>
     </View>
   );
@@ -96,28 +99,72 @@ export default function CaminoArGuiaInicial({ onComenzar }) {
           <Text style={styles.bannerTitulo}>Entrena tu memoria</Text>
         </View>
 
-        <View style={[styles.contenido, layoutCompacto && styles.contenidoCompacto]}>
-          <Animated.View
-            style={[styles.mascotaMarco, { transform: transformacionMascota }]}
+        {layoutCompacto ? (
+          <ScrollView
+            style={styles.contenidoCompactoScroll}
+            contentContainerStyle={styles.contenidoCompactoScrollContent}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
           >
-            <Image source={MASCOTA_GUIA_JUEGO} style={styles.mascota} resizeMode="cover" />
-          </Animated.View>
+            <Animated.View
+              style={[
+                styles.mascotaMarco,
+                styles.mascotaMarcoCompacta,
+                { transform: transformacionMascota },
+              ]}
+            >
+              <Image source={MASCOTA_GUIA_JUEGO} style={styles.mascota} resizeMode="cover" />
+            </Animated.View>
 
-          <View style={styles.panelTexto}>
-            <Text style={styles.mensajePrincipal}>
-              Observa primero. Luego repite el camino iluminado.
-            </Text>
+            <View style={[styles.panelTexto, styles.panelTextoCompacto]}>
+              <Text style={[styles.mensajePrincipal, styles.cardCompactaTexto]}>
+                Observa primero. Luego repite el camino iluminado.
+              </Text>
 
-            <View style={styles.listaPasos}>
-              {PASOS_CAMINO_AR.map((paso) => (
-                <PasoGuia key={paso.numero} {...paso} />
-              ))}
+              <View style={styles.listaPasosCompacta}>
+                {PASOS_CAMINO_AR.map((paso) => (
+                  <PasoGuia
+                    key={paso.numero}
+                    {...paso}
+                    compacto
+                  />
+                ))}
+              </View>
+            </View>
+          </ScrollView>
+        ) : (
+          <View style={styles.contenido}>
+            <Animated.View
+              style={[styles.mascotaMarco, { transform: transformacionMascota }]}
+            >
+              <Image source={MASCOTA_GUIA_JUEGO} style={styles.mascota} resizeMode="cover" />
+            </Animated.View>
+
+            <View style={styles.panelTexto}>
+              <Text style={styles.mensajePrincipal}>
+                Observa primero. Luego repite el camino iluminado.
+              </Text>
+
+              <View style={styles.listaPasos}>
+                {PASOS_CAMINO_AR.map((paso) => (
+                  <PasoGuia
+                    key={paso.numero}
+                    {...paso}
+                  />
+                ))}
+              </View>
             </View>
           </View>
-        </View>
+        )}
 
-        <TouchableOpacity activeOpacity={0.9} onPress={onComenzar} style={styles.boton}>
-          <Text style={styles.botonTexto}>Estoy listo</Text>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={onComenzar}
+          style={[styles.boton, layoutCompacto && styles.botonCompacto]}
+        >
+          <Text style={[styles.botonTexto, layoutCompacto && styles.botonTextoCompacto]}>
+            Estoy listo
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -150,7 +197,8 @@ const styles = StyleSheet.create({
   },
   cardCompacta: {
     maxWidth: 390,
-    padding: 12,
+    maxHeight: '90%',
+    padding: 10,
     borderRadius: 30,
   },
   banner: {
@@ -185,16 +233,20 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 3 },
     textShadowRadius: 0,
   },
+  contenidoCompactoScroll: {
+    maxHeight: 330,
+    marginTop: 10,
+  },
+  contenidoCompactoScrollContent: {
+    alignItems: 'stretch',
+    gap: 8,
+    paddingBottom: 4,
+  },
   contenido: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
     paddingTop: 14,
-  },
-  contenidoCompacto: {
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    gap: 10,
   },
   mascotaMarco: {
     width: 122,
@@ -211,6 +263,12 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
     elevation: 10,
   },
+  mascotaMarcoCompacta: {
+    width: 88,
+    height: 88,
+    borderRadius: 26,
+    borderWidth: 4,
+  },
   mascota: {
     width: '116%',
     height: '116%',
@@ -221,6 +279,9 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 10,
   },
+  panelTextoCompacto: {
+    gap: 8,
+  },
   mensajePrincipal: {
     color: '#4A2B13',
     fontFamily: fonts.black,
@@ -228,8 +289,15 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     textAlign: 'center',
   },
+  cardCompactaTexto: {
+    fontSize: 15,
+    lineHeight: 18,
+  },
   listaPasos: {
     gap: 7,
+  },
+  listaPasosCompacta: {
+    gap: 6,
   },
   paso: {
     flexDirection: 'row',
@@ -241,6 +309,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#F2C858',
     backgroundColor: '#FFF9E8',
+  },
+  pasoCompacto: {
+    paddingVertical: 6,
+    paddingHorizontal: 9,
   },
   pasoNumero: {
     width: 32,
@@ -257,6 +329,13 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 0,
   },
+  pasoNumeroCompacto: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    fontSize: 16,
+    lineHeight: 28,
+  },
   pasoContenido: {
     flex: 1,
   },
@@ -267,11 +346,19 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     textTransform: 'uppercase',
   },
+  pasoTituloCompacto: {
+    fontSize: 13,
+    lineHeight: 15,
+  },
   pasoDescripcion: {
     color: '#70401E',
     fontFamily: fonts.bold,
     fontSize: 12,
     lineHeight: 15,
+  },
+  pasoDescripcionCompacto: {
+    fontSize: 11,
+    lineHeight: 14,
   },
   boton: {
     minHeight: 60,
@@ -288,6 +375,10 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
     elevation: 10,
   },
+  botonCompacto: {
+    minHeight: 52,
+    marginTop: 8,
+  },
   botonTexto: {
     color: '#FFFFFF',
     fontFamily: fonts.black,
@@ -298,5 +389,9 @@ const styles = StyleSheet.create({
     textShadowColor: '#1B6B2C',
     textShadowOffset: { width: 0, height: 3 },
     textShadowRadius: 0,
+  },
+  botonTextoCompacto: {
+    fontSize: 17,
+    lineHeight: 20,
   },
 });

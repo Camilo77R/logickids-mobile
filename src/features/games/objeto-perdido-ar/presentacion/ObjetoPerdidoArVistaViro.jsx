@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +24,9 @@ import {
   ViroText,
 } from '@reactvision/react-viro';
 import { ESTADOS_OBJETO_PERDIDO_AR } from '../objetoPerdidoAr.constants';
+import {
+  GameResultOverlay,
+} from '../../core/GameShellOverlays';
 import { resolvePostGameNavigation } from '../../core/postGameFlow';
 
 const FASES_ZONA_VISIBLE = new Set([
@@ -33,6 +38,17 @@ const FASES_ZONA_VISIBLE = new Set([
 const TIEMPO_FALLBACK_MANUAL_MS = 6500;
 const POSICION_ZONA_RESPALDO = [0, -0.72, 0];
 const CAIDA_VERTICAL_ZONA_MANUAL = 0.72;
+const GUIA_INICIAL_OBJETO_PERDIDO = Object.freeze({
+  titulo: '¡Bienvenido a Objeto Perdido AR!',
+  mensaje:
+    'Busca el objeto correcto dentro de la zona y toca solo el que cumpla la mision.',
+  pasos: [
+    'Encuentra una superficie o centra la zona manualmente si hace falta.',
+    'Mira alrededor y ubica el objeto que coincide con la pista.',
+    'Tocalo rapido para sumar puntos y seguir al siguiente reto.',
+  ],
+});
+const MASCOTA_GUIA_OBJETO_PERDIDO = require('../../../../../assets/branding/fondo definitivo.jpeg');
 
 ViroMaterials.createMaterials({
   objetoPerdidoLinea: {
@@ -106,6 +122,22 @@ const formatearSegundos = (milisegundos) =>
 
 const obtenerMetricaOficial = (respuestaFinalizacionSesion, clave, respaldo) =>
   respuestaFinalizacionSesion?.resumen_oficial?.[clave] ?? respaldo;
+
+const resolverEstrellasResultado = ({
+  aciertos = 0,
+  errores = 0,
+  precisionPct = 0,
+}) => {
+  if (precisionPct >= 90 && errores === 0) {
+    return 3;
+  }
+
+  if (precisionPct >= 70 || aciertos > errores) {
+    return 2;
+  }
+
+  return aciertos > 0 ? 1 : 0;
+};
 
 const obtenerPosicionDesdePlano = (anchor) =>
   anchor?.position ??
@@ -386,6 +418,7 @@ export default function ObjetoPerdidoArVistaViro({
   respuestaFinalizacionSesion,
 }) {
   const insets = useSafeAreaInsets();
+  const viewport = useWindowDimensions();
   const [zonaDisponible, setZonaDisponible] = useState(false);
   const [fallbackManualDisponible, setFallbackManualDisponible] = useState(false);
   const [modoColocacion, setModoColocacion] = useState('plano');
@@ -476,10 +509,79 @@ export default function ObjetoPerdidoArVistaViro({
   });
   const puedeContinuarActividad = persistenciaSesion?.modo !== 'remota'
     || navegacionResultado.shouldContinue;
-  const rondaCompletadaVisible =
-    estado.fase === ESTADOS_OBJETO_PERDIDO_AR.rondaCompletada &&
-    Boolean(estado.resumenRonda) &&
-    !resultadoVisible;
+  const rondaCompletadaVisible = false;
+  const guiaInicialVisible =
+    !resultadoVisible &&
+    !rondaCompletadaVisible &&
+    !zonaDisponible &&
+    (
+      estado.fase === ESTADOS_OBJETO_PERDIDO_AR.listo ||
+      estado.fase === ESTADOS_OBJETO_PERDIDO_AR.buscandoSuperficie
+    );
+  const accionGuiaInicial = iniciarManual;
+  const tituloGuiaInicial = 'Prepara la zona del juego';
+  const etiquetaGuiaInicial = 'Centrar aqui';
+  const mensajeGuiaInicial = 'Si el piso no aparece, centra la zona donde estas para comenzar.';
+  const metricasResultadoFinal = useMemo(() => ([
+    {
+      label: 'Puntaje',
+      value: String(
+        obtenerMetricaOficial(
+          respuestaFinalizacionSesion,
+          'puntaje',
+          estado.resultado?.estadisticas?.puntaje ?? 0,
+        ),
+      ),
+    },
+    {
+      label: 'Aciertos',
+      value: String(
+        obtenerMetricaOficial(
+          respuestaFinalizacionSesion,
+          'aciertos',
+          estado.resultado?.estadisticas?.aciertos ?? 0,
+        ),
+      ),
+    },
+    {
+      label: 'Errores',
+      value: String(
+        obtenerMetricaOficial(
+          respuestaFinalizacionSesion,
+          'errores',
+          estado.resultado?.estadisticas?.errores ?? 0,
+        ),
+      ),
+    },
+    {
+      label: 'Combo',
+      value: `x${String(
+        obtenerMetricaOficial(
+          respuestaFinalizacionSesion,
+          'combo_maximo',
+          estado.resultado?.estadisticas?.comboMaximo ?? 0,
+        ),
+      )}`,
+    },
+  ]), [estado.resultado, respuestaFinalizacionSesion]);
+  const metricasRonda = useMemo(() => (estado.resumenRonda ? [
+    {
+      label: 'Objeto',
+      value: estado.resumenRonda.objetoObjetivo.etiqueta,
+    },
+    {
+      label: 'Puntaje',
+      value: `+${estado.resumenRonda.puntosGanados}`,
+    },
+    {
+      label: 'Tiempo',
+      value: formatearSegundos(estado.resumenRonda.tiempoRestanteMs),
+    },
+    {
+      label: 'Ronda',
+      value: `${estado.resumenRonda.numeroRonda}/${estado.resumenRonda.rondasPorPartida}`,
+    },
+  ] : []), [estado.resumenRonda]);
 
   return (
     <View style={styles.root}>
@@ -526,18 +628,20 @@ export default function ObjetoPerdidoArVistaViro({
 
         <View style={styles.hudEspaciador} />
 
-        <GuiaTemporal
-          mensaje={
-            zonaDisponible
-              ? estado.mensaje
-              : fallbackManualDisponible
-                ? 'Si el piso no aparece, centra la zona donde estas.'
-                : 'Apunta al piso y quedate en el centro de la zona.'
-          }
-          fase={estado.fase}
-        />
+        {!guiaInicialVisible ? (
+          <GuiaTemporal
+            mensaje={
+              zonaDisponible
+                ? estado.mensaje
+                : fallbackManualDisponible
+                  ? 'Si el piso no aparece, centra la zona donde estas.'
+                  : 'Apunta al piso y quedate en el centro de la zona.'
+            }
+            fase={estado.fase}
+          />
+        ) : null}
 
-        {!resultadoVisible && !rondaCompletadaVisible ? (
+        {!resultadoVisible && !rondaCompletadaVisible && !guiaInicialVisible ? (
           <View style={styles.panelAccion}>
             {!zonaDisponible ? (
               fallbackManualDisponible ? (
@@ -553,7 +657,7 @@ export default function ObjetoPerdidoArVistaViro({
                   </Text>
                 </TouchableOpacity>
               ) : (
-                <View style={styles.estadoPlano}>
+          <View style={styles.estadoPlano}>
                   <ActivityIndicator color="#38BDF8" />
                   <Text style={styles.estadoPlanoTexto}>Buscando superficie AR...</Text>
                 </View>
@@ -576,63 +680,92 @@ export default function ObjetoPerdidoArVistaViro({
         ) : null}
       </SafeAreaView>
 
-      {resultadoVisible ? (
-        <View style={styles.resultadoCapa}>
-          <View style={styles.resultadoCard}>
-            <Text style={styles.resultadoEtiqueta}>Actividad completada</Text>
-            <Text style={styles.resultadoTitulo}>Buen trabajo</Text>
-            <View style={styles.resultadoMetricas}>
-              <MetricaResultado etiqueta="Puntos" valor={obtenerMetricaOficial(respuestaFinalizacionSesion, 'puntaje', estado.resultado.estadisticas.puntaje)} />
-              <MetricaResultado etiqueta="Aciertos" valor={obtenerMetricaOficial(respuestaFinalizacionSesion, 'aciertos', estado.resultado.estadisticas.aciertos)} />
-              <MetricaResultado etiqueta="Errores" valor={obtenerMetricaOficial(respuestaFinalizacionSesion, 'errores', estado.resultado.estadisticas.errores)} />
-              <MetricaResultado etiqueta="Precision" valor={`${estado.resultado.estadisticas.precisionPct}%`} />
-            </View>
-            {persistenciaSesion?.error ? (
-              <Text style={styles.errorPersistencia}>{persistenciaSesion.error}</Text>
-            ) : null}
-            <View style={styles.resultadoBotones}>
-              {puedeContinuarActividad ? (
-                <TouchableOpacity style={styles.botonSecundario} onPress={reiniciar}>
-                  <Text style={styles.botonSecundarioTexto}>Siguiente reto</Text>
-                </TouchableOpacity>
-              ) : null}
-              {navegacionResultado.shouldExit || persistenciaSesion?.modo !== 'remota' ? (
-                <TouchableOpacity style={styles.botonPrincipal} onPress={onSalir}>
-                  <Text style={styles.botonPrincipalTexto}>Volver</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-        </View>
+      {guiaInicialVisible ? (
+        <GuiaInicialObjetoPerdidoOverlay
+          title={tituloGuiaInicial}
+          message={mensajeGuiaInicial}
+          steps={GUIA_INICIAL_OBJETO_PERDIDO.pasos}
+          actionLabel={etiquetaGuiaInicial}
+          onStart={accionGuiaInicial}
+        />
       ) : null}
 
-      {rondaCompletadaVisible ? (
-        <View style={styles.resultadoCapa}>
-          <View style={styles.rondaCard}>
-            <View style={styles.rondaIcono}>
-              <Ionicons name="cube" size={30} color="#14314F" />
-            </View>
-            <Text style={styles.resultadoEtiqueta}>Objeto encontrado</Text>
-            <Text style={styles.rondaTitulo}>
-              Ronda {estado.resumenRonda.numeroRonda} completada
-            </Text>
-            <Text style={styles.rondaTexto}>
-              Encontraste {estado.resumenRonda.objetoObjetivo.nombre}.
-            </Text>
-            <View style={styles.resultadoMetricas}>
-              <MetricaResultado etiqueta="Objeto" valor={estado.resumenRonda.objetoObjetivo.etiqueta} />
-              <MetricaResultado etiqueta="Puntos" valor={`+${estado.resumenRonda.puntosGanados}`} />
-              <MetricaResultado etiqueta="Tiempo" valor={formatearSegundos(estado.resumenRonda.tiempoRestanteMs)} />
-              <MetricaResultado etiqueta="Ronda" valor={`${estado.resumenRonda.numeroRonda}/${estado.resumenRonda.rondasPorPartida}`} />
-            </View>
-            <TouchableOpacity style={[styles.botonPrincipal, styles.botonRonda]} onPress={continuarSiguienteRonda}>
-              <Text style={styles.botonPrincipalTexto}>
-                {estado.resumenRonda.esUltimaRonda ? 'Ver resultado' : 'Siguiente reto'}
-              </Text>
-            </TouchableOpacity>
+      {resultadoVisible ? (
+        <GameResultOverlay
+          ribbonText="Reto terminado"
+          badgeText="OBJETO PERDIDO AR · ATENCION"
+          title="Objetos encontrados"
+          rewardTitle="Premio del reto"
+          description={
+            persistenciaSesion?.error ??
+            'Encontraste los objetos correctos y tus resultados quedaron listos para seguir aprendiendo.'
+          }
+          starsEarned={resolverEstrellasResultado(estado.resultado?.estadisticas ?? {})}
+          metrics={metricasResultadoFinal}
+          progressTitle="Progreso guardado"
+          progressMessage={
+            persistenciaSesion?.error
+              ? 'Tu resultado sigue visible mientras resolvemos el guardado.'
+              : 'Tu actividad quedo registrada y lista para continuar.'
+          }
+          continueLabel={puedeContinuarActividad ? 'Siguiente reto' : null}
+          onContinue={puedeContinuarActividad ? reiniciar : null}
+          exitLabel={
+            navegacionResultado.shouldExit || persistenciaSesion?.modo !== 'remota'
+              ? 'Volver'
+              : null
+          }
+          onExit={
+            navegacionResultado.shouldExit || persistenciaSesion?.modo !== 'remota'
+              ? onSalir
+              : null
+          }
+          celebrating={!persistenciaSesion?.error}
+          syncing={persistenciaSesion?.estado === 'finalizando'}
+          viewport={viewport}
+        />
+      ) : null}
+
+    </View>
+  );
+}
+
+function GuiaInicialObjetoPerdidoOverlay({
+  title,
+  message,
+  steps,
+  actionLabel,
+  onStart,
+}) {
+  return (
+    <View style={styles.guiaInicialOverlay}>
+      <View style={styles.guiaInicialCard}>
+        <View style={styles.guiaInicialMascotaMarco}>
+          <Image
+            source={MASCOTA_GUIA_OBJETO_PERDIDO}
+            style={styles.guiaInicialMascota}
+            resizeMode="cover"
+          />
+        </View>
+
+        <View style={styles.guiaInicialContenido}>
+          <Text style={styles.guiaInicialTitulo}>{title}</Text>
+          <Text style={styles.guiaInicialMensaje}>{message}</Text>
+
+          <View style={styles.guiaInicialPasos}>
+            {steps.map((paso, indice) => (
+              <View key={`${indice}-${paso}`} style={styles.guiaInicialPasoFila}>
+                <Text style={styles.guiaInicialPasoNumero}>{indice + 1}</Text>
+                <Text style={styles.guiaInicialPasoTexto}>{paso}</Text>
+              </View>
+            ))}
           </View>
         </View>
-      ) : null}
+
+        <TouchableOpacity activeOpacity={0.88} onPress={onStart} style={styles.guiaInicialBoton}>
+          <Text style={styles.guiaInicialBotonTexto}>{actionLabel}</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -643,15 +776,6 @@ function Metrica({ icono, etiqueta, valor }) {
       <Ionicons name={icono} size={13} color="#BAE6FD" />
       <Text style={styles.metricaEtiqueta}>{etiqueta}</Text>
       <Text style={styles.metricaValor}>{valor}</Text>
-    </View>
-  );
-}
-
-function MetricaResultado({ etiqueta, valor }) {
-  return (
-    <View style={styles.metricaResultado}>
-      <Text style={styles.metricaResultadoValor}>{valor}</Text>
-      <Text style={styles.metricaResultadoEtiqueta}>{etiqueta}</Text>
     </View>
   );
 }
@@ -752,6 +876,116 @@ const styles = StyleSheet.create({
   },
   estadoPlano: { alignItems: 'center', flexDirection: 'row', gap: 10 },
   estadoPlanoTexto: { color: '#F8FAFC', fontSize: 14, fontWeight: '700', textAlign: 'center' },
+  guiaInicialOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    backgroundColor: 'rgba(8, 19, 38, 0.58)',
+  },
+  guiaInicialCard: {
+    width: '92%',
+    maxWidth: 420,
+    maxHeight: '84%',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 16,
+    borderRadius: 28,
+    borderWidth: 5,
+    borderColor: '#8D4E20',
+    backgroundColor: '#FFF4D8',
+    shadowColor: '#422713',
+    shadowOpacity: 0.32,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 14,
+  },
+  guiaInicialMascotaMarco: {
+    alignSelf: 'center',
+    width: 108,
+    height: 108,
+    marginBottom: 10,
+    borderRadius: 30,
+    overflow: 'hidden',
+    borderWidth: 5,
+    borderColor: '#F5C84B',
+    backgroundColor: '#9B36D9',
+  },
+  guiaInicialMascota: {
+    width: '112%',
+    height: '112%',
+    marginLeft: '-6%',
+    marginTop: '-6%',
+  },
+  guiaInicialContenido: {
+    gap: 6,
+  },
+  guiaInicialTitulo: {
+    color: '#3F2512',
+    fontSize: 22,
+    lineHeight: 26,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  guiaInicialMensaje: {
+    color: '#6F3D1E',
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  guiaInicialPasos: {
+    gap: 8,
+    marginTop: 4,
+  },
+  guiaInicialPasoFila: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  guiaInicialPasoNumero: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    overflow: 'hidden',
+    backgroundColor: '#35B84A',
+    color: '#FFFFFF',
+    fontSize: 14,
+    lineHeight: 26,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  guiaInicialPasoTexto: {
+    flex: 1,
+    color: '#5B3019',
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '700',
+  },
+  guiaInicialBoton: {
+    minHeight: 56,
+    marginTop: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 24,
+    borderWidth: 4,
+    borderColor: '#1D7B31',
+    backgroundColor: '#39C84F',
+    shadowColor: '#145A26',
+    shadowOpacity: 0.38,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 8,
+  },
+  guiaInicialBotonTexto: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    lineHeight: 19,
+    fontWeight: '900',
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
   botonPrincipal: {
     alignItems: 'center',
     backgroundColor: '#FDE68A',

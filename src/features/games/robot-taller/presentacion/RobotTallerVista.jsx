@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,10 @@ import EscenaEnsamblaje from './EscenaEnsamblaje';
 import QuizOverlay from './QuizOverlay';
 import MathChallengeModal from './MathChallengeModal';
 import { NIVELES, PARTES_ROBOT } from '../robotTaller.constants';
+import {
+  GameMissionGuideOverlay,
+  GameResultOverlay,
+} from '../../core/GameShellOverlays';
 
 function Temporizador({ tiempoRestanteMs, enPausa }) {
   const minutos = Math.floor(tiempoRestanteMs / 60000);
@@ -41,37 +45,6 @@ function OverlayPausa({ alReanudar }) {
   );
 }
 
-function InstruccionesIniciales({ alComenzar, preparando = false }) {
-  return (
-    <View style={styles.pauseOverlay}>
-      <View style={styles.instructionsCard}>
-        <View style={styles.iconCircle}>
-          <Ionicons name="game-controller" size={32} color="#FFD166" style={{ marginLeft: 2 }} />
-        </View>
-        <Text style={styles.instructionsTitle}>¡Armá tu Robot!</Text>
-        <Text style={styles.instructionsText}>
-          1️⃣ Resolvé las cuentas para ganar cada pieza.{"\n\n"}
-          2️⃣ Tocá la pieza que ganaste y arrastrala hasta su holograma brillante.{"\n\n"}
-          🤖 ¡Completá todo el robot para ganar! ¡Vos podés!
-        </Text>
-        <TouchableOpacity
-          activeOpacity={0.88}
-          disabled={preparando}
-          onPress={alComenzar}
-          style={[styles.startButton, preparando && styles.startButtonDisabled]}
-        >
-          {preparando ? (
-            <ActivityIndicator color={colors.white} />
-          ) : (
-            <Ionicons name="rocket" size={24} color={colors.white} />
-          )}
-          <Text style={styles.startButtonText}>{preparando ? 'Preparando...' : '¡A Jugar!'}</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-
 export default function RobotTallerVista({
   onSalir, escena, estado, configuracion,
   agarrarParte, moverParte, soltarParte, reiniciarPartida,
@@ -84,6 +57,7 @@ export default function RobotTallerVista({
   setMostrarModalMatematica,
   temaNombre,
 }) {
+  const viewport = useWindowDimensions();
   const [enPausa, setEnPausa] = useState(false);
   const [mostrarInstrucciones, setMostrarInstrucciones] = useState(true);
   const tiempoLimiteMs = configuracion?.configuracion?.tiempoLimiteMs
@@ -211,9 +185,12 @@ export default function RobotTallerVista({
       ) : null}
       
       {mostrarInstrucciones && (
-        <InstruccionesIniciales
-          alComenzar={handleComenzar}
-          preparando={preparandoPartida}
+        <GameMissionGuideOverlay
+          title={escena.guiaInicial.titulo}
+          message={escena.guiaInicial.mensaje}
+          steps={escena.guiaInicial.pasos}
+          actionLabel={preparandoPartida ? 'Preparando...' : escena.guiaInicial.accion}
+          onStart={handleComenzar}
         />
       )}
 
@@ -260,27 +237,28 @@ export default function RobotTallerVista({
       )}
 
       {escena.resultado.visible && (
-        <View style={styles.pauseOverlay}>
-          <View style={styles.instructionsCard}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="trophy" size={32} color="#FFD166" style={{ marginLeft: 2 }} />
-            </View>
-            <Text style={styles.instructionsTitle}>{escena.resultado.titulo}</Text>
-            
-            {escena.resultado.accionContinuar && (
-              <TouchableOpacity activeOpacity={0.88} onPress={escena.resultado.accionContinuar} style={styles.startButton}>
-                <Ionicons name="play" size={24} color={colors.white} />
-                <Text style={styles.startButtonText}>{escena.resultado.etiquetaContinuar}</Text>
-              </TouchableOpacity>
-            )}
-
-            {escena.resultado.accionSalir && (
-              <TouchableOpacity activeOpacity={0.88} onPress={escena.resultado.accionSalir} style={[styles.resetButton, { marginTop: 12 }]}>
-                <Text style={styles.resetButtonText}>{escena.resultado.etiquetaSalir}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
+        <GameResultOverlay
+          ribbonText={escena.resultado.cinta}
+          badgeText={escena.resultado.insignia}
+          title={escena.resultado.titulo}
+          rewardTitle="Premio del reto"
+          description={escena.resultado.descripcion}
+          starsEarned={escena.resultado.estrellas}
+          metrics={escena.resultado.metricas}
+          progressTitle="Progreso guardado"
+          progressMessage={escena.resultado.mensajeProgreso}
+          achievements={escena.resultado.logros}
+          continueLabel={escena.resultado.etiquetaContinuar}
+          onContinue={escena.resultado.accionContinuar}
+          exitLabel={escena.resultado.etiquetaSalir}
+          onExit={escena.resultado.accionSalir}
+          topExitLabel={escena.salida.etiqueta}
+          onTopExit={escena.salida.permitida ? onSalir : null}
+          topExitDisabled={!escena.salida.permitida}
+          celebrating={escena.resultado.mostrarCelebracion}
+          syncing={escena.resultado.sincronizandoCierre}
+          viewport={viewport}
+        />
       )}
     </View>
   );
