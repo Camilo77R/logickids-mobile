@@ -40,8 +40,9 @@ export default function MascotaGuiaJuego({
   style,
 }) {
   const respiracion = useRef(new Animated.Value(0)).current;
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const pantallaAngosta = width < 520;
+  const pantallaHorizontal = width > height;
 
   useEffect(() => {
     const animacion = crearAnimacionRespiracion(respiracion);
@@ -62,10 +63,11 @@ export default function MascotaGuiaJuego({
     () => [
       styles.card,
       pantallaAngosta && styles.cardCompacta,
+      pantallaHorizontal && styles.cardHorizontal,
       variante === 'intro' && styles.cardIntro,
       style,
     ],
-    [pantallaAngosta, style, variante],
+    [pantallaAngosta, pantallaHorizontal, style, variante],
   );
 
   if (variante === 'pill') {
@@ -94,6 +96,7 @@ export default function MascotaGuiaJuego({
           styles.cardMascotaMarco,
           variante === 'intro' && styles.cardMascotaMarcoIntro,
           pantallaAngosta && styles.cardMascotaMarcoCompacto,
+          pantallaHorizontal && styles.cardMascotaMarcoHorizontal,
           { transform: [{ translateY: desplazamientoY }, { scale: escala }] },
         ]}
       >
@@ -101,18 +104,41 @@ export default function MascotaGuiaJuego({
       </Animated.View>
 
       <ScrollView
-        style={[styles.cardContenidoScroll, pantallaAngosta && styles.cardContenidoScrollCompacto]}
-        contentContainerStyle={[styles.cardContenido, pantallaAngosta && styles.cardContenidoCompacto]}
+        style={[
+          styles.cardContenidoScroll,
+          pantallaAngosta && styles.cardContenidoScrollCompacto,
+          pantallaHorizontal && styles.cardContenidoScrollHorizontal,
+        ]}
+        contentContainerStyle={[
+          styles.cardContenido,
+          pantallaAngosta && styles.cardContenidoCompacto,
+          pantallaHorizontal && styles.cardContenidoHorizontal,
+        ]}
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        {titulo ? <Text style={styles.cardTitulo}>{titulo}</Text> : null}
-        {mensaje ? <Text style={styles.cardMensaje}>{mensaje}</Text> : null}
+        {titulo ? (
+          <Text style={[styles.cardTitulo, pantallaHorizontal && styles.cardTituloHorizontal]}>
+            {titulo}
+          </Text>
+        ) : null}
+        {mensaje ? (
+          <Text style={[styles.cardMensaje, pantallaHorizontal && styles.cardMensajeHorizontal]}>
+            {mensaje}
+          </Text>
+        ) : null}
 
         {pasos.map((paso, indice) => (
-          <View key={`${indice}-${paso}`} style={styles.pasoFila}>
-            <Text style={styles.pasoNumero}>{indice + 1}</Text>
-            <Text style={styles.pasoTexto}>{paso}</Text>
+          <View
+            key={`${indice}-${paso}`}
+            style={[styles.pasoFila, pantallaHorizontal && styles.pasoFilaHorizontal]}
+          >
+            <Text style={[styles.pasoNumero, pantallaHorizontal && styles.pasoNumeroHorizontal]}>
+              {indice + 1}
+            </Text>
+            <Text style={[styles.pasoTexto, pantallaHorizontal && styles.pasoTextoHorizontal]}>
+              {paso}
+            </Text>
           </View>
         ))}
       </ScrollView>
@@ -121,9 +147,15 @@ export default function MascotaGuiaJuego({
         <TouchableOpacity
           activeOpacity={0.88}
           onPress={onAccion}
-          style={[styles.cardBoton, pantallaAngosta && styles.cardBotonCompacto]}
+          style={[
+            styles.cardBoton,
+            pantallaAngosta && styles.cardBotonCompacto,
+            pantallaHorizontal && styles.cardBotonHorizontal,
+          ]}
         >
-          <Text style={styles.cardBotonTexto}>{accion}</Text>
+          <Text style={[styles.cardBotonTexto, pantallaHorizontal && styles.cardBotonTextoHorizontal]}>
+            {accion}
+          </Text>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -135,8 +167,9 @@ const styles = StyleSheet.create({
     width: '86%',
     maxWidth: 780,
     maxHeight: '88%',
+    minHeight: 280,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     gap: 18,
     padding: 18,
     borderRadius: 30,
@@ -158,6 +191,15 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 16,
     borderRadius: 28,
+  },
+  cardHorizontal: {
+    width: '90%',
+    maxWidth: 1180,
+    minHeight: 260,
+    maxHeight: '84%',
+    gap: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
   },
   cardIntro: {
     maxWidth: 460,
@@ -184,6 +226,12 @@ const styles = StyleSheet.create({
   cardMascotaMarcoCompacto: {
     alignSelf: 'center',
   },
+  cardMascotaMarcoHorizontal: {
+    width: 126,
+    height: 126,
+    borderRadius: 32,
+    alignSelf: 'center',
+  },
   cardMascota: {
     width: '112%',
     height: '112%',
@@ -194,6 +242,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexShrink: 1,
     gap: 7,
+    paddingBottom: 10,
   },
   cardContenidoScroll: {
     flex: 1,
@@ -203,26 +252,51 @@ const styles = StyleSheet.create({
     width: '100%',
     maxHeight: 240,
   },
+  cardContenidoScrollHorizontal: {
+    flex: 1,
+  },
   cardContenidoCompacto: {
     width: '100%',
     paddingBottom: 4,
+  },
+  cardContenidoHorizontal: {
+    paddingRight: 6,
+    paddingBottom: 6,
+    gap: 6,
   },
   cardTitulo: {
     color: '#3F2512',
     fontFamily: fonts.black,
     fontSize: 28,
-    lineHeight: 31,
+    lineHeight: 34,
+    paddingBottom: 2,
+  },
+  cardTituloHorizontal: {
+    fontSize: 24,
+    lineHeight: 27,
+    paddingBottom: 0,
   },
   cardMensaje: {
     color: '#6F3D1E',
     fontFamily: fonts.bold,
     fontSize: 16,
-    lineHeight: 20,
+    lineHeight: 22,
+    paddingBottom: 2,
+  },
+  cardMensajeHorizontal: {
+    fontSize: 15,
+    lineHeight: 19,
+    paddingBottom: 0,
   },
   pasoFila: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
+    paddingBottom: 2,
+  },
+  pasoFilaHorizontal: {
+    gap: 8,
+    paddingBottom: 2,
   },
   pasoNumero: {
     width: 28,
@@ -236,16 +310,30 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     backgroundColor: '#35B84A',
   },
+  pasoNumeroHorizontal: {
+    width: 25,
+    height: 25,
+    borderRadius: 12.5,
+    fontSize: 13,
+    lineHeight: 25,
+  },
   pasoTexto: {
     flex: 1,
     color: '#5B3019',
     fontFamily: fonts.bold,
     fontSize: 16,
-    lineHeight: 20,
+    lineHeight: 23,
+    paddingBottom: 2,
+  },
+  pasoTextoHorizontal: {
+    fontSize: 14,
+    lineHeight: 18,
+    paddingBottom: 0,
   },
   cardBoton: {
     minWidth: 170,
     minHeight: 62,
+    alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
@@ -263,6 +351,13 @@ const styles = StyleSheet.create({
     width: '100%',
     minWidth: 0,
   },
+  cardBotonHorizontal: {
+    minWidth: 168,
+    minHeight: 56,
+    paddingHorizontal: 16,
+    borderRadius: 22,
+    alignSelf: 'center',
+  },
   cardBotonTexto: {
     color: '#FFFFFF',
     fontFamily: fonts.black,
@@ -270,6 +365,10 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'center',
     textTransform: 'uppercase',
+  },
+  cardBotonTextoHorizontal: {
+    fontSize: 17,
+    lineHeight: 19,
   },
   pill: {
     maxWidth: 460,
