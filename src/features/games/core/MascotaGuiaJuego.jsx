@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import {
   Animated,
   Image,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -99,17 +100,22 @@ export default function MascotaGuiaJuego({
         <Image source={MASCOTA_GUIA_JUEGO} style={styles.cardMascota} resizeMode="cover" />
       </Animated.View>
 
-      <View style={[styles.cardContenido, pantallaAngosta && styles.cardContenidoCompacto]}>
+      <ScrollView
+        style={[styles.cardContenidoScroll, pantallaAngosta && styles.cardContenidoScrollCompacto]}
+        contentContainerStyle={[styles.cardContenido, pantallaAngosta && styles.cardContenidoCompacto]}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
         {titulo ? <Text style={styles.cardTitulo}>{titulo}</Text> : null}
         {mensaje ? <Text style={styles.cardMensaje}>{mensaje}</Text> : null}
 
         {pasos.map((paso, indice) => (
-          <View key={paso} style={styles.pasoFila}>
+          <View key={`${indice}-${paso}`} style={styles.pasoFila}>
             <Text style={styles.pasoNumero}>{indice + 1}</Text>
             <Text style={styles.pasoTexto}>{paso}</Text>
           </View>
         ))}
-      </View>
+      </ScrollView>
 
       {accion && onAccion ? (
         <TouchableOpacity
@@ -128,6 +134,7 @@ const styles = StyleSheet.create({
   card: {
     width: '86%',
     maxWidth: 780,
+    maxHeight: '88%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 18,
@@ -145,6 +152,7 @@ const styles = StyleSheet.create({
   cardCompacta: {
     width: '92%',
     maxWidth: 420,
+    maxHeight: '82%',
     flexDirection: 'column',
     alignItems: 'stretch',
     gap: 12,
@@ -183,14 +191,21 @@ const styles = StyleSheet.create({
     marginTop: '-6%',
   },
   cardContenido: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
     gap: 7,
   },
-  cardContenidoCompacto: {
-    flexGrow: 0,
-    flexShrink: 1,
-    flexBasis: 'auto',
+  cardContenidoScroll: {
+    flex: 1,
+    minWidth: 0,
+  },
+  cardContenidoScrollCompacto: {
     width: '100%',
+    maxHeight: 240,
+  },
+  cardContenidoCompacto: {
+    width: '100%',
+    paddingBottom: 4,
   },
   cardTitulo: {
     color: '#3F2512',
@@ -206,7 +221,7 @@ const styles = StyleSheet.create({
   },
   pasoFila: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 10,
   },
   pasoNumero: {
