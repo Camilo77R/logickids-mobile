@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { Vibration } from 'react-native';
 
 const AUDIO_SOURCES = Object.freeze({
-  seleccion: require('../../../../assets/audio/tren-3d/tren-seleccion.mp3'),
+  seleccion: require('../../../../assets/audio/mercado-3d/mercado-toque.wav'),
   desbloqueo: require('../../../../assets/audio/mercado-3d/mercado-ajuste.wav'),
-  acierto: require('../../../../assets/audio/mercado-3d/mercado-exito.wav'),
-  error: require('../../../../assets/audio/tren-3d/tren-error.mp3'),
-  nivel: require('../../../../assets/audio/tren-3d/tren-nivel.mp3'),
-  final: require('../../../../assets/audio/tren-3d/tren-final.mp3'),
+  acierto: require('../../../../assets/audio/mercado-3d/mercado-estrella.wav'),
+  nivel: require('../../../../assets/audio/camino-ar/camino-turno-chime.wav'),
+  final: require('../../../../assets/audio/camino-ar/camino-exito-sparkle.wav'),
 });
 
 const createNoopAudio = () => ({
@@ -46,14 +44,6 @@ const detenerPlayer = (player) => {
   }
 };
 
-const vibrarSeguro = (patron) => {
-  try {
-    Vibration.vibrate(patron);
-  } catch {
-    // Algunos dispositivos no permiten vibracion.
-  }
-};
-
 const crearAudioSeguro = () => {
   try {
     if (!hasNativeAudioModule()) {
@@ -83,10 +73,6 @@ const crearAudioSeguro = () => {
         downloadFirst: true,
         keepAudioSessionActive: true,
       }),
-      error: createAudioPlayer(AUDIO_SOURCES.error, {
-        downloadFirst: true,
-        keepAudioSessionActive: true,
-      }),
       nivel: createAudioPlayer(AUDIO_SOURCES.nivel, {
         downloadFirst: true,
         keepAudioSessionActive: true,
@@ -97,12 +83,11 @@ const crearAudioSeguro = () => {
       }),
     };
 
-    players.seleccion.volume = 0.34;
-    players.desbloqueo.volume = 0.4;
-    players.acierto.volume = 0.48;
-    players.error.volume = 0.42;
-    players.nivel.volume = 0.48;
-    players.final.volume = 0.5;
+    players.seleccion.volume = 0.24;
+    players.desbloqueo.volume = 0.33;
+    players.acierto.volume = 0.3;
+    players.nivel.volume = 0.28;
+    players.final.volume = 0.42;
 
     return {
       disponible: true,
@@ -119,12 +104,12 @@ export function useRobotTallerAudio({
   problemaMatematico,
   resultadoVisible,
   mostrarCelebracion,
-}) {
+} = {}) {
   const audioRef = useRef(createNoopAudio());
-  const contadorAnteriorRef = useRef(estado.contadorEnsambladas);
-  const erroresAnteriorRef = useRef(estado.erroresAcumulados);
-  const modalVisibleAnteriorRef = useRef(false);
-  const resultadoVisibleAnteriorRef = useRef(Boolean(resultadoVisible));
+  const contadorPrevioRef = useRef(estado?.contadorEnsambladas ?? 0);
+  const mensajePrevioRef = useRef(estado?.mensaje ?? '');
+  const problemaPrevioRef = useRef(problemaMatematico?.timestamp ?? null);
+  const resultadoPrevioRef = useRef(Boolean(resultadoVisible));
 
   useEffect(() => {
     audioRef.current = crearAudioSeguro();
@@ -135,69 +120,75 @@ export function useRobotTallerAudio({
     };
   }, []);
 
+  useEffect(() => {
+    const contadorActual = estado?.contadorEnsambladas ?? 0;
+    const contadorPrevio = contadorPrevioRef.current;
+
+    if (contadorActual > contadorPrevio) {
+      if (estado?.resultado || mostrarCelebracion) {
+        reproducirDesdeInicio(audioRef.current.players.final);
+      } else {
+        reproducirDesdeInicio(audioRef.current.players.acierto);
+      }
+    }
+
+    contadorPrevioRef.current = contadorActual;
+  }, [estado?.contadorEnsambladas, estado?.resultado, mostrarCelebracion]);
+
+  useEffect(() => {
+    const mensajeActual = estado?.mensaje ?? '';
+    const mensajePrevio = mensajePrevioRef.current;
+
+    if (mensajeActual !== mensajePrevio && mensajeActual.includes('Pieza desbloqueada')) {
+      reproducirDesdeInicio(audioRef.current.players.desbloqueo);
+    }
+
+    mensajePrevioRef.current = mensajeActual;
+  }, [estado?.mensaje]);
+
+  useEffect(() => {
+    const problemaActual = problemaMatematico?.timestamp ?? null;
+
+    if (
+      mostrarModalMatematica &&
+      problemaActual &&
+      problemaActual !== problemaPrevioRef.current
+    ) {
+      reproducirDesdeInicio(audioRef.current.players.nivel);
+    }
+
+    problemaPrevioRef.current = problemaActual;
+  }, [mostrarModalMatematica, problemaMatematico?.timestamp]);
+
+  useEffect(() => {
+    const resultadoActual = Boolean(resultadoVisible);
+
+    if (resultadoActual && !resultadoPrevioRef.current) {
+      reproducirDesdeInicio(
+        mostrarCelebracion
+          ? audioRef.current.players.final
+          : audioRef.current.players.nivel,
+      );
+    }
+
+    resultadoPrevioRef.current = resultadoActual;
+  }, [mostrarCelebracion, resultadoVisible]);
+
   const reproducirSeleccion = useCallback(() => {
-    vibrarSeguro(16);
     reproducirDesdeInicio(audioRef.current.players.seleccion);
   }, []);
 
   const reproducirDesbloqueo = useCallback(() => {
-    vibrarSeguro([0, 22, 30, 26]);
     reproducirDesdeInicio(audioRef.current.players.desbloqueo);
   }, []);
 
-  const reproducirAcierto = useCallback(() => {
-    vibrarSeguro([0, 28, 26, 46]);
-    reproducirDesdeInicio(audioRef.current.players.acierto);
-  }, []);
-
-  const reproducirError = useCallback(() => {
-    vibrarSeguro([0, 24, 30, 24]);
-    reproducirDesdeInicio(audioRef.current.players.error);
-  }, []);
-
   const reproducirNivel = useCallback(() => {
-    vibrarSeguro([0, 30, 35, 55]);
     reproducirDesdeInicio(audioRef.current.players.nivel);
   }, []);
 
   const reproducirFinal = useCallback(() => {
-    vibrarSeguro([0, 40, 35, 65]);
     reproducirDesdeInicio(audioRef.current.players.final);
   }, []);
-
-  useEffect(() => {
-    const modalVisible = Boolean(mostrarModalMatematica && problemaMatematico);
-    if (!modalVisibleAnteriorRef.current && modalVisible) {
-      reproducirDesbloqueo();
-    }
-    modalVisibleAnteriorRef.current = modalVisible;
-  }, [mostrarModalMatematica, problemaMatematico, reproducirDesbloqueo]);
-
-  useEffect(() => {
-    if (estado.contadorEnsambladas > contadorAnteriorRef.current) {
-      reproducirAcierto();
-    }
-    contadorAnteriorRef.current = estado.contadorEnsambladas;
-  }, [estado.contadorEnsambladas, reproducirAcierto]);
-
-  useEffect(() => {
-    if (estado.erroresAcumulados > erroresAnteriorRef.current) {
-      reproducirError();
-    }
-    erroresAnteriorRef.current = estado.erroresAcumulados;
-  }, [estado.erroresAcumulados, reproducirError]);
-
-  useEffect(() => {
-    const hayResultadoVisible = Boolean(resultadoVisible);
-    if (!resultadoVisibleAnteriorRef.current && hayResultadoVisible) {
-      if (mostrarCelebracion) {
-        reproducirFinal();
-      } else {
-        reproducirNivel();
-      }
-    }
-    resultadoVisibleAnteriorRef.current = hayResultadoVisible;
-  }, [mostrarCelebracion, reproducirFinal, reproducirNivel, resultadoVisible]);
 
   return {
     reproducirSeleccion,

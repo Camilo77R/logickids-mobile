@@ -1,0 +1,15 @@
+export const CYAN = '#00ffff';
+export const CYAN_DARK = '#004466';
+export const CYAN_MID = '#0088ff';
+export const AMBER = '#ffbf00';
+export const VERDE_HOLO = '#00FF88';
+export const ROJO_ERROR = '#FF3355';
+export const COLOR_BLOQUEADO = '#777777';
+export const ROBOT_CANVAS_DPR = [1, 1.25];
+export const GRID_DIVISIONS_MOBILE = 22;
+export const BACKGROUND_PARTICLE_COUNT = 14;
+export const TRAIL_PARTICLE_COUNT = 10;
+export const CELEBRATION_PARTICLE_COUNT = 28;
+export const HOLOGRAM_RING_SEGMENTS = 32;
+export const HOLOGRAM_TORUS_RADIAL_SEGMENTS = 8;
+export const HOLOGRAM_TORUS_TUBULAR_SEGMENTS = 32;

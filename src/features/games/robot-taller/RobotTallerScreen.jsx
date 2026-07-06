@@ -14,6 +14,7 @@ export default function RobotTallerScreen({
 }) {
   const [preparandoPartida, setPreparandoPartida] = useState(false);
   const [rondaVersion, setRondaVersion] = useState(0);
+  const [reinicioPendiente, setReinicioPendiente] = useState(false);
   const sesionRobotTaller = useSesionRobotTaller({
     configuracion: configuracionInicial,
     contextoSesion,
@@ -61,17 +62,47 @@ export default function RobotTallerScreen({
   }, [audioRobot, onSalir]);
 
   const continuarActividad = useCallback(async () => {
-    audioRobot.reproducirSeleccion();
-    sesionRobotTaller.prepararNuevaRonda();
-    const partidaLista = await sesionRobotTaller.prepararRonda(
-      configuracionEfectiva.dificultad,
-    );
-
-    if (partidaLista) {
-      controlador.reiniciarPartida();
-      setRondaVersion((actual) => actual + 1);
+    if (preparandoPartida) {
+      return;
     }
-  }, [audioRobot, configuracionEfectiva.dificultad, controlador, sesionRobotTaller]);
+
+    audioRobot.reproducirSeleccion();
+    setPreparandoPartida(true);
+    try {
+      sesionRobotTaller.prepararNuevaRonda();
+      const partidaLista = await sesionRobotTaller.prepararRonda(
+        configuracionEfectiva.dificultad,
+      );
+
+      if (partidaLista) {
+        setReinicioPendiente(true);
+      }
+    } finally {
+      setPreparandoPartida(false);
+    }
+  }, [
+    audioRobot,
+    configuracionEfectiva.dificultad,
+    controlador,
+    preparandoPartida,
+    sesionRobotTaller,
+  ]);
+
+  useEffect(() => {
+    if (!reinicioPendiente || preparandoPartida) {
+      return;
+    }
+
+    controlador.reiniciarPartida();
+    setRondaVersion((actual) => actual + 1);
+    setReinicioPendiente(false);
+  }, [
+    controlador,
+    preparandoPartida,
+    reinicioPendiente,
+    configuracionEfectiva.idMision,
+    configuracionEfectiva.nivel,
+  ]);
 
   const escena = useMemo(
     () =>

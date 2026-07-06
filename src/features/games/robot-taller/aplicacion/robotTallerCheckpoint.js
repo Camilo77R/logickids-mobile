@@ -148,6 +148,11 @@ const normalizeAttempts = (attempts, knownPieceIds) => {
   );
 };
 
+const normalizeActivePieceId = (pieceId, knownPieceIds) => {
+  const normalized = asOptionalText(pieceId);
+  return normalized && knownPieceIds.has(normalized) ? normalized : null;
+};
+
 const normalizePendingFinalization = (finalization) => {
   if (finalization == null) return null;
   if (!isPlainObject(finalization)) return null;
@@ -196,6 +201,10 @@ export const createRobotTallerCheckpointState = ({
   const assembledCount = parts.filter((part) => part.ensamblada).length;
   const normalizedMathProblem = normalizeMathProblem(problemaMatematico, activePieceIds);
   const normalizedPendingFinalization = normalizePendingFinalization(pendingFinalization);
+  const normalizedActivePieceId = normalizeActivePieceId(
+    estado.piezaObjetivoActualId ?? normalizedMathProblem?.idParte ?? null,
+    activePieceIds,
+  );
   const phase = VALID_PHASES.has(estado.fase)
     ? estado.fase
     : FASES_ENSAMBLAGE.explotado;
@@ -212,6 +221,7 @@ export const createRobotTallerCheckpointState = ({
     contadorEnsambladas: assembledCount,
     erroresAcumulados: asNonNegativeInteger(estado.erroresAcumulados),
     ordenActual: Math.min(asNonNegativeInteger(estado.ordenActual), assembledCount),
+    piezaObjetivoActualId: normalizedActivePieceId,
     preguntaActual: normalizeQuestion(preguntaActual, activePieceIds),
     problemaMatematico: normalizedMathProblem,
     mostrarModalMatematica: Boolean(mostrarModalMatematica && normalizedMathProblem),
@@ -240,6 +250,7 @@ export const parseRobotTallerCheckpointState = (value, expectedConfiguration = n
       partes: value.partes,
       erroresAcumulados: value.erroresAcumulados,
       ordenActual: value.ordenActual,
+      piezaObjetivoActualId: value.piezaObjetivoActualId,
       },
       intentosMatematicos: value.intentosMatematicos,
       mostrarModalMatematica: value.mostrarModalMatematica,
@@ -321,6 +332,7 @@ export const restoreRobotTallerCheckpointState = ({
       fase: parsed.pendingFinalization ? FASES_ENSAMBLAGE.completado : parsed.fase,
       partes: parts,
       parteAgarrada: null,
+      piezaObjetivoActualId: parsed.piezaObjetivoActualId,
       contadorEnsambladas: parsed.contadorEnsambladas,
       erroresAcumulados: parsed.erroresAcumulados,
       ordenActual: parsed.ordenActual,

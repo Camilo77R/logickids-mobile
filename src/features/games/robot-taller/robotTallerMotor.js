@@ -19,6 +19,18 @@ import {
   obtenerPartesRobot,
 } from './robotTaller.constants';
 
+export const resolverEtiquetaPieza = (
+  idPieza,
+  partesBase = PARTES_ROBOT,
+  alternativas = PIEZAS_ALTERNATIVAS,
+) => {
+  const pieza =
+    partesBase.find((parte) => parte.id === idPieza) ??
+    alternativas.find((parte) => parte.id === idPieza || parte.reemplaza === idPieza);
+
+  return pieza?.nombre ?? idPieza;
+};
+
 const calcularDistancia = (posA, posB) => {
   const dx = posA[0] - posB[0];
   const dy = posA[1] - posB[1];
@@ -87,11 +99,11 @@ export const validarSnapPorNivel = ({
   nivel,
   ordenActual,
   partesEnsambladas,
+  piezaObjetivoActualId = null,
   partesBase,
   alternativas = [],
 }) => {
   const nivelConfig = NIVELES[nivel] ?? NIVELES[1];
-  const umbral = nivelConfig.umbralSnap;
   const base = partesBase ?? PARTES_ROBOT;
   const alt = alternativas.length > 0 ? alternativas : PIEZAS_ALTERNATIVAS;
 
@@ -106,12 +118,16 @@ export const validarSnapPorNivel = ({
 
   const posicionObjetivo = posicionObjetivoLocal;
 
-  if (nivelConfig.ordenSecuencial) {
-    const esperado = SECUENCIA_ENSAMBLADO[partesEnsambladas];
+  const esperadoSecuencial = piezaObjetivoActualId
+    ?? (nivelConfig.ordenSecuencial ? SECUENCIA_ENSAMBLADO[partesEnsambladas] : null);
+
+  if (esperadoSecuencial) {
+    const esperado = esperadoSecuencial;
     if (parteDef.id !== esperado && parteDef.reemplaza !== esperado) {
+      const etiquetaEsperada = resolverEtiquetaPieza(esperado, base, alt);
       return {
         permitido: false,
-        mensaje: `¡Aún no! Primero debes encontrar la pieza: ${esperado} 🤖`,
+        mensaje: `¡Aún no! Primero debes encontrar la pieza: ${etiquetaEsperada} 🤖`,
         ensamblada: false,
         distancia: Infinity,
         casiSnap: null,
@@ -119,10 +135,28 @@ export const validarSnapPorNivel = ({
     }
   }
 
+  if (nivelConfig.colocacionAsistida) {
+    return {
+      permitido: true,
+      mensaje: null,
+      ensamblada: true,
+      distancia: 0,
+      posicionObjetivo: posicionObjetivoLocal,
+      rotacionObjetivo: parteDef.rotacionObjetivo ?? [0, 0, 0],
+      casiSnap: null,
+    };
+  }
+
   const distancia = calcularDistancia(posicionParte, posicionObjetivo);
+  const piezaPequena =
+    (Array.isArray(parteDef.tamanio) && Math.max(...parteDef.tamanio) <= 0.25)
+    || parteDef.forma === 'cone';
+  const umbralAdaptado = piezaPequena
+    ? Math.max(nivelConfig.umbralSnap, 2.4)
+    : nivelConfig.umbralSnap;
 
   // Si está dentro del umbral, permitir ensamblaje
-  if (distancia <= umbral) {
+  if (distancia <= umbralAdaptado) {
     return {
       permitido: true,
       mensaje: null,
@@ -143,10 +177,17 @@ export const validarSnapPorNivel = ({
   };
 };
 
-export const obtenerSiguienteEsperado = (partesEnsambladas, nivel) => {
+export const obtenerSiguienteEsperado = (
+  partesEnsambladas,
+  nivel,
+  partesBase = PARTES_ROBOT,
+  alternativas = PIEZAS_ALTERNATIVAS,
+) => {
   const nivelConfig = NIVELES[nivel] ?? NIVELES[1];
   if (!nivelConfig.ordenSecuencial) return null;
-  return SECUENCIA_ENSAMBLADO[partesEnsambladas] ?? null;
+  const esperado = SECUENCIA_ENSAMBLADO[partesEnsambladas] ?? null;
+  if (!esperado) return null;
+  return resolverEtiquetaPieza(esperado, partesBase, alternativas);
 };
 
 export const construirResumenPartidaEnsamblaje = ({

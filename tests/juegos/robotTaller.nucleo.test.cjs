@@ -18,6 +18,7 @@ const {
   construirResumenPartidaEnsamblaje,
   construirEventoEnsamblaje,
   detectarSnap,
+  validarSnapPorNivel,
 } = require('../../src/features/games/robot-taller/robotTallerMotor.js');
 const {
   calcularTiempoRestanteRobotTaller,
@@ -66,6 +67,7 @@ test('resolverConfiguracionRobotTallerDesdeBackend aplica dificultad oficial del
   assert.equal(configuracion.configuracion.mostrarSiluetas, false);
   assert.equal(configuracion.configuracion.ordenSecuencial, true);
   assert.equal(configuracion.configuracion.usarAlternativas, true);
+  assert.equal(configuracion.configuracion.colocacionAsistida, true);
   assert.equal(configuracion.configuracion.umbralSnap, 1.25);
   assert.equal(configuracion.nivelConfig.ordenSecuencial, true);
 });
@@ -98,6 +100,36 @@ test('detectarSnap reconoce pieza cerca de su objetivo', () => {
 test('detectarSnap retorna null para posicion lejana', () => {
   const resultado = detectarSnap([100, 100, 100]);
   assert.equal(resultado, null);
+});
+
+test('validarSnapPorNivel ensambla de forma asistida una pieza desbloqueada', () => {
+  const torso = PARTES_ROBOT.find((parte) => parte.id === 'torso');
+  const resultado = validarSnapPorNivel({
+    idParte: 'torso',
+    posicionParte: [99, 99, 99],
+    nivel: 1,
+    ordenActual: 0,
+    partesEnsambladas: 0,
+    partesBase: PARTES_ROBOT,
+  });
+
+  assert.equal(resultado.permitido, true);
+  assert.equal(resultado.ensamblada, true);
+  assert.deepEqual(resultado.posicionObjetivo, torso.posicionObjetivo);
+});
+
+test('validarSnapPorNivel mantiene el orden secuencial incluso con colocacion asistida', () => {
+  const resultado = validarSnapPorNivel({
+    idParte: 'antena',
+    posicionParte: [0, 0, 0],
+    nivel: 2,
+    ordenActual: 0,
+    partesEnsambladas: 0,
+    partesBase: PARTES_ROBOT,
+  });
+
+  assert.equal(resultado.permitido, false);
+  assert.equal(resultado.ensamblada, false);
 });
 
 test('construirResumenPartidaEnsamblaje devuelve contrato comun con slug robot-logico', () => {
@@ -163,6 +195,7 @@ test('checkpoint de Robot Logico hace round-trip del estado logico allowlisted',
       bloqueadoPorMatematicas: index > 1,
     })),
     parteAgarrada: PARTES_ROBOT[1].id,
+    piezaObjetivoActualId: 'torso',
     contadorEnsambladas: 999,
     ordenActual: 1,
     mensaje: 'Este texto visual no pertenece al checkpoint.',
@@ -212,6 +245,7 @@ test('checkpoint de Robot Logico hace round-trip del estado logico allowlisted',
 
   assert.deepEqual(parsed, checkpoint);
   assert.equal(checkpoint.contadorEnsambladas, 1);
+  assert.equal(checkpoint.piezaObjetivoActualId, 'torso');
   assert.equal(Object.hasOwn(checkpoint.partes[0], 'posicion'), false);
   assert.equal(Object.hasOwn(checkpoint, 'mensaje'), false);
   assert.equal(Object.hasOwn(checkpoint, 'eventosSesion'), false);
@@ -225,6 +259,7 @@ test('checkpoint de Robot Logico hace round-trip del estado logico allowlisted',
 
   assert.equal(restored.estado.fase, FASES_ENSAMBLAGE.completado);
   assert.equal(restored.estado.parteAgarrada, null);
+  assert.equal(restored.estado.piezaObjetivoActualId, 'torso');
   assert.deepEqual(restored.estado.partes[0].posicion, PARTES_ROBOT[0].posicionObjetivo);
   assert.deepEqual(restored.estado.partes[1].posicion, PARTES_ROBOT[1].posicionExplotada);
   assert.equal(restored.estado.partes[1].agarrada, false);

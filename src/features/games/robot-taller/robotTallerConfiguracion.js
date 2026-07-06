@@ -67,6 +67,10 @@ export const normalizarConfiguracionRobotTaller = (entrada = {}) => {
       configuracionEntrada.usarAlternativas,
       nivelConfigBase.usarAlternativas,
     ),
+    colocacionAsistida: normalizarBooleano(
+      configuracionEntrada.colocacionAsistida,
+      nivelConfigBase.colocacionAsistida,
+    ),
     umbralSnap: normalizarNumeroPositivo(
       configuracionEntrada.umbralSnap,
       nivelConfigBase.umbralSnap,
@@ -92,6 +96,7 @@ export const normalizarConfiguracionRobotTaller = (entrada = {}) => {
       mostrarSiluetas: nivelConfig.mostrarSiluetas,
       ordenSecuencial: nivelConfig.ordenSecuencial,
       usarAlternativas: nivelConfig.usarAlternativas,
+      colocacionAsistida: nivelConfig.colocacionAsistida,
       umbralSnap: nivelConfig.umbralSnap,
     },
     nivelConfig,
@@ -122,6 +127,7 @@ export const resolverConfiguracionRobotTallerDesdeBackend = ({
       mostrarSiluetas: gameConfig.mostrar_siluetas,
       ordenSecuencial: gameConfig.orden_secuencial,
       usarAlternativas: gameConfig.usar_alternativas,
+      colocacionAsistida: gameConfig.colocacion_asistida,
       umbralSnap: gameConfig.umbral_snap,
     },
     nivel: gameConfig.nivel,

@@ -7,8 +7,9 @@ import {
   validarSnapPorNivel,
   obtenerSiguienteEsperado,
   obtenerPiezasPorNivel,
+  resolverEtiquetaPieza,
 } from './robotTallerMotor';
-import { PARTES_ROBOT, FASES_ENSAMBLAGE, PIEZAS_ALTERNATIVAS, DATOS_FUNCION_PIEZA, EXPLICACIONES_ERROR, DATOS_PROBLEMA_MATEMATICO, obtenerPartesRobot, obtenerNombreRobot } from './robotTaller.constants';
+import { PARTES_ROBOT, FASES_ENSAMBLAGE, PIEZAS_ALTERNATIVAS, DATOS_FUNCION_PIEZA, EXPLICACIONES_ERROR, DATOS_PROBLEMA_MATEMATICO, SECUENCIA_ENSAMBLADO, obtenerPartesRobot, obtenerNombreRobot } from './robotTaller.constants';
 import { GAME_CHECKPOINT_PHASES } from '../core/useGameCheckpoint';
 import {
   createRobotTallerCheckpointState,
@@ -31,6 +32,7 @@ const construirEstadoInicial = (nivel, idMision) => {
       bloqueadoPorMatematicas: true,
     })),
     parteAgarrada: null,
+    piezaObjetivoActualId: null,
     contadorEnsambladas: 0,
     erroresAcumulados: 0,
     ordenActual: 0,
@@ -88,6 +90,14 @@ const ejecutarObservadorSeguro = (observador, carga) => {
   Promise.resolve().then(() => observador(carga)).catch(() => null);
 };
 
+const obtenerPiezaSecuencialEsperada = (nivel, partesEnsambladas) => {
+  if (nivel !== 2) {
+    return null;
+  }
+
+  return SECUENCIA_ENSAMBLADO[partesEnsambladas] ?? null;
+};
+
 export const useRobotTallerControlador = (
   configuracionInicial,
   observadores = {},
@@ -102,6 +112,7 @@ export const useRobotTallerControlador = (
     construirEstadoInicial(configuracion.nivel, configuracion.idMision),
   );
   const estadoRef = useRef(estado);
+  const configuracionRef = useRef(configuracion);
   const intentosRef = useRef({});
   const marcaInicioRef = useRef(null);
   const ultimaPosicionGrabadaRef = useRef({});
@@ -126,6 +137,10 @@ export const useRobotTallerControlador = (
   }, [estado]);
 
   useEffect(() => {
+    configuracionRef.current = configuracion;
+  }, [configuracion]);
+
+  useEffect(() => {
     observadoresRef.current = observadores;
   }, [observadores]);
 
@@ -133,6 +148,10 @@ export const useRobotTallerControlador = (
     if (estado.fase === FASES_ENSAMBLAGE.explotado && !estado.resultado && !primerProblemaGeneradoRef.current) {
       const nuevoProblema = generarPreguntaMatematica();
       if (nuevoProblema) {
+        actualizarEstadoControlado(estadoRef, setEstado, (previo) => ({
+          ...previo,
+          piezaObjetivoActualId: nuevoProblema.idParte,
+        }));
         setProblemaMatematico(nuevoProblema);
         setMostrarModalMatematica(true);
         primerProblemaGeneradoRef.current = true;
@@ -288,19 +307,25 @@ export const useRobotTallerControlador = (
   ]);
 
   const generarPreguntaMatematica = useCallback((idEspecifico) => {
+    const configuracionActual = configuracionRef.current;
     const est = estadoRef.current;
     const partesBloqueadas = est.partes.filter(p => !p.ensamblada && p.bloqueado);
     if (partesBloqueadas.length === 0) return null;
 
     let parteElegida = null;
-    if (idEspecifico) {
-      parteElegida = partesBloqueadas.find(p => p.id === idEspecifico);
-    }
     
-    const esSecuencial = configuracion.nivel === 2;
+    const esperadoSecuencial = obtenerPiezaSecuencialEsperada(
+      configuracionActual.nivel,
+      est.contadorEnsambladas,
+    );
+    const esSecuencial = Boolean(esperadoSecuencial);
+
     if (!parteElegida && esSecuencial) {
-      const esperado = ['torso', 'pierna_izq', 'pierna_der', 'brazo_izq', 'brazo_der', 'cabeza', 'antena'][est.contadorEnsambladas];
-      parteElegida = partesBloqueadas.find(p => p.id === esperado);
+      parteElegida = partesBloqueadas.find((p) => p.id === esperadoSecuencial);
+    }
+
+    if (!parteElegida && idEspecifico) {
+      parteElegida = partesBloqueadas.find((p) => p.id === idEspecifico);
     }
 
     if (!parteElegida) {
@@ -311,11 +336,11 @@ export const useRobotTallerControlador = (
     let min = 1;
     let max = 10;
     
-    if (configuracion.nivel === 2) {
+    if (configuracionActual.nivel === 2) {
       operadores = ['x', '/'];
       min = 2;
       max = 12;
-    } else if (configuracion.nivel === 3) {
+    } else if (configuracionActual.nivel === 3) {
       operadores = ['+', '-', 'x', '/'];
       min = 3;
       max = 15;
@@ -357,19 +382,25 @@ export const useRobotTallerControlador = (
     setMostrarModalMatematica(false);
     setProblemaMatematico(null);
     intentosRef.current[idParte] = 0;
+    const etiquetaPieza = resolverEtiquetaPieza(
+      idParte,
+      partesBase,
+      configuracion.nivel >= 3 ? PIEZAS_ALTERNATIVAS : [],
+    );
 
     actualizarEstadoControlado(estadoRef, setEstado, (estadoActual) => ({
       ...estadoActual,
+      piezaObjetivoActualId: idParte,
       partes: estadoActual.partes.map((p) =>
         p.ensamblada
           ? p
           : p.id === idParte
             ? { ...p, bloqueado: false, bloqueadoPorMatematicas: false }
-            : { ...p, bloqueado: true, bloqueadoPorMatematicas: true }
+          : { ...p, bloqueado: true, bloqueadoPorMatematicas: true }
       ),
-      mensaje: '¡Pieza desbloqueada! Arrástrala hasta el lugar iluminado.',
+      mensaje: `¡Pieza desbloqueada! Ahora coloca: ${etiquetaPieza}.`,
     }));
-  }, []);
+  }, [configuracion.nivel, partesBase]);
 
   const manejarIncorrectaMatematica = useCallback((payload) => {
     const idParte = typeof payload === 'string' ? payload : payload?.idParte;
@@ -502,19 +533,29 @@ export const useRobotTallerControlador = (
   }, [preguntaActual, feedbackQuiz, todasLasPiezasDef]);
 
   const reiniciarPartida = useCallback(() => {
+    const configuracionActual = configuracionRef.current;
     marcaInicioRef.current = null;
     finalizadoRef.current = false;
     finalizacionPendienteRef.current = null;
     ultimaFirmaLogicaCheckpointRef.current = null;
     omitirAutoguardadoDeHidratacionRef.current = false;
     primerProblemaGeneradoRef.current = false;
+    intentosRef.current = {};
+    ultimaPosicionGrabadaRef.current = {};
     setFeedbackQuiz(null);
     setPreguntaActual(null);
     setProblemaMatematico(null);
+    setFeedbackMatematica(null);
     setMostrarModalMatematica(false);
     setTiempoRestanteRestauradoMs(null);
-    setEstado(construirEstadoInicial(configuracion.nivel, configuracion.idMision));
-  }, [configuracion.nivel, configuracion.idMision]);
+    estadoRefMath.current = null;
+    const estadoInicial = construirEstadoInicial(
+      configuracionActual.nivel,
+      configuracionActual.idMision,
+    );
+    estadoRef.current = estadoInicial;
+    setEstado(estadoInicial);
+  }, []);
 
   const registrarEvento = (evento) => {
     setEstado((previo) => ({
@@ -554,6 +595,7 @@ export const useRobotTallerControlador = (
       ...estadoActual,
       fase: FASES_ENSAMBLAGE.completado,
       parteAgarrada: null,
+      piezaObjetivoActualId: null,
       resultado,
       mensaje: exito ? 'Robot armado correctamente.' : 'Sigue intentando.',
     };
@@ -601,21 +643,53 @@ export const useRobotTallerControlador = (
     }
 
     const piezasPendientesDesbloqueadas = obtenerPiezasDesbloqueadasPendientes(estadoActual);
-    const piezaActivaPendienteId = piezasPendientesDesbloqueadas[0]?.id ?? null;
+    const piezaActivaPendienteId =
+      estadoActual.piezaObjetivoActualId ?? piezasPendientesDesbloqueadas[0]?.id ?? null;
+    const piezaSecuencialEsperada = obtenerPiezaSecuencialEsperada(
+      configuracion.nivel,
+      estadoActual.contadorEnsambladas,
+    );
+    const alternativasActivas = configuracion.nivel >= 3 ? PIEZAS_ALTERNATIVAS : [];
 
     if (parte.bloqueado) {
       if (piezaActivaPendienteId && piezaActivaPendienteId !== idParte) {
+        const etiquetaDesbloqueada = resolverEtiquetaPieza(
+          piezaActivaPendienteId,
+          partesBase,
+          alternativasActivas,
+        );
         const siguienteEstado = {
           ...estadoActual,
-          mensaje: 'Primero coloca la pieza que ya desbloqueaste.',
+          mensaje: `Primero coloca la pieza desbloqueada: ${etiquetaDesbloqueada}.`,
         };
         estadoRef.current = siguienteEstado;
         setEstado(siguienteEstado);
         return false;
       }
 
-      const nuevoProblema = generarPreguntaMatematica(idParte);
+      if (piezaSecuencialEsperada && idParte !== piezaSecuencialEsperada) {
+        const etiquetaEsperada = resolverEtiquetaPieza(
+          piezaSecuencialEsperada,
+          partesBase,
+          alternativasActivas,
+        );
+        const siguienteEstado = {
+          ...estadoActual,
+          mensaje: `Ahora debes desbloquear primero: ${etiquetaEsperada}.`,
+        };
+        estadoRef.current = siguienteEstado;
+        setEstado(siguienteEstado);
+        return false;
+      }
+
+      const nuevoProblema = generarPreguntaMatematica(
+        piezaSecuencialEsperada ?? idParte,
+      );
       if (nuevoProblema) {
+        actualizarEstadoControlado(estadoRef, setEstado, (previo) => ({
+          ...previo,
+          piezaObjetivoActualId: nuevoProblema.idParte,
+        }));
         setProblemaMatematico(nuevoProblema);
         setMostrarModalMatematica(true);
       }
@@ -662,6 +736,28 @@ export const useRobotTallerControlador = (
     const parte = estadoActual.partes.find((p) => p.id === idParte);
     if (!parte) return;
 
+    const piezaObjetivoActualId = estadoActual.piezaObjetivoActualId;
+    if (piezaObjetivoActualId && idParte !== piezaObjetivoActualId) {
+      const alternativasActivas = configuracion.nivel >= 3 ? PIEZAS_ALTERNATIVAS : [];
+      const etiquetaObjetivo = resolverEtiquetaPieza(
+        piezaObjetivoActualId,
+        partesBase,
+        alternativasActivas,
+      );
+      const siguienteEstado = {
+        ...estadoActual,
+        parteAgarrada: null,
+        partes: estadoActual.partes.map((p) =>
+          p.id === idParte ? { ...p, agarrada: false } : p,
+        ),
+        mensaje: `Primero coloca la pieza desbloqueada: ${etiquetaObjetivo}.`,
+      };
+
+      estadoRef.current = siguienteEstado;
+      setEstado(siguienteEstado);
+      return;
+    }
+
     const posFinal = ultimaPosicionGrabadaRef.current[idParte] || parte.posicion;
 
     const validacion = validarSnapPorNivel({
@@ -670,6 +766,7 @@ export const useRobotTallerControlador = (
       nivel: configuracion.nivel,
       ordenActual: estadoActual.ordenActual,
       partesEnsambladas: estadoActual.contadorEnsambladas,
+      piezaObjetivoActualId: estadoActual.piezaObjetivoActualId,
       partesBase,
       alternativas: configuracion.nivel >= 3 ? [...PIEZAS_ALTERNATIVAS] : [],
     });
@@ -681,12 +778,18 @@ export const useRobotTallerControlador = (
       const nuevoOrden = configuracion.nivel === 2
         ? estadoActual.ordenActual + 1
         : estadoActual.ordenActual;
-      const siguienteEsperado = obtenerSiguienteEsperado(nuevoContador, configuracion.nivel);
-    const todasEnsambladas = nuevoContador >= partesBase.length;
+      const siguienteEsperado = obtenerSiguienteEsperado(
+        nuevoContador,
+        configuracion.nivel,
+        partesBase,
+        configuracion.nivel >= 3 ? [...PIEZAS_ALTERNATIVAS] : [],
+      );
+      const todasEnsambladas = nuevoContador >= partesBase.length;
 
       const siguienteEstado = {
         ...estadoActual,
         parteAgarrada: null,
+        piezaObjetivoActualId: null,
         partes: estadoActual.partes.map((p) =>
           p.id === idParte
             ? { ...p, posicion: [...posObj], rotacion: [...rotObj], ensamblada: true, agarrada: false }
@@ -719,6 +822,10 @@ export const useRobotTallerControlador = (
         setTimeout(() => {
           const nuevoProblema = generarPreguntaMatematica();
           if (nuevoProblema) {
+            actualizarEstadoControlado(estadoRef, setEstado, (previo) => ({
+              ...previo,
+              piezaObjetivoActualId: nuevoProblema.idParte,
+            }));
             setProblemaMatematico(nuevoProblema);
             setMostrarModalMatematica(true);
           }
