@@ -1543,10 +1543,11 @@ function RankingPanel({ activeSession, ranking = [], totalParticipants, studentN
   const currentStudent = ranking.find((entry) => entry.isCurrentStudent);
   const currentStudentPosition = currentStudent?.position ?? null;
   const totalStudents = totalParticipants ?? ranking.length;
-  const rankingDate = getRankingSessionDate(activeSession, ranking);
+  const hasRankingData = ranking.length > 0 || Boolean(totalParticipants);
+  const rankingDate = getRankingSessionDate(activeSession ?? currentStudent?.raw, ranking);
   const rankingTitle = `Ranking de tu ultima sesion${rankingDate ? ` - ${rankingDate}` : ''}`;
 
-  if (!activeSession) {
+  if (!activeSession && !hasRankingData) {
     return (
       <View style={styles.rankingPanel}>
         <View style={styles.rankingHeader}>
@@ -1565,6 +1566,9 @@ function RankingPanel({ activeSession, ranking = [], totalParticipants, studentN
     <View style={styles.rankingPanel}>
       <View style={styles.rankingHeader}>
         <Text style={styles.rankingTitle}>{rankingTitle}</Text>
+        {!activeSession ? (
+          <Text style={styles.rankingSubtitle}>Resultados oficiales de la ultima clase</Text>
+        ) : null}
       </View>
 
       {ranking.length ? (

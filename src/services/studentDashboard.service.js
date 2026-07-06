@@ -96,7 +96,12 @@ export const createStudentDashboardService = (baseUrl, token) => {
         results,
         currentStudent: profile,
       });
-      const ranking = rankingSummary?.entries?.length ? rankingSummary.entries : activeSessionRanking;
+      // El backend es la verdad del ranking compartido.
+      // Solo usamos el fallback local si el endpoint oficial fallo por completo.
+      const ranking =
+        rankingResult.status === 'fulfilled'
+          ? (rankingSummary?.entries ?? [])
+          : activeSessionRanking;
 
       return {
         profile,

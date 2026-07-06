@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import {
   buildRankingView,
   buildProgressSummary,
@@ -11,6 +12,9 @@ import { subscribeStudentRealtime } from '../services/studentRealtime.service';
 
 const PROFILE_REFRESH_INTERVAL_MS = 12000;
 const DASHBOARD_SAFETY_REFRESH_INTERVAL_MS = 30000;
+const DASHBOARD_LIVE_REFRESH_INTERVAL_MS = 5000;
+const APP_FOREGROUND_REFRESH_COOLDOWN_MS = 4000;
+const DASHBOARD_CONVERGENCE_REFRESH_DELAYS_MS = Object.freeze([1500, 4000]);
 const TERMINAL_PARTICIPANT_STATES = new Set(['completado', 'abandonado', 'cerrado']);
 
 const EMPTY_DASHBOARD = {
@@ -119,9 +123,12 @@ export const useStudentDashboard = (
   { onSessionExpired } = {},
 ) => {
   const isMountedRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
+  const lastForegroundRefreshAtRef = useRef(0);
   const dashboardRequestInFlightRef = useRef(false);
   const pendingDashboardRefreshRef = useRef(false);
   const profileRefreshInFlightRef = useRef(false);
+  const scheduledDashboardRefreshTimeoutsRef = useRef([]);
   const [dashboard, setDashboard] = useState({
     ...EMPTY_DASHBOARD,
     profile: studentSession?.studentProfile ?? null,
@@ -138,7 +145,17 @@ export const useStudentDashboard = (
     [studentSession?.apiBaseUrl, studentSession?.token],
   );
 
-  const loadDashboard = async ({ silent = false } = {}) => {
+  const hasLiveRankingScope = Boolean(
+    dashboard.rankingSummary?.scope?.sesion_clase_id ||
+    dashboard.rankingSummary?.raw?.scope?.sesion_clase_id ||
+    dashboard.rankingSummary?.currentStudent?.sessionId ||
+    dashboard.ranking?.[0]?.sessionId,
+  );
+  const shouldUseLiveDashboardRefresh = Boolean(
+    dashboard.sessionState.activeSession?.id || hasLiveRankingScope,
+  );
+
+  const loadDashboard = async ({ silent = false, showRefreshingIndicator = !silent } = {}) => {
     if (!service || dashboardRequestInFlightRef.current) {
       if (dashboardRequestInFlightRef.current) {
         pendingDashboardRefreshRef.current = true;
@@ -148,10 +165,10 @@ export const useStudentDashboard = (
 
     dashboardRequestInFlightRef.current = true;
 
-    if (silent) {
-      setIsRefreshing(true);
-    } else {
+    if (!silent) {
       setIsLoading(true);
+    } else if (showRefreshingIndicator) {
+      setIsRefreshing(true);
     }
 
     try {
@@ -175,16 +192,16 @@ export const useStudentDashboard = (
       dashboardRequestInFlightRef.current = false;
 
       if (isMountedRef.current) {
-        if (silent) {
-          setIsRefreshing(false);
-        } else {
+        if (!silent) {
           setIsLoading(false);
+        } else if (showRefreshingIndicator) {
+          setIsRefreshing(false);
         }
       }
 
       if (pendingDashboardRefreshRef.current) {
         pendingDashboardRefreshRef.current = false;
-        void loadDashboard({ silent: true });
+        void loadDashboard({ silent: true, showRefreshingIndicator: false });
       }
     }
   };
@@ -199,7 +216,35 @@ export const useStudentDashboard = (
       return;
     }
 
-    void loadDashboard({ silent });
+    void loadDashboard({ silent, showRefreshingIndicator: false });
+  };
+
+  const clearScheduledDashboardRefreshes = () => {
+    scheduledDashboardRefreshTimeoutsRef.current.forEach((timeoutId) => {
+      clearTimeout(timeoutId);
+    });
+    scheduledDashboardRefreshTimeoutsRef.current = [];
+  };
+
+  const scheduleDashboardRefreshSequence = ({ silent = true } = {}) => {
+    if (!service) {
+      return;
+    }
+
+    queueDashboardReload(silent);
+    clearScheduledDashboardRefreshes();
+
+    DASHBOARD_CONVERGENCE_REFRESH_DELAYS_MS.forEach((delayMs) => {
+      const timeoutId = setTimeout(() => {
+        scheduledDashboardRefreshTimeoutsRef.current =
+          scheduledDashboardRefreshTimeoutsRef.current.filter(
+            (registeredTimeoutId) => registeredTimeoutId !== timeoutId,
+          );
+        queueDashboardReload(true);
+      }, delayMs);
+
+      scheduledDashboardRefreshTimeoutsRef.current.push(timeoutId);
+    });
   };
 
   const requestDashboardReload = useEffectEvent(({ silent = true } = {}) => {
@@ -253,7 +298,17 @@ export const useStudentDashboard = (
   });
 
   const refreshDashboardFromRealtime = useEffectEvent(() => {
-    requestDashboardReload({ silent: true });
+    scheduleDashboardRefreshSequence({ silent: true });
+  });
+
+  const refreshDashboardOnForeground = useEffectEvent(() => {
+    const now = Date.now();
+    if (now - lastForegroundRefreshAtRef.current < APP_FOREGROUND_REFRESH_COOLDOWN_MS) {
+      return;
+    }
+
+    lastForegroundRefreshAtRef.current = now;
+    scheduleDashboardRefreshSequence({ silent: true });
   });
 
   const handleRealtimeAuthError = useEffectEvent(() => {
@@ -265,6 +320,7 @@ export const useStudentDashboard = (
 
     return () => {
       isMountedRef.current = false;
+      clearScheduledDashboardRefreshes();
     };
   }, []);
 
@@ -296,11 +352,35 @@ export const useStudentDashboard = (
       baseUrl: studentSession.apiBaseUrl,
       token: studentSession.token,
       onAuthError: handleRealtimeAuthError,
+      onConnected: refreshDashboardFromRealtime,
       onClassSessionChanged: refreshDashboardFromRealtime,
       onRankingUpdated: refreshDashboardFromRealtime,
       onStudentAccessChanged: refreshDashboardFromRealtime,
     });
   }, [studentSession?.apiBaseUrl, studentSession?.token]);
+
+  useEffect(() => {
+    if (!service) {
+      return undefined;
+    }
+
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      const previousAppState = appStateRef.current;
+      appStateRef.current = nextAppState;
+
+      if (
+        nextAppState === 'active' &&
+        previousAppState &&
+        previousAppState !== 'active'
+      ) {
+        refreshDashboardOnForeground();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [service, refreshDashboardOnForeground]);
 
   useEffect(() => {
     if (!service) {
@@ -313,13 +393,15 @@ export const useStudentDashboard = (
 
     const dashboardIntervalId = setInterval(() => {
       requestDashboardReload({ silent: true });
-    }, DASHBOARD_SAFETY_REFRESH_INTERVAL_MS);
+    }, shouldUseLiveDashboardRefresh
+      ? DASHBOARD_LIVE_REFRESH_INTERVAL_MS
+      : DASHBOARD_SAFETY_REFRESH_INTERVAL_MS);
 
     return () => {
       clearInterval(profileIntervalId);
       clearInterval(dashboardIntervalId);
     };
-  }, [service, refreshProfileSnapshot]);
+  }, [service, refreshProfileSnapshot, shouldUseLiveDashboardRefresh]);
 
   return {
     profile: dashboard.profile,
@@ -338,7 +420,11 @@ export const useStudentDashboard = (
     isLoading,
     isRefreshing,
     errorMessage,
-    reloadDashboard: ({ silent = true } = {}) => loadDashboard({ silent }),
-    reloadAfterGameExit: () => refreshProfileSnapshot({ triggerDashboardReload: true }),
+    reloadDashboard: ({ silent = true } = {}) =>
+      loadDashboard({ silent, showRefreshingIndicator: true }),
+    reloadAfterGameExit: async () => {
+      await refreshProfileSnapshot({ triggerDashboardReload: true });
+      scheduleDashboardRefreshSequence({ silent: true });
+    },
   };
 };
