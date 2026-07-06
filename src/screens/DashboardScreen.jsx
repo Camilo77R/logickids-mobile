@@ -28,6 +28,7 @@ import {
   resolverAccesoJuegoDesdePerfil,
 } from '../features/games/core/resolverAccesoJuego';
 import { useStudentDashboard } from '../hooks/useStudentDashboard';
+import { buildRouteMapState } from '../features/student-dashboard/routeMap.selectors';
 import PodiumRanking from '../components/PodiumRanking';
 import StudentAvatar from '../components/StudentAvatar';
 import { colors, fonts, shadows, spacing } from '../constants/theme';
@@ -254,42 +255,6 @@ const buildMapLockedReason = (access, hasGame, gameSlug) => {
   }
 
   return access.motivo || 'Disponible despues de finalizar la actividad anterior';
-};
-
-const buildSkillCards = ({ assignedGames, accessBySlug, skillStatsView }) => {
-  const entries = skillStatsView?.entries ?? [];
-  const allGames = assignedGames;
-
-  return MAP_SKILL_NODES.map((node, index) => {
-    const skillKey = normalizeSkillKey(node.name);
-    const stat = entries.find((entry) => normalizeSkillKey(entry.skillName) === skillKey);
-    const game = findGameForSkillNode({ node, games: allGames });
-    const access = game?.slug ? accessBySlug[game.slug] : null;
-    const isAvailable = access?.estado === ESTADOS_ACCESO_JUEGO.disponible;
-    const lockedReason = buildMapLockedReason(access, Boolean(game?.slug), game?.slug);
-
-    return {
-      id: node.id,
-      name: node.name,
-      icon: node.icon,
-      gameSlug: game?.slug ?? null,
-      color: stat?.tone?.accent ?? colors.purple,
-      number: index + 1,
-      active: isAvailable,
-      locked: !isAvailable,
-      level: stat?.tone?.label ?? (isAvailable ? 'Lista' : 'Sin resultados'),
-      percent: stat?.precision ?? 0,
-      percentLabel: stat?.precisionLabel ?? 'Sin datos',
-      activitiesLabel: stat?.attemptsLabel ?? '0 intentos',
-      achievementsLabel: stat ? stat.tone.label : 'Sin resultados',
-      detailProgressLabel: stat?.reactionLabel ?? (isAvailable ? 'Juego habilitado' : lockedReason),
-      value: stat?.precisionLabel ?? (isAvailable ? 'Listo para jugar' : 'Listo para comenzar'),
-      detail: stat?.attemptsLabel ?? (isAvailable ? 'Juego habilitado' : lockedReason),
-      activeMessage: isAvailable ? 'Juego habilitado' : '',
-      lockedReason,
-      actionLabel: isAvailable ? 'OK' : index + 1,
-    };
-  });
 };
 
 const buildActivityCardsFromSession = ({ accessBySlug, assignedGames, historicalSessions, studentProfile }) => {
@@ -959,16 +924,6 @@ export default function DashboardScreen({ studentSession, onLogout }) {
       }),
     [currentGameAccess, playState, studentProfile],
   );
-  const skillCards = useMemo(
-    () =>
-      buildSkillCards({
-        assignedGames,
-        accessBySlug,
-        skillStatsView,
-      }),
-    [accessBySlug, assignedGames, skillStatsView],
-  );
-
   const firstName = getStudentName(studentProfile, studentSession?.studentProfile).split(' ')[0];
   const avatarUri = resolveStudentAvatarUri(studentProfile, studentSession?.studentProfile);
   const avatarColor = getStudentAvatarColor(studentProfile, studentSession?.studentProfile);
@@ -1053,6 +1008,15 @@ export default function DashboardScreen({ studentSession, onLogout }) {
         results: safeResults,
       }),
     [accessBySlug, assignedGames, historicalSessions, safeResults],
+  );
+  const routeMapState = useMemo(
+    () =>
+      buildRouteMapState({
+        nodes: mapNodes,
+        profile: studentProfile,
+        activeSession,
+      }),
+    [activeSession, mapNodes, studentProfile],
   );
   const skillProgressCards = useMemo(
     () => buildSkillProgressCards({ skills: safeSkills, results: safeResults }),
@@ -1340,7 +1304,7 @@ export default function DashboardScreen({ studentSession, onLogout }) {
             />
           ) : activeTab === DASHBOARD_TABS.mapa && showGamePath ? (
             <GamePathScreen
-              skills={skillCards}
+              routeMap={routeMapState}
               onBack={() => setShowGamePath(false)}
               onStartSkill={handlePathSkillPress}
             />

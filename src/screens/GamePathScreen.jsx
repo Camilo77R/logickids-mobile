@@ -1,8 +1,9 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, G, LinearGradient, Path, Stop } from 'react-native-svg';
 import { colors, fonts, shadows, spacing } from '../constants/theme';
+import { MASCOTA_GUIA_JUEGO } from '../features/games/core/MascotaGuiaJuego';
 
 const NODE_SIZE = 84;
 const ROAD_PATH =
@@ -16,30 +17,92 @@ const NODE_LAYOUT = [
   { top: 500, left: '12%' },
 ];
 
-export default function GamePathScreen({ skills, onBack, onStartSkill }) {
+const NODE_VISUALS = Object.freeze({
+  completed: {
+    circle: colors.purple,
+    border: colors.yellow,
+    icon: colors.white,
+    labelBackground: '#F6E6FF',
+    labelText: colors.purpleDark,
+    helperBackground: colors.yellow,
+    helperBorder: colors.yellowDark,
+    helperText: colors.purpleDark,
+    badgeIcon: 'checkmark',
+  },
+  current: {
+    circle: colors.yellow,
+    border: colors.purple,
+    icon: colors.purpleDark,
+    labelBackground: '#FFF2C7',
+    labelText: colors.purpleDark,
+    helperBackground: '#F6E6FF',
+    helperBorder: colors.purple,
+    helperText: colors.purpleDark,
+    badgeIcon: 'play',
+  },
+  next: {
+    circle: colors.white,
+    border: colors.yellow,
+    icon: colors.purple,
+    labelBackground: '#FFF8DF',
+    labelText: colors.purpleDark,
+    helperBackground: '#FFF8DF',
+    helperBorder: colors.yellowDark,
+    helperText: colors.purpleDark,
+    badgeIcon: 'sparkles',
+  },
+  locked: {
+    circle: '#E8DFF1',
+    border: colors.white,
+    icon: '#7C7190',
+    labelBackground: colors.white,
+    labelText: '#7C7190',
+    helperBackground: 'rgba(255,255,255,0.94)',
+    helperBorder: colors.border,
+    helperText: colors.textGray,
+    badgeIcon: 'lock-closed',
+  },
+});
+
+const normalizeRouteMap = (routeMap) => ({
+  routeTitle: routeMap?.routeTitle ?? 'Ruta de hoy',
+  completedStepsLabel: routeMap?.completedStepsLabel ?? 'Tu progreso en clase',
+  routeCompleted: Boolean(routeMap?.routeCompleted),
+  progressPercent: Number.isFinite(routeMap?.progressPercent) ? routeMap.progressPercent : 0,
+  nodes: Array.isArray(routeMap?.nodes) ? routeMap.nodes : [],
+});
+
+export default function GamePathScreen({ routeMap, onBack, onStartSkill }) {
+  const normalizedMap = normalizeRouteMap(routeMap);
+  const currentNode = normalizedMap.nodes.find((node) => node.isCurrent);
+
   return (
     <View style={styles.panel}>
       <View style={styles.topBar}>
         <TouchableOpacity activeOpacity={0.86} onPress={onBack} style={styles.backButton}>
           <Ionicons name="chevron-back" size={20} color={colors.purple} />
-          <Text style={styles.backText}>Ruta de hoy</Text>
+          <Text style={styles.backText}>{normalizedMap.routeTitle}</Text>
         </TouchableOpacity>
-        <TouchableOpacity activeOpacity={0.86} onPress={onBack} style={styles.badge}>
+        <View style={styles.badge}>
           <Ionicons name="map" size={16} color={colors.yellowDark} />
-          <Text style={styles.badgeText}>Mapa</Text>
-        </TouchableOpacity>
+          <Text style={styles.badgeText}>{normalizedMap.completedStepsLabel}</Text>
+        </View>
       </View>
 
       <View style={styles.map}>
-        <AdventureRoad />
+        <AdventureRoad progressPercent={normalizedMap.progressPercent} />
 
         <View style={styles.startMark}>
           <Ionicons name="flag" size={20} color={colors.white} />
           <Text style={styles.markerText}>Inicio</Text>
         </View>
 
-        <View style={styles.finishMark}>
-          <Ionicons name="trophy" size={22} color={colors.white} />
+        <View style={[styles.finishMark, normalizedMap.routeCompleted && styles.finishMarkCompleted]}>
+          <Ionicons
+            name={normalizedMap.routeCompleted ? 'trophy' : 'trophy-outline'}
+            size={22}
+            color={colors.white}
+          />
           <Text style={styles.markerText}>Meta</Text>
         </View>
 
@@ -47,7 +110,13 @@ export default function GamePathScreen({ skills, onBack, onStartSkill }) {
         <MapDecoration top={232} left="6%" icon="flower" />
         <MapDecoration top={486} right="12%" icon="star" />
 
-        {skills.map((skill, index) => (
+        {!normalizedMap.routeCompleted && currentNode ? (
+          <CurrentMascotMarker nodeIndex={normalizedMap.nodes.findIndex((node) => node.isCurrent)} />
+        ) : null}
+
+        {normalizedMap.routeCompleted ? <RouteCompletedMascot /> : null}
+
+        {normalizedMap.nodes.map((skill, index) => (
           <PathNode
             key={skill.id}
             layout={NODE_LAYOUT[index]}
@@ -60,13 +129,19 @@ export default function GamePathScreen({ skills, onBack, onStartSkill }) {
   );
 }
 
-function AdventureRoad() {
+function AdventureRoad({ progressPercent = 0 }) {
+  const normalizedProgress = Math.max(0, Math.min(progressPercent, 100));
+
   return (
     <Svg width="100%" height="100%" viewBox="0 0 360 620" style={styles.roadSvg}>
       <Defs>
-        <LinearGradient id="roadPurple" x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0" stopColor="#A84BDB" />
-          <Stop offset="1" stopColor="#7D2BC5" />
+        <LinearGradient id="roadBase" x1="0" y1="0" x2="1" y2="1">
+          <Stop offset="0" stopColor="#EFE6F8" />
+          <Stop offset="1" stopColor="#E0D0F1" />
+        </LinearGradient>
+        <LinearGradient id="roadProgress" x1="0" y1="0" x2="1" y2="1">
+          <Stop offset="0" stopColor={colors.yellow} />
+          <Stop offset="1" stopColor={colors.purple} />
         </LinearGradient>
       </Defs>
 
@@ -85,7 +160,7 @@ function AdventureRoad() {
         strokeLinecap="round"
         strokeLinejoin="round"
         fill="none"
-        opacity="0.8"
+        opacity="0.78"
       />
       <Path
         d={ROAD_PATH}
@@ -97,7 +172,7 @@ function AdventureRoad() {
       />
       <Path
         d={ROAD_PATH}
-        stroke="url(#roadPurple)"
+        stroke="url(#roadBase)"
         strokeWidth={58}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -105,7 +180,17 @@ function AdventureRoad() {
       />
       <Path
         d={ROAD_PATH}
-        stroke="#EBC6FA"
+        pathLength={100}
+        stroke="url(#roadProgress)"
+        strokeWidth={58}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeDasharray={`${normalizedProgress} 1000`}
+        fill="none"
+      />
+      <Path
+        d={ROAD_PATH}
+        stroke="#F7F0FD"
         strokeWidth={5}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -119,31 +204,59 @@ function AdventureRoad() {
 }
 
 function PathNode({ skill, layout, onStartSkill }) {
+  const visual = NODE_VISUALS[skill.visualState] ?? NODE_VISUALS.locked;
   const canStart = skill.active && skill.gameSlug;
+  const helperText = skill.isCurrent
+    ? 'Jugando ahora'
+    : skill.isNext
+      ? 'Siguiente reto'
+      : skill.isCompleted
+        ? 'Superado'
+        : skill.lockedReason;
+
   const node = (
     <>
-      <View style={[styles.nodeCircle, skill.active && styles.nodeCircleActive]}>
-        <Ionicons name={skill.icon} size={30} color={colors.white} />
-        {!skill.active ? (
-          <View style={styles.lockBadge}>
-            <Ionicons name="lock-closed" size={12} color={colors.white} />
-          </View>
-        ) : null}
+      <View
+        style={[
+          styles.nodeCircle,
+          {
+            backgroundColor: visual.circle,
+            borderColor: visual.border,
+          },
+          skill.isCurrent && styles.nodeCircleCurrent,
+          skill.isCompleted && styles.nodeCircleCompleted,
+        ]}
+      >
+        <Ionicons name={skill.icon} size={30} color={visual.icon} />
+        <View
+          style={[
+            styles.stateBadge,
+            skill.isCompleted && styles.stateBadgeCompleted,
+            skill.isCurrent && styles.stateBadgeCurrent,
+            skill.isNext && styles.stateBadgeNext,
+          ]}
+        >
+          <Ionicons name={visual.badgeIcon} size={12} color={colors.white} />
+        </View>
       </View>
-      <View style={styles.labelPill}>
-        <Text style={styles.labelText}>
+
+      <View style={[styles.labelPill, { backgroundColor: visual.labelBackground }]}>
+        <Text style={[styles.labelText, { color: visual.labelText }]}>
           {skill.number}. {skill.name}
         </Text>
       </View>
-      {skill.active && skill.activeMessage ? (
-        <View style={styles.activePill}>
-          <Text style={styles.activeText}>{skill.activeMessage}</Text>
-        </View>
-      ) : null}
-      {!skill.active ? (
-        <View style={styles.reasonPill}>
-          <Ionicons name="lock-closed" size={11} color={colors.purple} />
-          <Text style={styles.reasonText}>{skill.lockedReason}</Text>
+
+      {helperText ? (
+        <View
+          style={[
+            styles.helperPill,
+            {
+              backgroundColor: visual.helperBackground,
+              borderColor: visual.helperBorder,
+            },
+          ]}
+        >
+          <Text style={[styles.helperText, { color: visual.helperText }]}>{helperText}</Text>
         </View>
       ) : null}
     </>
@@ -157,6 +270,45 @@ function PathNode({ skill, layout, onStartSkill }) {
     <TouchableOpacity activeOpacity={0.88} onPress={() => onStartSkill(skill)} style={[styles.node, layout]}>
       {node}
     </TouchableOpacity>
+  );
+}
+
+function CurrentMascotMarker({ nodeIndex }) {
+  const layout = NODE_LAYOUT[nodeIndex] ?? NODE_LAYOUT[0];
+
+  return (
+    <View
+      pointerEvents="none"
+      style={[
+        styles.currentMascotWrap,
+        {
+          top: (layout.top ?? 0) - 22,
+          left: layout.left ? '18%' : undefined,
+          right: layout.right ? '20%' : undefined,
+        },
+      ]}
+    >
+      <View style={styles.currentMascotBubble}>
+        <Image source={MASCOTA_GUIA_JUEGO} style={styles.currentMascotImage} resizeMode="cover" />
+      </View>
+    </View>
+  );
+}
+
+function RouteCompletedMascot() {
+  return (
+    <View pointerEvents="none" style={styles.routeCompletedCard}>
+      <View style={styles.routeCompletedMascotFrame}>
+        <Image source={MASCOTA_GUIA_JUEGO} style={styles.routeCompletedMascot} resizeMode="cover" />
+      </View>
+      <View style={styles.routeCompletedTextBlock}>
+        <Text style={styles.routeCompletedEyebrow}>Ruta completada</Text>
+        <Text style={styles.routeCompletedTitle}>Llegaste a la meta</Text>
+        <Text style={styles.routeCompletedText}>
+          Muy bien. Terminaste todos los retos de hoy y tu camino quedo completo.
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -196,6 +348,7 @@ const styles = StyleSheet.create({
   },
   badge: {
     minHeight: 38,
+    maxWidth: 156,
     borderRadius: 19,
     backgroundColor: colors.white,
     flexDirection: 'row',
@@ -205,6 +358,7 @@ const styles = StyleSheet.create({
     ...shadows.soft,
   },
   badgeText: {
+    flexShrink: 1,
     color: colors.purple,
     fontFamily: fonts.black,
     fontSize: 12,
@@ -235,33 +389,47 @@ const styles = StyleSheet.create({
     width: NODE_SIZE,
     height: NODE_SIZE,
     borderRadius: NODE_SIZE / 2,
-    backgroundColor: colors.purple,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 5,
-    borderColor: colors.white,
     ...shadows.soft,
   },
-  nodeCircleActive: {
-    backgroundColor: colors.yellow,
+  nodeCircleCurrent: {
+    shadowColor: colors.yellow,
+    shadowOpacity: 0.42,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
+    transform: [{ scale: 1.06 }],
   },
-  lockBadge: {
+  nodeCircleCompleted: {
+    borderWidth: 6,
+  },
+  stateBadge: {
     position: 'absolute',
-    right: -2,
-    top: -2,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    right: -3,
+    top: -3,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: colors.purple,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
     borderColor: colors.white,
   },
+  stateBadgeCompleted: {
+    backgroundColor: colors.yellowDark,
+  },
+  stateBadgeCurrent: {
+    backgroundColor: colors.purpleDark,
+  },
+  stateBadgeNext: {
+    backgroundColor: colors.purple,
+  },
   labelPill: {
     minHeight: 28,
     borderRadius: 14,
-    backgroundColor: colors.white,
     paddingHorizontal: spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
@@ -269,54 +437,46 @@ const styles = StyleSheet.create({
     ...shadows.soft,
   },
   labelText: {
-    color: colors.purple,
     fontFamily: fonts.black,
     fontSize: 13,
   },
-  reasonPill: {
-    maxWidth: NODE_SIZE + 82,
+  helperPill: {
+    maxWidth: NODE_SIZE + 88,
     minHeight: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderWidth: 1,
-    borderColor: colors.border,
-    flexDirection: 'row',
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    paddingHorizontal: spacing.xs,
-    marginTop: 4,
+    paddingHorizontal: spacing.sm,
+    marginTop: 6,
     ...shadows.soft,
   },
-  reasonText: {
-    flex: 1,
-    color: colors.textGray,
-    fontFamily: fonts.semiBold,
-    fontSize: 9,
-    lineHeight: 11,
+  helperText: {
+    fontFamily: fonts.bold,
+    fontSize: 10,
+    lineHeight: 12,
     textAlign: 'center',
   },
-  activePill: {
-    maxWidth: NODE_SIZE + 82,
-    minHeight: 30,
-    borderRadius: 15,
-    backgroundColor: colors.white,
-    borderWidth: 1,
+  currentMascotWrap: {
+    position: 'absolute',
+    alignItems: 'center',
+    zIndex: 3,
+  },
+  currentMascotBubble: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    overflow: 'hidden',
+    borderWidth: 3,
     borderColor: colors.yellow,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingHorizontal: spacing.xs,
-    marginTop: 4,
+    backgroundColor: colors.purple,
     ...shadows.soft,
   },
-  activeText: {
-    color: colors.purple,
-    fontFamily: fonts.black,
-    fontSize: 9,
-    lineHeight: 11,
-    textAlign: 'center',
+  currentMascotImage: {
+    width: '118%',
+    height: '118%',
+    marginLeft: '-9%',
+    marginTop: '-9%',
   },
   finishMark: {
     position: 'absolute',
@@ -325,13 +485,16 @@ const styles = StyleSheet.create({
     minWidth: 78,
     minHeight: 34,
     borderRadius: 17,
-    backgroundColor: colors.yellow,
+    backgroundColor: colors.purple,
     flexDirection: 'row',
     gap: spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.sm,
     ...shadows.soft,
+  },
+  finishMarkCompleted: {
+    backgroundColor: colors.yellowDark,
   },
   startMark: {
     position: 'absolute',
@@ -361,5 +524,61 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3E8FA',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  routeCompletedCard: {
+    position: 'absolute',
+    top: 52,
+    left: '50%',
+    width: 210,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderWidth: 2,
+    borderColor: colors.yellow,
+    padding: 12,
+    gap: 10,
+    transform: [{ translateX: -105 }],
+    zIndex: 12,
+    elevation: 14,
+    ...shadows.soft,
+  },
+  routeCompletedMascotFrame: {
+    alignSelf: 'center',
+    width: 72,
+    height: 72,
+    borderRadius: 22,
+    overflow: 'hidden',
+    borderWidth: 4,
+    borderColor: colors.yellow,
+    backgroundColor: colors.purple,
+  },
+  routeCompletedMascot: {
+    width: '115%',
+    height: '115%',
+    marginLeft: '-7%',
+    marginTop: '-7%',
+  },
+  routeCompletedTextBlock: {
+    gap: 4,
+  },
+  routeCompletedEyebrow: {
+    color: colors.yellowDark,
+    fontFamily: fonts.black,
+    fontSize: 11,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  routeCompletedTitle: {
+    color: colors.purpleDark,
+    fontFamily: fonts.black,
+    fontSize: 16,
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+  routeCompletedText: {
+    color: colors.textGray,
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    lineHeight: 14,
+    textAlign: 'center',
   },
 });
