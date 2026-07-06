@@ -463,6 +463,7 @@ function ParteMesh({
   onIniciarArrastre,
   mathTargetId,
   schematicRef,
+  interaccionesBloqueadas = false,
 }) {
   const meshRef = useRef();
   const groupRef = useRef();
@@ -482,7 +483,7 @@ function ParteMesh({
 
   // La escena solo decide si una pieza existe para interacción visual.
   // El controlador decide si ese toque abre reto matemático o inicia arrastre.
-  const puedeHacerClic = !estadoParte.ensamblada;
+  const puedeHacerClic = !estadoParte.ensamblada && !interaccionesBloqueadas;
 
   const _tempTarget = useMemo(() => new THREE.Vector3(), []);
   const _baseColor = useMemo(() => new THREE.Color(), []);
@@ -510,10 +511,10 @@ function ParteMesh({
 
     if (estadoParte.ensamblada) {
       _tempTarget.set(...parteDef.posicionObjetivo);
-      group.position.lerp(_tempTarget, 0.15);
+      group.position.copy(_tempTarget);
     } else if (!estadoParte.agarrada) {
-      _tempTarget.set(...parteDef.posicionExplotada);
-      group.position.lerp(_tempTarget, 0.05);
+      _tempTarget.set(...(estadoParte.posicion ?? parteDef.posicionExplotada));
+      group.position.lerp(_tempTarget, 0.14);
     }
 
     const esDesbloqueadaParaArrastre = !estadoParte.bloqueado && !estadoParte.ensamblada;
@@ -568,10 +569,13 @@ function ParteMesh({
   const rot = parteDef.rotacionObjetivo;
   const hitAreaSize = useMemo(() => {
     const [x = 0.3, y = 0.3, z = x] = parteDef.tamanio ?? [];
+    const esPiezaPequena = x <= 0.12 || y <= 0.3 || parteDef.forma === 'cone';
+    const minimoBase = esPiezaPequena ? 0.9 : 0.55;
+    const minimoAlto = esPiezaPequena ? 1.05 : 0.55;
     return [
-      Math.max(x * 1.6, 0.55),
-      Math.max(y * 1.45, 0.55),
-      Math.max(z * 1.6, 0.55),
+      Math.max(x * 1.9, minimoBase),
+      Math.max(y * 1.8, minimoAlto),
+      Math.max(z * 1.9, minimoBase),
     ];
   }, [parteDef.tamanio]);
 
@@ -594,6 +598,7 @@ function ParteMesh({
   const manejarPointerDown = (event) => {
     if (!puedeHacerClic) return;
     event.stopPropagation();
+    event.target?.setPointerCapture?.(event.pointerId);
 
     const posicionInicial = estadoParte.posicion || [...parteDef.posicionExplotada];
     const pointerLocal = obtenerPuntoLocal(event);
@@ -605,7 +610,17 @@ function ParteMesh({
         ]
       : [0, 0, 0];
 
-    onIniciarArrastre?.(parteDef.id, posicionInicial, offset, groupRef.current);
+    const agarro = onIniciarArrastre?.(
+      parteDef.id,
+      posicionInicial,
+      offset,
+      groupRef.current,
+      event.pointerId ?? null,
+    );
+
+    if (!agarro) {
+      event.target?.releasePointerCapture?.(event.pointerId);
+    }
   };
 
   const edgesGeom = useMemo(() => {
@@ -798,6 +813,7 @@ function Escena3D({
   partesRobot,
   alternativas,
   onIniciarArrastre,
+  interaccionesBloqueadas,
 }) {
   const targetRotRef = useRef(0);
 
@@ -826,6 +842,7 @@ function Escena3D({
             mathTargetId={mathTargetId}
             schematicRef={schematicRef}
             onIniciarArrastre={onIniciarArrastre}
+            interaccionesBloqueadas={interaccionesBloqueadas}
           />
         );
       })}
@@ -868,6 +885,22 @@ function Escena3D({
 
 function PlanoArrastre({ arrastreRef, schematicRef, onMoverParte, onSoltarParte }) {
   const planeRef = useRef();
+  const finalizarArrastre = useCallback((event) => {
+    const arrastre = arrastreRef.current;
+    if (!arrastre) return;
+    event?.stopPropagation?.();
+    if (
+      event?.pointerId != null &&
+      arrastre.pointerId != null &&
+      event.pointerId !== arrastre.pointerId
+    ) {
+      return;
+    }
+    event?.target?.releasePointerCapture?.(event.pointerId);
+    arrastreRef.current = null;
+    onSoltarParte?.();
+  }, [arrastreRef, onSoltarParte]);
+
   return (
     <mesh
       ref={planeRef}
@@ -875,6 +908,13 @@ function PlanoArrastre({ arrastreRef, schematicRef, onMoverParte, onSoltarParte 
       onPointerMove={(event) => {
         const arrastre = arrastreRef.current;
         if (!arrastre || !schematicRef.current) return;
+        if (
+          event.pointerId != null &&
+          arrastre.pointerId != null &&
+          event.pointerId !== arrastre.pointerId
+        ) {
+          return;
+        }
         event.stopPropagation();
         const punto = event.point.clone();
         schematicRef.current.worldToLocal(punto);
@@ -886,12 +926,8 @@ function PlanoArrastre({ arrastreRef, schematicRef, onMoverParte, onSoltarParte 
         }
         onMoverParte?.(arrastre.idParte, [nx, ny, nz]);
       }}
-      onPointerUp={(event) => {
-        if (!arrastreRef.current) return;
-        event.stopPropagation();
-        arrastreRef.current = null;
-        onSoltarParte?.();
-      }}
+      onPointerUp={finalizarArrastre}
+      onPointerCancel={finalizarArrastre}
     >
       <planeGeometry args={[40, 40]} />
       <meshBasicMaterial visible={false} />
@@ -908,6 +944,7 @@ function EscenaEnsamblaje({
   onAgarrarParte,
   onMoverParte,
   onSoltarParte,
+  interaccionesBloqueadas = false,
 }) {
   const schematicRef = useRef(null);
   const arrastreRef = useRef(null);
@@ -935,13 +972,21 @@ function EscenaEnsamblaje({
     prevMensajeRef.current = mensaje;
   }, [estado.mensaje]);
 
-  const manejarInicioArrastre = useCallback((idParte, posicionInicial, offset, node) => {
+  const manejarInicioArrastre = useCallback((idParte, posicionInicial, offset, node, pointerId = null) => {
+    if (interaccionesBloqueadas) {
+      return false;
+    }
     const agarro = onAgarrarParte?.(idParte, posicionInicial);
     if (agarro) {
-      arrastreRef.current = { idParte, offset, node };
+      arrastreRef.current = {
+        idParte,
+        offset,
+        node,
+        pointerId,
+      };
     }
     return agarro;
-  }, [onAgarrarParte]);
+  }, [interaccionesBloqueadas, onAgarrarParte]);
 
   const finalizarArrastre = useCallback(() => {
     if (!arrastreRef.current) return;
@@ -977,6 +1022,7 @@ function EscenaEnsamblaje({
           onIniciarArrastre={manejarInicioArrastre}
           partesRobot={partesRobot}
           alternativas={alternativas}
+          interaccionesBloqueadas={interaccionesBloqueadas}
         />
       </Canvas>
     </View>

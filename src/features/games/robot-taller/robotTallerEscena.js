@@ -1,4 +1,4 @@
-import { PARTES_ROBOT, FASES_ENSAMBLAGE, MODO_PRESENTACION_ROBOT_TALLER } from './robotTaller.constants';
+import { FASES_ENSAMBLAGE, MODO_PRESENTACION_ROBOT_TALLER } from './robotTaller.constants';
 import { resolvePostGameNavigation, resolveSessionClosure } from '../core/postGameFlow';
 
 const resolverMensajeEstado = (fase, mensaje) =>
@@ -6,7 +6,7 @@ const resolverMensajeEstado = (fase, mensaje) =>
 
 const construirMetricas = ({ estado, configuracion }) => [
   { etiqueta: 'Dificultad', valor: configuracion.dificultad },
-  { etiqueta: 'Partes', valor: PARTES_ROBOT.length },
+  { etiqueta: 'Partes', valor: estado.partes.length },
   { etiqueta: 'Habilidad', valor: configuracion.habilidad },
   { etiqueta: 'Ensambladas', valor: estado.contadorEnsambladas },
 ];
@@ -169,7 +169,7 @@ export const construirEscenaRobotTaller = ({
       fase: estado.fase,
       mensaje: resolverMensajeEstado(estado.fase, estado.mensaje),
       metricas: [
-        { etiqueta: 'Progreso', valor: `${estado.contadorEnsambladas}/${PARTES_ROBOT.length}` },
+        { etiqueta: 'Progreso', valor: `${estado.contadorEnsambladas}/${estado.partes.length}` },
       ],
     },
     guiaInicial: {

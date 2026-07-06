@@ -7,7 +7,7 @@ import { colors, fonts } from '../../../../constants/theme';
 import EscenaEnsamblaje from './EscenaEnsamblaje';
 import QuizOverlay from './QuizOverlay';
 import MathChallengeModal from './MathChallengeModal';
-import { NIVELES, PARTES_ROBOT } from '../robotTaller.constants';
+import { NIVELES } from '../robotTaller.constants';
 import {
   GameMissionGuideOverlay,
   GameResultOverlay,
@@ -51,6 +51,7 @@ export default function RobotTallerVista({
   finalizarPorTiempo, permitirReinicioManual = false,
   prepararPartida, preparandoPartida = false,
   tiempoRestanteInicialMs = null,
+  rondaVersion = 0,
   modoQuiz, preguntaActual, feedbackQuiz, responderQuiz,
   problemaMatematico, mostrarModalMatematica,
   manejarCorrectaMatematica, manejarIncorrectaMatematica,
@@ -60,6 +61,7 @@ export default function RobotTallerVista({
   const viewport = useWindowDimensions();
   const [enPausa, setEnPausa] = useState(false);
   const [mostrarInstrucciones, setMostrarInstrucciones] = useState(true);
+  const [bloqueandoPorTiempo, setBloqueandoPorTiempo] = useState(false);
   const tiempoLimiteMs = configuracion?.configuracion?.tiempoLimiteMs
     ?? NIVELES[1].tiempoLimiteMs;
   const resolverTiempoInicial = useCallback(() => {
@@ -76,10 +78,12 @@ export default function RobotTallerVista({
   const timerRef = useRef(null);
   const tiempoAgotadoNotificadoRef = useRef(false);
   const finalizarPorTiempoRef = useRef(finalizarPorTiempo);
+  const faseAnteriorRef = useRef(estado.fase);
 
   const nivelConfig = NIVELES[configuracion?.nivel] ?? NIVELES[1];
   const piezaDesbloqueadaId = estado.partes.find((p) => !p.ensamblada && !p.bloqueado)?.id ?? null;
   const mathTargetId = problemaMatematico?.idParte ?? null;
+  const totalPiezas = estado.partes.length;
 
   useEffect(() => {
     if (timerRef.current) {
@@ -88,7 +92,8 @@ export default function RobotTallerVista({
     }
     setTiempoRestanteMs(resolverTiempoInicial());
     tiempoAgotadoNotificadoRef.current = false;
-  }, [resolverTiempoInicial]);
+    setBloqueandoPorTiempo(false);
+  }, [resolverTiempoInicial, rondaVersion]);
 
   useEffect(() => {
     if (estado.fase === 'completado' || mostrarInstrucciones || enPausa) {
@@ -111,6 +116,7 @@ export default function RobotTallerVista({
   useEffect(() => {
     if (estado.fase === 'completado') {
       tiempoAgotadoNotificadoRef.current = false;
+      setBloqueandoPorTiempo(false);
       return;
     }
 
@@ -119,8 +125,29 @@ export default function RobotTallerVista({
     }
 
     tiempoAgotadoNotificadoRef.current = true;
+    setBloqueandoPorTiempo(true);
     finalizarPorTiempoRef.current?.();
   }, [estado.fase, tiempoRestanteMs]);
+
+  useEffect(() => {
+    const faseAnterior = faseAnteriorRef.current;
+    const reinicioDeRonda =
+      faseAnterior === 'completado' &&
+      estado.fase === 'explotado' &&
+      estado.contadorEnsambladas === 0;
+
+    if (reinicioDeRonda) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      setTiempoRestanteMs(resolverTiempoInicial());
+      tiempoAgotadoNotificadoRef.current = false;
+      setBloqueandoPorTiempo(false);
+    }
+
+    faseAnteriorRef.current = estado.fase;
+  }, [estado.contadorEnsambladas, estado.fase, resolverTiempoInicial]);
 
   const togglePausa = useCallback(() => setEnPausa((prev) => !prev), []);
 
@@ -143,6 +170,13 @@ export default function RobotTallerVista({
     }
   }, [preparandoPartida, prepararPartida]);
 
+  const interaccionesBloqueadas =
+    enPausa ||
+    mostrarInstrucciones ||
+    bloqueandoPorTiempo ||
+    preparandoPartida ||
+    estado.fase === 'completado';
+
   return (
     <View style={styles.root}>
       <StatusBar style="dark" />
@@ -156,6 +190,7 @@ export default function RobotTallerVista({
           onAgarrarParte={agarrarParte}
           onMoverParte={moverParte}
           onSoltarParte={soltarParte}
+          interaccionesBloqueadas={interaccionesBloqueadas}
         />
       </View>
       <SafeAreaView style={styles.safeAreaTop} edges={['top']}>
@@ -166,7 +201,7 @@ export default function RobotTallerVista({
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Text style={styles.title}>{escena.encabezado.titulo}</Text>
-            <Text style={styles.subtitle}>Nivel {configuracion.nivel}: {nivelConfig.nombre} | {temaNombre ?? 'Robot Constructor'} | {estado.contadorEnsambladas}/{PARTES_ROBOT.length} piezas</Text>
+            <Text style={styles.subtitle}>Nivel {configuracion.nivel}: {nivelConfig.nombre} | {temaNombre ?? 'Robot Constructor'} | {estado.contadorEnsambladas}/{totalPiezas} piezas</Text>
           </View>
           <Temporizador tiempoRestanteMs={tiempoRestanteMs} enPausa={enPausa} />
           <TouchableOpacity activeOpacity={0.85} onPress={togglePausa} style={styles.pauseButton}>
@@ -181,7 +216,7 @@ export default function RobotTallerVista({
 
       {modoQuiz && preguntaActual && !enPausa ? (
         <QuizOverlay pregunta={preguntaActual} feedback={feedbackQuiz}
-          onResponder={responderQuiz} partesEnsambladas={estado.contadorEnsambladas} totalPiezas={PARTES_ROBOT.length} />
+          onResponder={responderQuiz} partesEnsambladas={estado.contadorEnsambladas} totalPiezas={totalPiezas} />
       ) : null}
       
       {mostrarInstrucciones && (
@@ -201,11 +236,13 @@ export default function RobotTallerVista({
           <View style={styles.footer}>
             {tiempoRestanteMs <= 0 ? (
               <Text style={styles.hintTimeout}>Se acabo el tiempo. Estamos guardando tu resultado.</Text>
+            ) : bloqueandoPorTiempo ? (
+              <Text style={styles.hintTimeout}>Estamos cerrando esta ronda para dejar tu progreso consistente.</Text>
             ) : (
               <Text style={styles.hintSub}>{estado.mensaje}</Text>
             )}
             <View style={styles.footerButtons}>
-              {problemaMatematico && !mostrarModalMatematica && (
+              {problemaMatematico && !mostrarModalMatematica && !bloqueandoPorTiempo && (
                 <TouchableOpacity
                   activeOpacity={0.88}
                   onPress={() => setMostrarModalMatematica(true)}
@@ -226,7 +263,7 @@ export default function RobotTallerVista({
         </SafeAreaView>
       ) : null}
 
-      {!mostrarInstrucciones && (
+      {!mostrarInstrucciones && !bloqueandoPorTiempo && estado.fase !== 'completado' && (
         <MathChallengeModal
           problema={problemaMatematico}
           visible={mostrarModalMatematica}

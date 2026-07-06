@@ -44,6 +44,13 @@ const construirEstadoInicial = (nivel, idMision) => {
 const obtenerPiezasDesbloqueadasPendientes = (estadoActual) =>
   estadoActual.partes.filter((parte) => !parte.ensamblada && !parte.bloqueado);
 
+const actualizarEstadoControlado = (estadoRef, setEstado, transformador) => {
+  const siguienteEstado = transformador(estadoRef.current);
+  estadoRef.current = siguienteEstado;
+  setEstado(siguienteEstado);
+  return siguienteEstado;
+};
+
 function mezclar(arr) {
   const m = [...arr];
   for (let i = m.length - 1; i > 0; i--) {
@@ -351,9 +358,9 @@ export const useRobotTallerControlador = (
     setProblemaMatematico(null);
     intentosRef.current[idParte] = 0;
 
-    const nuevoEstado = {
-      ...estadoRef.current,
-      partes: estadoRef.current.partes.map((p) =>
+    actualizarEstadoControlado(estadoRef, setEstado, (estadoActual) => ({
+      ...estadoActual,
+      partes: estadoActual.partes.map((p) =>
         p.ensamblada
           ? p
           : p.id === idParte
@@ -361,19 +368,7 @@ export const useRobotTallerControlador = (
             : { ...p, bloqueado: true, bloqueadoPorMatematicas: true }
       ),
       mensaje: '¡Pieza desbloqueada! Arrástrala hasta el lugar iluminado.',
-      eventosSesion: [...estadoRef.current.eventosSesion, {
-        tipoEvento: 'desbloqueo_matematico',
-        habilidad: 'Lógica',
-        tiempoReaccionMs: null,
-        puntos: 10,
-        comboEnEvento: 0,
-        metadata: { parte_id: idParte, via_matematica: true },
-        timestamp: new Date().toISOString(),
-      }],
-    };
-    estadoRef.current = nuevoEstado;
-    setEstado(nuevoEstado);
-    
+    }));
   }, []);
 
   const manejarIncorrectaMatematica = useCallback((payload) => {
@@ -386,15 +381,13 @@ export const useRobotTallerControlador = (
 
     intentosRef.current[idParte] = (intentosRef.current[idParte] || 0) + 1;
 
-    const nuevoEstado = {
-      ...estadoRef.current,
-      erroresAcumulados: (estadoRef.current.erroresAcumulados || 0) + 1,
+    actualizarEstadoControlado(estadoRef, setEstado, (estadoActual) => ({
+      ...estadoActual,
+      erroresAcumulados: (estadoActual.erroresAcumulados || 0) + 1,
       mensaje: exhausted
         ? 'Intentemos una nueva cuenta para desbloquear la pieza.'
         : 'Respuesta incorrecta. Intenta otra vez.',
-    };
-    estadoRef.current = nuevoEstado;
-    setEstado(nuevoEstado);
+    }));
 
     registrarEvento(
       construirEventoEnsamblaje({
@@ -528,7 +521,7 @@ export const useRobotTallerControlador = (
       ...previo,
       eventosSesion: [...previo.eventosSesion, { ...evento, timestamp: new Date().toISOString() }],
     }));
-    ejecutarObservadorSeguro(observadores.alRegistrarEvento, evento);
+    ejecutarObservadorSeguro(observadoresRef.current.alRegistrarEvento, evento);
   };
 
   const finalizarPartida = (exito) => {
@@ -649,7 +642,7 @@ export const useRobotTallerControlador = (
     setEstado(siguienteEstado);
 
 
-    ejecutarObservadorSeguro(observadores.alIniciarPartida, {
+    ejecutarObservadorSeguro(observadoresRef.current.alIniciarPartida, {
       configuracionPartida: configuracion,
       parteId: idParte,
     });

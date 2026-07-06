@@ -12,6 +12,7 @@ export default function RobotTallerScreen({
   contextoSesion,
 }) {
   const [preparandoPartida, setPreparandoPartida] = useState(false);
+  const [rondaVersion, setRondaVersion] = useState(0);
   const sesionRobotTaller = useSesionRobotTaller({
     configuracion: configuracionInicial,
     contextoSesion,
@@ -60,6 +61,7 @@ export default function RobotTallerScreen({
 
           if (partidaLista) {
             controlador.reiniciarPartida();
+            setRondaVersion((actual) => actual + 1);
           }
         },
         salirActividad: onSalir,
@@ -99,6 +101,7 @@ export default function RobotTallerScreen({
       prepararPartida={prepararPartida}
       preparandoPartida={preparandoPartida}
       tiempoRestanteInicialMs={controlador.tiempoRestanteRestauradoMs}
+      rondaVersion={rondaVersion}
       modoQuiz={controlador.modoQuiz}
       preguntaActual={controlador.preguntaActual}
       feedbackQuiz={controlador.feedbackQuiz}

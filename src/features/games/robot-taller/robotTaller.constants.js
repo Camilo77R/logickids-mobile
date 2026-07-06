@@ -117,7 +117,7 @@ export const PARTES_ROBOT = Object.freeze([
     forma: 'cone',
     color: '#FFD166',
     tamanio: [0.08, 0.25, 0.08],
-    posicionExplotada: [0, 3.2, 0],
+    posicionExplotada: [0, 2.45, 0.15],
     posicionObjetivo: [0, 1.95, 0.15],
     rotacionObjetivo: [0, 0, 0],
     detalle: [
