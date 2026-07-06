@@ -7,8 +7,38 @@ export const STUDENT_REALTIME_EVENTS = Object.freeze({
   studentAccessChanged: 'student_access:changed',
 });
 
+const STUDENT_REALTIME_EVENT_ALIASES = Object.freeze({
+  classSessionChanged: [
+    STUDENT_REALTIME_EVENTS.classSessionChanged,
+    'class-session:changed',
+    'session:changed',
+    'sesion_clase:changed',
+  ],
+  rankingUpdated: [
+    STUDENT_REALTIME_EVENTS.rankingUpdated,
+    'ranking:refresh',
+    'leaderboard:updated',
+    'leaderboard:refresh',
+  ],
+  studentAccessChanged: [
+    STUDENT_REALTIME_EVENTS.studentAccessChanged,
+    'student-access:changed',
+    'access:changed',
+  ],
+});
+
 const resolveSocketBaseUrl = (baseUrl) =>
   normalizeBaseUrl(baseUrl).replace(/\/api\/?$/, '');
+
+const subscribeSocketEvents = (socket, eventNames = [], handler) => {
+  if (!handler) {
+    return;
+  }
+
+  eventNames.forEach((eventName) => {
+    socket.on(eventName, handler);
+  });
+};
 
 /**
  * Suscribe el dashboard del estudiante a invalidaciones en tiempo real.
@@ -25,6 +55,7 @@ export const subscribeStudentRealtime = ({
   onClassSessionChanged,
   onRankingUpdated,
   onStudentAccessChanged,
+  onConnected,
 } = {}) => {
   if (!baseUrl || !token) {
     return () => {};
@@ -36,16 +67,25 @@ export const subscribeStudentRealtime = ({
     reconnection: true,
   });
 
-  if (onClassSessionChanged) {
-    socket.on(STUDENT_REALTIME_EVENTS.classSessionChanged, onClassSessionChanged);
-  }
+  subscribeSocketEvents(
+    socket,
+    STUDENT_REALTIME_EVENT_ALIASES.classSessionChanged,
+    onClassSessionChanged,
+  );
+  subscribeSocketEvents(
+    socket,
+    STUDENT_REALTIME_EVENT_ALIASES.rankingUpdated,
+    onRankingUpdated,
+  );
+  subscribeSocketEvents(
+    socket,
+    STUDENT_REALTIME_EVENT_ALIASES.studentAccessChanged,
+    onStudentAccessChanged,
+  );
 
-  if (onRankingUpdated) {
-    socket.on(STUDENT_REALTIME_EVENTS.rankingUpdated, onRankingUpdated);
-  }
-
-  if (onStudentAccessChanged) {
-    socket.on(STUDENT_REALTIME_EVENTS.studentAccessChanged, onStudentAccessChanged);
+  if (onConnected) {
+    socket.on('connect', onConnected);
+    socket.on('reconnect', onConnected);
   }
 
   socket.on('connect_error', (error) => {
