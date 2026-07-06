@@ -57,6 +57,7 @@ export default function RobotTallerVista({
   manejarCorrectaMatematica, manejarIncorrectaMatematica,
   setMostrarModalMatematica,
   temaNombre,
+  uiAudio,
 }) {
   const viewport = useWindowDimensions();
   const [enPausa, setEnPausa] = useState(false);
@@ -152,10 +153,11 @@ export default function RobotTallerVista({
   const togglePausa = useCallback(() => setEnPausa((prev) => !prev), []);
 
   const handleReiniciar = useCallback(() => {
+    uiAudio?.reproducirSeleccion?.();
     setMostrarInstrucciones(true);
     setTiempoRestanteMs(tiempoLimiteMs);
     reiniciarPartida();
-  }, [reiniciarPartida, tiempoLimiteMs]);
+  }, [reiniciarPartida, tiempoLimiteMs, uiAudio]);
 
   const handleComenzar = useCallback(async () => {
     if (preparandoPartida) {
@@ -166,9 +168,10 @@ export default function RobotTallerVista({
       typeof prepararPartida === 'function' ? await prepararPartida() : true;
 
     if (partidaLista) {
+      uiAudio?.reproducirSeleccion?.();
       setMostrarInstrucciones(false);
     }
-  }, [preparandoPartida, prepararPartida]);
+  }, [preparandoPartida, prepararPartida, uiAudio]);
 
   const interaccionesBloqueadas =
     enPausa ||
@@ -245,7 +248,10 @@ export default function RobotTallerVista({
               {problemaMatematico && !mostrarModalMatematica && !bloqueandoPorTiempo && (
                 <TouchableOpacity
                   activeOpacity={0.88}
-                  onPress={() => setMostrarModalMatematica(true)}
+                  onPress={() => {
+                    uiAudio?.reproducirSeleccion?.();
+                    setMostrarModalMatematica(true);
+                  }}
                   style={styles.solveButton}
                 >
                   <Ionicons name="bulb" size={18} color={colors.white} />

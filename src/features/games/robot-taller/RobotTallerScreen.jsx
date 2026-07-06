@@ -4,6 +4,7 @@ import { construirEscenaRobotTaller } from './robotTallerEscena';
 import { useSesionRobotTaller } from './aplicacion/useSesionRobotTaller';
 import { resolverConfiguracionRobotTallerDesdeBackend } from './robotTallerConfiguracion';
 import RobotTallerVista from './presentacion/RobotTallerVista';
+import { useRobotTallerAudio } from './useRobotTallerAudio';
 
 export default function RobotTallerScreen({
   onSalir,
@@ -46,6 +47,32 @@ export default function RobotTallerScreen({
     }
   }, [configuracionEfectiva.dificultad, preparandoPartida, sesionRobotTaller]);
 
+  const audioRobot = useRobotTallerAudio({
+    estado: controlador.estado,
+    mostrarModalMatematica: controlador.mostrarModalMatematica,
+    problemaMatematico: controlador.problemaMatematico,
+    resultadoVisible: Boolean(controlador.estado.resultado),
+    mostrarCelebracion: Boolean(controlador.estado.resultado?.detalles?.ensamblajeCompleto),
+  });
+
+  const manejarSalir = useCallback(() => {
+    audioRobot.reproducirSeleccion();
+    onSalir?.();
+  }, [audioRobot, onSalir]);
+
+  const continuarActividad = useCallback(async () => {
+    audioRobot.reproducirSeleccion();
+    sesionRobotTaller.prepararNuevaRonda();
+    const partidaLista = await sesionRobotTaller.prepararRonda(
+      configuracionEfectiva.dificultad,
+    );
+
+    if (partidaLista) {
+      controlador.reiniciarPartida();
+      setRondaVersion((actual) => actual + 1);
+    }
+  }, [audioRobot, configuracionEfectiva.dificultad, controlador, sesionRobotTaller]);
+
   const escena = useMemo(
     () =>
       construirEscenaRobotTaller({
@@ -53,30 +80,20 @@ export default function RobotTallerScreen({
         estado: controlador.estado,
         respuestaInicioSesion: sesionRobotTaller.respuestaInicio,
         respuestaFinalizacionSesion: sesionRobotTaller.respuestaFinalizacion,
-        continuarActividad: async () => {
-          sesionRobotTaller.prepararNuevaRonda();
-          const partidaLista = await sesionRobotTaller.prepararRonda(
-            configuracionEfectiva.dificultad,
-          );
-
-          if (partidaLista) {
-            controlador.reiniciarPartida();
-            setRondaVersion((actual) => actual + 1);
-          }
-        },
-        salirActividad: onSalir,
+        continuarActividad,
+        salirActividad: manejarSalir,
         reiniciarPartida: controlador.reiniciarPartida,
         contextoSesion,
       }),
     [
       configuracionEfectiva,
+      continuarActividad,
       controlador.estado,
       controlador.reiniciarPartida,
       contextoSesion,
-      onSalir,
+      manejarSalir,
       sesionRobotTaller.respuestaInicio,
       sesionRobotTaller.respuestaFinalizacion,
-      sesionRobotTaller,
     ],
   );
 
@@ -88,7 +105,7 @@ export default function RobotTallerScreen({
 
   return (
     <RobotTallerVista
-      onSalir={onSalir}
+      onSalir={manejarSalir}
       escena={escena}
       estado={controlador.estado}
       configuracion={controlador.configuracion}
@@ -112,6 +129,7 @@ export default function RobotTallerScreen({
       manejarIncorrectaMatematica={controlador.manejarIncorrectaMatematica}
       setMostrarModalMatematica={controlador.setMostrarModalMatematica}
       temaNombre={controlador.temaNombre}
+      uiAudio={audioRobot}
     />
   );
 }
